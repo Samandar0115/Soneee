@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Curator AI — Dashboard</title>
+<style>
+:root {
+  --bg:       #0f172a;
+  --surface:  #1e293b;
+  --border:   #334155;
+  --text:     #e2e8f0;
+  --muted:    #94a3b8;
+  --blue:     #3b82f6;
+  --red:      #ef4444;
+  --yellow:   #f59e0b;
+  --green:    #22c55e;
+  --purple:   #a855f7;
+  --cyan:     #06b6d4;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh}
+
+/* ── NAV ── */
+nav{background:var(--surface);border-bottom:1px solid var(--border);
+    display:flex;align-items:center;gap:16px;padding:0 24px;height:56px;
+    position:sticky;top:0;z-index:100}
+nav .logo{font-size:18px;font-weight:700;color:var(--blue);white-space:nowrap}
+nav .logo span{color:var(--text)}
+nav .tabs{display:flex;gap:2px;margin-left:auto}
+nav .tab{background:none;border:none;color:var(--muted);padding:8px 16px;
+         border-radius:6px;cursor:pointer;font-size:14px;font-weight:500}
+nav .tab.active{background:var(--blue);color:#fff}
+nav .tab:hover:not(.active){background:var(--border);color:var(--text)}
+#live-dot{width:8px;height:8px;border-radius:50%;background:var(--green);
+          animation:blink 2s infinite;margin-left:4px}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* ── LAYOUT ── */
+main{padding:24px;max-width:1400px;margin:0 auto}
+.page{display:none}
+.page.active{display:block}
+
+/* ── STATS CARDS ── */
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px;margin-bottom:24px}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;
+           padding:20px 16px;text-align:center;transition:border-color .2s}
+.stat-card:hover{border-color:var(--blue)}
+.stat-card .val{font-size:36px;font-weight:700;margin:4px 0}
+.stat-card .lbl{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+.stat-card.blue  .val{color:var(--blue)}
+.stat-card.red   .val{color:var(--red)}
+.stat-card.green .val{color:var(--green)}
+.stat-card.yellow.val{color:var(--yellow)}
+.stat-card.purple.val{color:var(--purple)}
+
+/* ── TOOLBAR ── */
+.toolbar{display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap}
+select,input{background:var(--surface);border:1px solid var(--border);color:var(--text);
+             padding:8px 12px;border-radius:8px;font-size:14px;outline:none}
+select:focus,input:focus{border-color:var(--blue)}
+.btn{background:var(--blue);border:none;color:#fff;padding:8px 16px;border-radius:8px;
+     cursor:pointer;font-size:14px;font-weight:600;display:flex;align-items:center;gap:6px}
+.btn:hover{opacity:.85}
+.btn.red{background:var(--red)}
+.btn.green{background:var(--green)}
+.btn.ghost{background:var(--surface);border:1px solid var(--border);color:var(--text)}
+.btn.ghost:hover{border-color:var(--blue);color:var(--blue)}
+.spacer{flex:1}
+
+/* ── TABLE ── */
+.table-wrap{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{background:#0f172a;color:var(--muted);font-weight:600;padding:12px 14px;
+   text-align:left;font-size:12px;text-transform:uppercase;letter-spacing:.5px}
+td{padding:12px 14px;border-top:1px solid var(--border);vertical-align:top}
+tr:hover td{background:rgba(59,130,246,.05)}
+.empty-row td{text-align:center;color:var(--muted);padding:40px}
+
+/* ── BADGES ── */
+.badge{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;
+       border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap}
+.badge.lead      {background:rgba(59,130,246,.15);color:var(--blue)}
+.badge.platforma {background:rgba(239,68,68,.15);color:var(--red)}
+.badge.tolov     {background:rgba(245,158,11,.15);color:var(--yellow)}
+.badge.kargo     {background:rgba(34,197,94,.15);color:var(--green)}
+.badge.texnik    {background:rgba(168,85,247,.15);color:var(--purple)}
+.badge.faq       {background:rgba(148,163,184,.15);color:var(--muted)}
+.badge.shoshilinch{background:rgba(239,68,68,.25);color:#fca5a5;border:1px solid var(--red)}
+.badge.high  {background:rgba(239,68,68,.15);color:var(--red)}
+.badge.medium{background:rgba(245,158,11,.15);color:var(--yellow)}
+.badge.low   {background:rgba(34,197,94,.15);color:var(--green)}
+.badge.open  {background:rgba(59,130,246,.15);color:var(--blue)}
+.badge.resolved{background:rgba(34,197,94,.15);color:var(--green)}
+
+/* ── TEXT EXPAND ── */
+.expandable{max-height:48px;overflow:hidden;cursor:pointer;transition:max-height .3s;position:relative}
+.expandable.open{max-height:400px}
+.expandable::after{content:'';position:absolute;bottom:0;left:0;right:0;height:20px;
+                   background:linear-gradient(transparent,var(--surface));pointer-events:none}
+.expandable.open::after{display:none}
+.ai-answer{background:#0f172a;border:1px solid var(--border);border-radius:6px;
+           padding:8px 10px;font-size:13px;line-height:1.6;margin-top:4px}
+
+/* ── RESOLVE BUTTON ── */
+.resolve-btn{background:none;border:1px solid var(--green);color:var(--green);
+             padding:4px 10px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600}
+.resolve-btn:hover{background:var(--green);color:#000}
+.resolve-btn:disabled{opacity:.4;cursor:default}
+
+/* ── CATEGORY BREAKDOWN ── */
+.cat-bars{display:flex;flex-direction:column;gap:10px;margin-top:8px}
+.cat-bar-row{display:flex;align-items:center;gap:10px}
+.cat-bar-label{width:180px;font-size:13px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cat-bar-track{flex:1;background:var(--border);border-radius:999px;height:8px;overflow:hidden}
+.cat-bar-fill{height:100%;border-radius:999px;background:var(--blue);transition:width .5s}
+.cat-bar-count{min-width:32px;text-align:right;font-size:13px;font-weight:600}
+
+/* ── LEADS TABLE ── */
+.lead-status-new{color:var(--blue);font-weight:700}
+.lead-status-contacted{color:var(--yellow);font-weight:700}
+.lead-status-converted{color:var(--green);font-weight:700}
+
+/* ── TOAST ── */
+#toast{position:fixed;bottom:24px;right:24px;background:#22c55e;color:#000;
+       padding:12px 20px;border-radius:8px;font-weight:600;font-size:14px;
+       transform:translateY(80px);opacity:0;transition:.3s;z-index:999}
+#toast.show{transform:translateY(0);opacity:1}
+
+/* ── RESPONSIVE ── */
+@media(max-width:700px){
+  main{padding:12px}
+  .toolbar{flex-direction:column;align-items:stretch}
+  th:nth-child(4),th:nth-child(5),td:nth-child(4),td:nth-child(5){display:none}
+}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="logo">🤖 Curator AI <span>Dashboard</span></div>
+  <div id="live-dot" title="Jonli yangilanish"></div>
+  <div class="tabs">
+    <button class="tab active" onclick="switchPage('messages',this)">📨 Xabarlar</button>
+    <button class="tab" onclick="switchPage('leads',this)">🎯 Leadlar</button>
+    <button class="tab" onclick="switchPage('stats',this)">📊 Statistika</button>
+  </div>
+</nav>
+
+<main>
+
+  <!-- ═══ MESSAGES PAGE ═══ -->
+  <div class="page active" id="page-messages">
+    <div class="stats-grid" id="mini-stats">
+      <div class="stat-card blue">  <div class="val" id="s-total">—</div><div class="lbl">Jami</div></div>
+      <div class="stat-card red">   <div class="val" id="s-open">—</div><div class="lbl">Ochiq</div></div>
+      <div class="stat-card green"> <div class="val" id="s-resolved">—</div><div class="lbl">Yopilgan</div></div>
+      <div class="stat-card red">   <div class="val" id="s-high">—</div><div class="lbl">Yuqori prior.</div></div>
+      <div class="stat-card blue">  <div class="val" id="s-today">—</div><div class="lbl">Bugun</div></div>
+    </div>
+
+    <div class="toolbar">
+      <select id="filter-cat" onchange="loadMessages()">
+        <option value="all">Barcha kategoriyalar</option>
+        <option value="lead_taqsimlash">🎯 Lead taqsimlash</option>
+        <option value="platforma_muammosi">🚫 Platforma muammosi</option>
+        <option value="tolov_tizimi">💳 To'lov tizimi</option>
+        <option value="kargo_logistika">📦 Kargo logistika</option>
+        <option value="texnik_xatolik">⚙️ Texnik xatolik</option>
+        <option value="ommaviy_faq">❓ Ommaviy FAQ</option>
+        <option value="shoshilinch_shikoyat">🚨 Shoshilinch</option>
+      </select>
+      <select id="filter-status" onchange="loadMessages()">
+        <option value="all">Barcha holatlar</option>
+        <option value="open">Ochiq</option>
+        <option value="resolved">Yopilgan</option>
+      </select>
+      <div class="spacer"></div>
+      <button class="btn ghost" onclick="loadMessages()">🔄 Yangilash</button>
+      <button class="btn ghost" onclick="exportCSV()">📥 CSV yuklab olish</button>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Foydalanuvchi</th>
+            <th>Xabar / AI javobi</th>
+            <th>Kategoriya</th>
+            <th>Prior.</th>
+            <th>Holat</th>
+            <th>Vaqt</th>
+            <th>Amal</th>
+          </tr>
+        </thead>
+        <tbody id="messages-tbody">
+          <tr class="empty-row"><td colspan="8">Yuklanmoqda...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div style="display:flex;justify-content:center;gap:10px;margin-top:16px">
+      <button class="btn ghost" id="btn-prev" onclick="prevPage()">← Oldingi</button>
+      <span id="page-info" style="padding:8px 16px;color:var(--muted);font-size:14px"></span>
+      <button class="btn ghost" id="btn-next" onclick="nextPage()">Keyingi →</button>
+    </div>
+  </div>
+
+  <!-- ═══ LEADS PAGE ═══ -->
+  <div class="page" id="page-leads">
+    <div class="toolbar">
+      <select id="filter-lead-status" onchange="loadLeads()">
+        <option value="">Barcha leadlar</option>
+        <option value="new">Yangi</option>
+        <option value="contacted">Aloqa o'rnatildi</option>
+        <option value="converted">Ro'yxatdan o'tdi</option>
+      </select>
+      <div class="spacer"></div>
+      <button class="btn ghost" onclick="loadLeads()">🔄 Yangilash</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Ism</th>
+            <th>Username</th>
+            <th>Qiziqish</th>
+            <th>Tayinlangan</th>
+            <th>Holat</th>
+            <th>Sana</th>
+          </tr>
+        </thead>
+        <tbody id="leads-tbody">
+          <tr class="empty-row"><td colspan="7">Yuklanmoqda...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ═══ STATS PAGE ═══ -->
+  <div class="page" id="page-stats">
+    <div class="stats-grid">
+      <div class="stat-card blue">  <div class="val" id="st-total">—</div><div class="lbl">Jami xabar</div></div>
+      <div class="stat-card green"> <div class="val" id="st-today">—</div><div class="lbl">Bugun</div></div>
+      <div class="stat-card red">   <div class="val" id="st-open">—</div><div class="lbl">Ochiq</div></div>
+      <div class="stat-card green"> <div class="val" id="st-resolved">—</div><div class="lbl">Yopilgan</div></div>
+      <div class="stat-card red">   <div class="val" id="st-high">—</div><div class="lbl">Yuqori prior.</div></div>
+      <div class="stat-card purple"><div class="val" id="st-leads">—</div><div class="lbl">Yangi leadlar</div></div>
+    </div>
+
+    <div class="table-wrap" style="padding:24px">
+      <h3 style="margin-bottom:16px;font-size:16px">Kategoriya bo'yicha taqsimot</h3>
+      <div class="cat-bars" id="cat-bars"></div>
+    </div>
+  </div>
+
+</main>
+
+<div id="toast"></div>
+
+<script>
+const CAT_LABELS = {
+  lead_taqsimlash:      {icon:'🎯', label:'Lead',       cls:'lead'},
+  platforma_muammosi:   {icon:'🚫', label:'Platforma',  cls:'platforma'},
+  tolov_tizimi:         {icon:'💳', label:"To'lov",     cls:'tolov'},
+  kargo_logistika:      {icon:'📦', label:'Kargo',      cls:'kargo'},
+  texnik_xatolik:       {icon:'⚙️', label:'Texnik',     cls:'texnik'},
+  ommaviy_faq:          {icon:'❓', label:'FAQ',        cls:'faq'},
+  shoshilinch_shikoyat: {icon:'🚨', label:'Shoshilinch',cls:'shoshilinch'},
+};
+
+let currentPage = 0;
+const PAGE_SIZE  = 50;
+
+// ── PAGES ──
+function switchPage(name, el) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  el.classList.add('active');
+  if (name === 'stats') loadStats();
+  if (name === 'leads') loadLeads();
+}
+
+// ── MESSAGES ──
+async function loadMessages() {
+  const cat    = document.getElementById('filter-cat').value;
+  const status = document.getElementById('filter-status').value;
+  const url    = `/api/messages?category=${cat}&status=${status}&limit=${PAGE_SIZE}&offset=${currentPage * PAGE_SIZE}`;
+  const rows   = await fetch(url).then(r => r.json());
+  renderMessages(rows);
+  document.getElementById('page-info').textContent = `Sahifa ${currentPage + 1}`;
+  document.getElementById('btn-prev').disabled = currentPage === 0;
+  document.getElementById('btn-next').disabled = rows.length < PAGE_SIZE;
+}
+
+function prevPage() { if (currentPage > 0) { currentPage--; loadMessages(); } }
+function nextPage() { currentPage++; loadMessages(); }
+
+function renderMessages(rows) {
+  const tbody = document.getElementById('messages-tbody');
+  if (!rows.length) {
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="8">Xabarlar topilmadi</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(r => {
+    const ci = CAT_LABELS[r.category] || {icon:'❓', label: r.category, cls:'faq'};
+    const dt = r.created_at ? r.created_at.slice(0,16).replace('T',' ') : '—';
+    const resolved = r.status === 'resolved';
+    return `
+    <tr>
+      <td style="color:var(--muted);font-size:12px">#${r.id}</td>
+      <td>
+        <div style="font-weight:600;font-size:14px">${esc(r.full_name||'—')}</div>
+        <div style="color:var(--muted);font-size:12px">@${esc(r.username||'noma'lum')}</div>
+        <div style="color:var(--muted);font-size:11px">ID: ${r.telegram_id}</div>
+      </td>
+      <td style="max-width:320px">
+        <div class="expandable" onclick="this.classList.toggle('open')">
+          <div style="font-size:13px;color:var(--muted);margin-bottom:4px">${esc(r.text||'')}</div>
+          ${r.ai_answer ? `<div class="ai-answer">🤖 ${esc(r.ai_answer)}</div>` : ''}
+        </div>
+      </td>
+      <td><span class="badge ${ci.cls}">${ci.icon} ${ci.label}</span></td>
+      <td><span class="badge ${r.priority||'low'}">${r.priority||'low'}</span></td>
+      <td><span class="badge ${r.status||'open'}">${r.status==='resolved'?'✅ Yopilgan':'🔵 Ochiq'}</span></td>
+      <td style="font-size:12px;color:var(--muted);white-space:nowrap">${dt}</td>
+      <td>
+        <button class="resolve-btn" ${resolved?'disabled':''} onclick="resolveMsg(${r.id},this)">
+          ${resolved ? 'Yopildi' : 'Yopish'}
+        </button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+async function resolveMsg(id, btn) {
+  btn.disabled = true;
+  btn.textContent = '...';
+  await fetch(`/api/resolve/${id}`, {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'});
+  btn.textContent = 'Yopildi';
+  showToast(`#${id} yopildi ✅`);
+  loadStats();
+}
+
+// ── LEADS ──
+async function loadLeads() {
+  const status = document.getElementById('filter-lead-status').value;
+  const url = `/api/leads${status ? '?status=' + status : ''}`;
+  const rows = await fetch(url).then(r => r.json());
+  renderLeads(rows);
+}
+
+function renderLeads(rows) {
+  const tbody = document.getElementById('leads-tbody');
+  if (!rows.length) {
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="7">Leadlar topilmadi</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(r => {
+    const dt = r.created_at ? r.created_at.slice(0,16).replace('T',' ') : '—';
+    const sc = {new:'lead-status-new', contacted:'lead-status-contacted', converted:'lead-status-converted'}[r.status] || '';
+    return `
+    <tr>
+      <td style="color:var(--muted);font-size:12px">#${r.id}</td>
+      <td style="font-weight:600">${esc(r.full_name||'—')}</td>
+      <td style="color:var(--muted)">@${esc(r.username||'—')}</td>
+      <td style="font-size:13px;max-width:200px">${esc((r.interest||'').slice(0,100))}</td>
+      <td style="font-size:13px">${esc(r.assigned_to||'—')}</td>
+      <td><span class="${sc}">${r.status||'new'}</span></td>
+      <td style="font-size:12px;color:var(--muted)">${dt}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── STATS ──
+async function loadStats() {
+  const s = await fetch('/api/stats').then(r => r.json());
+  document.getElementById('st-total').textContent    = s.total;
+  document.getElementById('st-today').textContent    = s.today;
+  document.getElementById('st-open').textContent     = s.open;
+  document.getElementById('st-resolved').textContent = s.resolved;
+  document.getElementById('st-high').textContent     = s.high_priority;
+  document.getElementById('st-leads').textContent    = s.new_leads;
+  // mini stats
+  document.getElementById('s-total').textContent    = s.total;
+  document.getElementById('s-open').textContent     = s.open;
+  document.getElementById('s-resolved').textContent = s.resolved;
+  document.getElementById('s-high').textContent     = s.high_priority;
+  document.getElementById('s-today').textContent    = s.today;
+
+  // cat bars
+  const cats = s.by_category || {};
+  const max  = Math.max(1, ...Object.values(cats));
+  const bars = document.getElementById('cat-bars');
+  bars.innerHTML = Object.entries(cats).sort((a,b) => b[1]-a[1]).map(([k,v]) => {
+    const ci = CAT_LABELS[k] || {icon:'❓', label:k};
+    const pct = Math.round(v / max * 100);
+    return `
+    <div class="cat-bar-row">
+      <div class="cat-bar-label">${ci.icon} ${ci.label}</div>
+      <div class="cat-bar-track">
+        <div class="cat-bar-fill" style="width:${pct}%"></div>
+      </div>
+      <div class="cat-bar-count">${v}</div>
+    </div>`;
+  }).join('');
+}
+
+// ── EXPORT ──
+function exportCSV() {
+  window.open('/api/export/csv');
+}
+
+// ── TOAST ──
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// ── UTILS ──
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── AUTO-REFRESH ──
+async function autoRefresh() {
+  await loadStats();
+  await loadMessages();
+}
+document.addEventListener('DOMContentLoaded', () => {
+  autoRefresh();
+  setInterval(autoRefresh, 30000); // 30 soniya
+});
+</script>
+</body>
+</html>
