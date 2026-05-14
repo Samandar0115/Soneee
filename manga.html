@@ -1,0 +1,1203 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Curator AI Digital Twin — Manga</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Bangers&family=Comic+Neue:wght@400;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #1a1a2e;
+    font-family: 'Comic Neue', cursive;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+  }
+
+  /* ── COVER ── */
+  .cover {
+    width: 760px;
+    height: 1000px;
+    background: linear-gradient(160deg, #0f3460 0%, #16213e 50%, #e94560 100%);
+    border: 6px solid #e94560;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 30px;
+    position: relative;
+    overflow: hidden;
+  }
+  .cover::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+      45deg, transparent, transparent 30px,
+      rgba(255,255,255,.03) 30px, rgba(255,255,255,.03) 31px
+    );
+  }
+  .cover-vol {
+    font-family: 'Bangers', cursive;
+    font-size: 22px;
+    color: #e94560;
+    letter-spacing: 6px;
+    margin-bottom: 10px;
+    z-index: 1;
+  }
+  .cover-title {
+    font-family: 'Bangers', cursive;
+    font-size: 64px;
+    color: #fff;
+    text-align: center;
+    line-height: 1.1;
+    text-shadow: 4px 4px 0 #e94560;
+    z-index: 1;
+    padding: 0 20px;
+  }
+  .cover-subtitle {
+    font-size: 18px;
+    color: #a8dadc;
+    margin-top: 12px;
+    letter-spacing: 2px;
+    z-index: 1;
+  }
+  .cover-robot {
+    font-size: 160px;
+    margin: 30px 0 10px;
+    z-index: 1;
+    filter: drop-shadow(0 0 30px #e94560);
+    animation: float 3s ease-in-out infinite;
+  }
+  @keyframes float {
+    0%,100% { transform: translateY(0); }
+    50%      { transform: translateY(-18px); }
+  }
+  .cover-tag {
+    font-family: 'Bangers', cursive;
+    font-size: 20px;
+    color: #e94560;
+    border: 2px solid #e94560;
+    padding: 6px 18px;
+    border-radius: 4px;
+    margin-top: 20px;
+    z-index: 1;
+    letter-spacing: 3px;
+  }
+  .cover-stars {
+    position: absolute;
+    font-size: 14px;
+    color: rgba(255,255,255,.3);
+    z-index: 0;
+  }
+
+  /* ── PAGE ── */
+  .page {
+    width: 760px;
+    background: #fff;
+    border: 4px solid #111;
+    border-radius: 4px;
+    margin-bottom: 30px;
+    padding: 16px;
+    display: grid;
+    gap: 8px;
+    position: relative;
+  }
+  .page-num {
+    position: absolute;
+    bottom: 8px;
+    right: 14px;
+    font-family: 'Bangers', cursive;
+    font-size: 18px;
+    color: #aaa;
+  }
+
+  /* Grid layouts */
+  .layout-1 { grid-template-columns: 1fr; }
+  .layout-2h { grid-template-columns: 1fr 1fr; }
+  .layout-3h { grid-template-columns: 1fr 1fr 1fr; }
+  .layout-big-left  { grid-template-columns: 2fr 1fr; }
+  .layout-big-right { grid-template-columns: 1fr 2fr; }
+  .layout-top-big {
+    grid-template-rows: auto auto;
+    grid-template-columns: 1fr 1fr;
+  }
+  .layout-custom-1 {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 280px 220px;
+  }
+  .layout-custom-2 {
+    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-rows: 200px 280px;
+  }
+  .layout-custom-3 {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 220px 250px 180px;
+  }
+  .layout-custom-4 {
+    grid-template-columns: 3fr 2fr;
+    grid-template-rows: 300px 240px;
+  }
+
+  /* ── PANEL ── */
+  .panel {
+    border: 3px solid #111;
+    position: relative;
+    overflow: hidden;
+    background: #fff;
+    min-height: 180px;
+  }
+  .panel.dark  { background: #1a1a2e; }
+  .panel.blue  { background: #e8f4f8; }
+  .panel.red   { background: #fff0f0; }
+  .panel.green { background: #f0fff4; }
+  .panel.gold  { background: #fffbea; }
+  .panel.span2 { grid-column: span 2; }
+  .panel.span3 { grid-column: span 3; }
+  .panel.row2  { grid-row: span 2; }
+
+  /* ── SCENE CONTENT ── */
+  .scene {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 12px;
+    position: relative;
+  }
+
+  /* Characters */
+  .char {
+    font-size: 72px;
+    line-height: 1;
+    display: block;
+    user-select: none;
+  }
+  .char.sm  { font-size: 48px; }
+  .char.lg  { font-size: 96px; }
+  .char.xl  { font-size: 128px; }
+  .char.glow {
+    filter: drop-shadow(0 0 12px #e94560);
+    animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%,100% { filter: drop-shadow(0 0 12px #e94560); }
+    50%      { filter: drop-shadow(0 0 28px #e94560); }
+  }
+
+  /* Speed lines */
+  .speed-lines {
+    position: absolute;
+    inset: 0;
+    background: repeating-conic-gradient(
+      from 0deg at 50% 50%,
+      rgba(0,0,0,.08) 0deg 2deg,
+      transparent 2deg 5deg
+    );
+    pointer-events: none;
+  }
+
+  /* Background grid */
+  .bg-grid {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,0,0,.06) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,0,0,.06) 1px, transparent 1px);
+    background-size: 24px 24px;
+    pointer-events: none;
+  }
+
+  /* Halftone dots */
+  .bg-dots {
+    position: absolute;
+    inset: 0;
+    background-image: radial-gradient(circle, rgba(0,0,0,.12) 1px, transparent 1px);
+    background-size: 12px 12px;
+    pointer-events: none;
+  }
+
+  /* ── SPEECH BUBBLES ── */
+  .bubble {
+    position: absolute;
+    background: #fff;
+    border: 2.5px solid #111;
+    border-radius: 18px;
+    padding: 8px 13px;
+    font-family: 'Comic Neue', cursive;
+    font-weight: 700;
+    font-size: 13px;
+    line-height: 1.4;
+    color: #111;
+    max-width: 200px;
+    z-index: 10;
+  }
+  .bubble::after {
+    content: '';
+    position: absolute;
+    border: 10px solid transparent;
+  }
+  /* tail directions */
+  .bubble.tail-bl::after {
+    border-top-color: #111;
+    bottom: -21px; left: 18px;
+  }
+  .bubble.tail-bl::before {
+    content: '';
+    position: absolute;
+    border: 10px solid transparent;
+    border-top-color: #fff;
+    bottom: -18px; left: 19px;
+    z-index: 11;
+  }
+  .bubble.tail-br::after {
+    border-top-color: #111;
+    bottom: -21px; right: 18px;
+  }
+  .bubble.tail-br::before {
+    content: '';
+    position: absolute;
+    border: 10px solid transparent;
+    border-top-color: #fff;
+    bottom: -18px; right: 19px;
+    z-index: 11;
+  }
+  .bubble.tail-tl::after {
+    border-bottom-color: #111;
+    top: -21px; left: 18px;
+  }
+  .bubble.tail-tl::before {
+    content: '';
+    position: absolute;
+    border: 10px solid transparent;
+    border-bottom-color: #fff;
+    top: -18px; left: 19px;
+    z-index: 11;
+  }
+  .bubble.tail-tr::after {
+    border-bottom-color: #111;
+    top: -21px; right: 18px;
+  }
+  .bubble.tail-tr::before {
+    content: '';
+    position: absolute;
+    border: 10px solid transparent;
+    border-bottom-color: #fff;
+    top: -18px; right: 19px;
+    z-index: 11;
+  }
+  /* thought bubble */
+  .bubble.thought {
+    border-radius: 50%;
+    padding: 12px 16px;
+    border-style: dashed;
+  }
+  /* shout */
+  .bubble.shout {
+    background: #fff200;
+    border-color: #e94560;
+    border-width: 3px;
+    clip-path: polygon(
+      4% 0%, 96% 0%, 100% 4%, 100% 96%, 96% 100%,
+      4% 100%, 0% 96%, 0% 4%
+    );
+    border-radius: 0;
+  }
+  /* robo bubble */
+  .bubble.robo {
+    background: #e8f4f8;
+    border-color: #0077b6;
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 12px;
+  }
+  /* narration box */
+  .narration {
+    position: absolute;
+    background: #1a1a2e;
+    color: #fff;
+    font-family: 'Comic Neue', cursive;
+    font-weight: 700;
+    font-size: 13px;
+    padding: 7px 14px;
+    border: 2px solid #e94560;
+    border-radius: 3px;
+    max-width: 220px;
+    z-index: 10;
+  }
+
+  /* ── SFX ── */
+  .sfx {
+    font-family: 'Bangers', cursive;
+    font-size: 42px;
+    color: #e94560;
+    text-shadow: 3px 3px 0 #111;
+    position: absolute;
+    z-index: 8;
+    transform: rotate(-8deg);
+    pointer-events: none;
+  }
+  .sfx.blue  { color: #0077b6; text-shadow: 3px 3px 0 #111; }
+  .sfx.gold  { color: #ffd700; text-shadow: 3px 3px 0 #111; }
+  .sfx.green { color: #2d6a4f; text-shadow: 3px 3px 0 #111; }
+  .sfx.sm    { font-size: 26px; }
+  .sfx.lg    { font-size: 60px; }
+
+  /* ── CHAPTER BANNER ── */
+  .chapter-banner {
+    width: 760px;
+    background: #e94560;
+    color: #fff;
+    font-family: 'Bangers', cursive;
+    font-size: 32px;
+    letter-spacing: 4px;
+    text-align: center;
+    padding: 14px;
+    border: 4px solid #111;
+    margin-bottom: 10px;
+    text-shadow: 2px 2px 0 #1a1a2e;
+  }
+
+  /* ── FLOW DIAGRAM (n8n) ── */
+  .flow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    flex-wrap: wrap;
+    padding: 8px;
+  }
+  .flow-node {
+    background: #0077b6;
+    color: #fff;
+    border: 2px solid #111;
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 11px;
+    font-weight: 700;
+    text-align: center;
+    white-space: nowrap;
+  }
+  .flow-node.red   { background: #e94560; }
+  .flow-node.green { background: #2d6a4f; }
+  .flow-node.gold  { background: #b5830a; }
+  .flow-arrow {
+    font-size: 18px;
+    color: #111;
+    font-weight: 900;
+  }
+
+  /* ── JSON BOX ── */
+  .json-box {
+    background: #1e293b;
+    color: #7dd3fc;
+    font-family: monospace;
+    font-size: 11px;
+    border: 2px solid #0077b6;
+    border-radius: 6px;
+    padding: 10px 14px;
+    line-height: 1.7;
+    width: 90%;
+    text-align: left;
+  }
+  .json-key  { color: #f472b6; }
+  .json-str  { color: #86efac; }
+  .json-brace{ color: #fbbf24; }
+
+  /* ── CATEGORY CARDS ── */
+  .cat-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    padding: 6px;
+    width: 100%;
+  }
+  .cat-card {
+    border: 2px solid #111;
+    border-radius: 6px;
+    padding: 6px 8px;
+    font-size: 11px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .cat-card .icon { font-size: 20px; }
+  .cat-card.c1 { background: #e0f2fe; border-color: #0077b6; }
+  .cat-card.c2 { background: #fee2e2; border-color: #dc2626; }
+  .cat-card.c3 { background: #fef9c3; border-color: #ca8a04; }
+  .cat-card.c4 { background: #dcfce7; border-color: #16a34a; }
+  .cat-card.c5 { background: #f3e8ff; border-color: #9333ea; }
+  .cat-card.c6 { background: #fff7ed; border-color: #ea580c; }
+  .cat-card.c7 { background: #fce7f3; border-color: #db2777; }
+
+  /* progress bar */
+  .prog-bar {
+    width: 85%;
+    height: 14px;
+    background: #e5e7eb;
+    border: 2px solid #111;
+    border-radius: 999px;
+    overflow: hidden;
+    margin: 4px 0;
+  }
+  .prog-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #0077b6, #e94560);
+    border-radius: 999px;
+  }
+
+  /* scene label */
+  .scene-label {
+    position: absolute;
+    top: 6px; left: 8px;
+    font-size: 10px;
+    color: #888;
+    font-style: italic;
+  }
+
+  /* panel title */
+  .panel-title {
+    font-family: 'Bangers', cursive;
+    font-size: 20px;
+    color: #0077b6;
+    text-align: center;
+    margin-bottom: 4px;
+    letter-spacing: 1px;
+  }
+
+  /* full-width narration strip */
+  .strip {
+    width: 100%;
+    background: #1a1a2e;
+    color: #e94560;
+    font-family: 'Bangers', cursive;
+    font-size: 22px;
+    letter-spacing: 3px;
+    text-align: center;
+    padding: 10px;
+    border-top: 3px solid #e94560;
+    border-bottom: 3px solid #e94560;
+  }
+
+  /* badge */
+  .badge {
+    display: inline-block;
+    background: #e94560;
+    color: #fff;
+    font-family: 'Bangers', cursive;
+    font-size: 14px;
+    padding: 3px 10px;
+    border-radius: 3px;
+    margin: 3px;
+    letter-spacing: 1px;
+  }
+  .badge.blue  { background: #0077b6; }
+  .badge.green { background: #2d6a4f; }
+  .badge.gold  { background: #b5830a; }
+
+  /* end page */
+  .end-page {
+    width: 760px;
+    background: #1a1a2e;
+    border: 4px solid #e94560;
+    border-radius: 8px;
+    padding: 40px;
+    text-align: center;
+    color: #fff;
+    font-family: 'Bangers', cursive;
+    font-size: 28px;
+    letter-spacing: 3px;
+    margin-bottom: 30px;
+  }
+  .end-page .next {
+    margin-top: 20px;
+    font-size: 18px;
+    color: #a8dadc;
+    font-family: 'Comic Neue', cursive;
+    font-weight: 700;
+  }
+
+  /* ── responsive ── */
+  @media (max-width: 800px) {
+    .cover, .page, .chapter-banner, .end-page { width: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════ COVER ═══════════════════ -->
+<div class="cover">
+  <div class="cover-vol">VOL.1</div>
+  <div class="cover-title">CURATOR AI<br>DIGITAL TWIN</div>
+  <div class="cover-subtitle">MARKETPLACE EDITION</div>
+  <div class="cover-robot">🤖</div>
+  <div class="cover-tag">TOSHKENT · 2026</div>
+  <!-- decorative stars -->
+  <span class="cover-stars" style="top:8%;left:5%;font-size:20px">✦</span>
+  <span class="cover-stars" style="top:15%;right:8%;font-size:14px">✦</span>
+  <span class="cover-stars" style="top:40%;left:3%;font-size:11px">✦</span>
+  <span class="cover-stars" style="bottom:20%;right:5%;font-size:18px">✦</span>
+  <span class="cover-stars" style="bottom:8%;left:12%;font-size:13px">✦</span>
+</div>
+
+<!-- ═══════════════════ CHAPTER 1 ═══════════════════ -->
+<div class="chapter-banner">1-BOB: TOSHKENTDA QIYOMAT KUNI</div>
+
+<!-- PAGE 1 -->
+<div class="page layout-custom-1">
+  <div class="page-num">1</div>
+
+  <!-- Panel 1: Wide city scene -->
+  <div class="panel dark span2" style="min-height:260px">
+    <div class="bg-dots"></div>
+    <div class="scene">
+      <div class="narration" style="top:10px;left:10px">
+        Toshkent. 2026-yil.<br>Ta'lim markazi.
+      </div>
+      <div style="font-size:80px;text-align:center;line-height:1">
+        🏙️
+      </div>
+      <div style="color:#a8dadc;font-size:14px;margin-top:8px;font-weight:700;letter-spacing:2px">
+        MARKETPLACE EDUCATION MARKAZI
+      </div>
+      <div style="display:flex;gap:20px;margin-top:12px">
+        <span style="font-size:40px">🏬</span>
+        <span style="font-size:40px">🏬</span>
+        <span style="font-size:40px">🏬</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Panel 2: Curator overwhelmed -->
+  <div class="panel red" style="min-height:200px;position:relative">
+    <div class="bg-dots"></div>
+    <span class="scene-label">Kurator xonasi</span>
+    <div class="scene" style="flex-direction:row;gap:16px;align-items:flex-end">
+      <div>
+        <span class="char" style="font-size:56px">😰</span>
+        <div style="font-size:11px;text-align:center;font-weight:700;margin-top:4px">KURATOR AZIZ</div>
+      </div>
+      <div>
+        <div class="bubble tail-bl" style="top:14px;left:60px;font-size:12px">
+          Yana 87 ta<br>xabar?! Men<br>charchadim...
+        </div>
+      </div>
+    </div>
+    <div style="position:absolute;bottom:8px;right:8px;font-size:22px">
+      📱📱📱📱📱
+    </div>
+  </div>
+
+  <!-- Panel 3: Messages pouring in -->
+  <div class="panel blue" style="min-height:200px;position:relative">
+    <div class="bg-grid"></div>
+    <span class="scene-label">Telegram inbox</span>
+    <div class="scene" style="gap:4px">
+      <div style="width:85%;background:#fff;border:2px solid #111;border-radius:8px;padding:6px 10px;font-size:11px;font-weight:700;margin-bottom:3px">
+        👤 Kamola: "TaoBao akkauntim blok!"
+      </div>
+      <div style="width:85%;background:#fff;border:2px solid #111;border-radius:8px;padding:6px 10px;font-size:11px;font-weight:700;margin-bottom:3px">
+        👤 Jasur: "Alipay ishlamayapti!"
+      </div>
+      <div style="width:85%;background:#fff;border:2px solid #111;border-radius:8px;padding:6px 10px;font-size:11px;font-weight:700;margin-bottom:3px">
+        👤 Nilufar: "Kurs narxi qancha?"
+      </div>
+      <div style="width:85%;background:#e94560;border:2px solid #111;border-radius:8px;padding:6px 10px;font-size:11px;font-weight:700;color:#fff">
+        👤 Sardor: "ROʻYXATDAN OʻTMOQCHI..."
+      </div>
+      <div style="font-family:'Bangers',cursive;font-size:16px;color:#e94560;margin-top:4px">
+        + 83 TA XABAR...
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PAGE 2 -->
+<div class="page layout-custom-4">
+  <div class="page-num">2</div>
+
+  <!-- Panel: Big dramatic panel - director decision -->
+  <div class="panel dark row2" style="position:relative">
+    <div class="speed-lines"></div>
+    <div class="scene">
+      <div class="narration" style="top:8px;left:8px">Direktor xonasi.</div>
+      <span class="char xl glow" style="font-size:100px">👔</span>
+      <div style="font-size:13px;font-weight:700;color:#a8dadc;margin-top:6px">DIREKTOR SHERZOD</div>
+      <div class="bubble tail-bl" style="bottom:80px;left:60px;font-size:12px;max-width:180px">
+        Bir kurator 24 soat<br>ishlay olmaydi.<br>Bizga <strong>AI kerak!</strong>
+      </div>
+      <div class="sfx" style="top:30px;right:10px;font-size:38px;transform:rotate(5deg)">
+        QAROR!
+      </div>
+    </div>
+  </div>
+
+  <!-- Panel: AI announcement -->
+  <div class="panel gold" style="min-height:140px;position:relative">
+    <div class="scene">
+      <span class="char" style="font-size:52px">🤖</span>
+      <div class="bubble tail-tl" style="top:8px;right:8px;font-size:11px;max-width:160px">
+        Men — Curator AI<br>Digital Twin.<br>Xizmatingizdaman!
+      </div>
+    </div>
+  </div>
+
+  <!-- Panel: Stats -->
+  <div class="panel" style="min-height:100px">
+    <div class="scene" style="gap:6px">
+      <div class="panel-title" style="font-size:16px">MUAMMO DARAJASI</div>
+      <div style="font-size:11px;font-weight:700;width:85%;text-align:left">
+        Xabarlar soni:
+        <div class="prog-bar"><div class="prog-fill" style="width:95%"></div></div>
+        Kuratorlar: <strong style="color:#e94560">2 kishi</strong> vs <strong style="color:#e94560">200+ talaba</strong>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ CHAPTER 2 ═══════════════════ -->
+<div class="chapter-banner">2-BOB: AI TIZIMINING TUZILISHI</div>
+
+<!-- PAGE 3 -->
+<div class="page" style="display:flex;flex-direction:column;gap:8px">
+  <div class="page-num">3</div>
+
+  <!-- Full-width: Architecture reveal -->
+  <div class="panel dark" style="min-height:220px;position:relative">
+    <div class="bg-grid" style="opacity:.3"></div>
+    <div class="scene">
+      <div class="narration" style="top:8px;left:8px">n8n Arxitektura</div>
+      <div class="panel-title" style="color:#7dd3fc;font-size:22px;margin-bottom:12px">
+        ZANJIR KETMA-KETLIGI
+      </div>
+      <div class="flow">
+        <div class="flow-node red">📱 Telegram<br>Trigger</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node" style="background:#7c3aed">🧠 Gemini 1.5<br>Flash</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node gold" style="background:#b5830a">⚡ Switch<br>7 yo'l</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node green">🌐 HTTP<br>Request</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node red">📤 Telegram<br>Send</div>
+      </div>
+      <div class="sfx blue sm" style="bottom:12px;right:12px;transform:rotate(-3deg)">PING!</div>
+    </div>
+  </div>
+
+  <!-- 2-column: AI brain + categories -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+
+    <div class="panel blue" style="min-height:280px;position:relative">
+      <div class="bg-dots"></div>
+      <div class="scene" style="gap:6px">
+        <span class="scene-label">Gemini Prompt — Miya</span>
+        <span class="char" style="font-size:60px;filter:drop-shadow(0 0 10px #0077b6)">🧠</span>
+        <div class="json-box" style="font-size:10px">
+          <span class="json-brace">{</span><br>
+          &nbsp;<span class="json-key">"kategoriya"</span>:
+          <span class="json-str">"lead_taqsimlash"</span>,<br>
+          &nbsp;<span class="json-key">"priority"</span>:
+          <span class="json-str">"high"</span>,<br>
+          &nbsp;<span class="json-key">"summary"</span>:
+          <span class="json-str">"Yangi talaba"</span>,<br>
+          &nbsp;<span class="json-key">"answer"</span>:
+          <span class="json-str">"Kurator bilan..."</span><br>
+          <span class="json-brace">}</span>
+        </div>
+        <div class="bubble robo tail-tl" style="top:8px;right:6px;font-size:10px">
+          Men har xabarni<br>tahlil qilaman!
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" style="min-height:280px">
+      <div class="scene" style="gap:4px">
+        <div class="panel-title">7 KATEGORIYA</div>
+        <div class="cat-grid">
+          <div class="cat-card c1"><span class="icon">🎯</span><span>Lead<br>taqsimlash</span></div>
+          <div class="cat-card c2"><span class="icon">🚫</span><span>Platforma<br>muammosi</span></div>
+          <div class="cat-card c3"><span class="icon">💳</span><span>To'lov<br>tizimi</span></div>
+          <div class="cat-card c4"><span class="icon">📦</span><span>Kargo<br>logistika</span></div>
+          <div class="cat-card c5"><span class="icon">⚙️</span><span>Texnik<br>xatolik</span></div>
+          <div class="cat-card c6"><span class="icon">❓</span><span>Ommaviy<br>FAQ</span></div>
+          <div class="cat-card c7" style="grid-column:span 2"><span class="icon">🚨</span><span>Shoshilinch shikoyat</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ CHAPTER 3 ═══════════════════ -->
+<div class="chapter-banner">3-BOB: MUAMMOLAR VA YECHIMLAR</div>
+
+<!-- PAGE 4 — Kamola's blocked account -->
+<div class="page layout-custom-2">
+  <div class="page-num">4</div>
+
+  <!-- Scene: student panics -->
+  <div class="panel red span3" style="min-height:160px;position:relative">
+    <div class="bg-dots"></div>
+    <div class="narration" style="top:8px;left:8px">Kategoriya: PLATFORMA MUAMMOSI</div>
+    <div class="scene" style="flex-direction:row;gap:20px">
+      <div style="text-align:center">
+        <span class="char" style="font-size:56px">😱</span>
+        <div style="font-size:11px;font-weight:700;margin-top:4px">KAMOLA</div>
+      </div>
+      <div style="flex:1">
+        <div class="bubble tail-bl" style="position:relative;top:0;left:0;max-width:280px;font-size:12px">
+          TaoBao akkauntim bloklanib qoldi!<br>
+          Nima qilaman?! Buyurtmalarim bor edi! 😭
+        </div>
+      </div>
+      <div style="text-align:center">
+        <span class="char" style="font-size:40px">📱</span>
+        <div style="background:#e94560;color:#fff;font-size:10px;font-weight:700;padding:4px 8px;border-radius:4px;margin-top:4px">
+          ACCOUNT BLOCKED
+        </div>
+      </div>
+    </div>
+    <div class="sfx" style="top:10px;right:10px;font-size:30px;transform:rotate(8deg)">SHOCK!</div>
+  </div>
+
+  <!-- AI processes -->
+  <div class="panel dark" style="min-height:220px;position:relative">
+    <div class="speed-lines" style="opacity:.5"></div>
+    <div class="scene">
+      <span class="char glow" style="font-size:64px">🤖</span>
+      <div style="font-family:'Bangers',cursive;font-size:16px;color:#7dd3fc;margin-top:6px">
+        TAHLIL QILMOQDA...
+      </div>
+      <div class="prog-bar" style="width:80%;margin-top:8px">
+        <div class="prog-fill" style="width:100%"></div>
+      </div>
+      <div class="sfx blue sm" style="top:10px;right:8px;transform:rotate(-5deg)">SCAN!</div>
+    </div>
+  </div>
+
+  <!-- AI solution -->
+  <div class="panel blue" style="min-height:220px;position:relative">
+    <div class="bg-grid"></div>
+    <div class="scene" style="gap:6px;align-items:flex-start;padding:14px">
+      <div class="panel-title" style="align-self:center">AI JAVOBI</div>
+      <div style="background:#fff;border:2px solid #0077b6;border-radius:8px;padding:8px 10px;font-size:11px;font-weight:700;width:100%">
+        ✅ <strong>1-qadam:</strong> TaoBao ilovasini qayta yoqing<br>
+        ✅ <strong>2-qadam:</strong> SMS tasdiqlash → +86 raqam<br>
+        ✅ <strong>3-qadam:</strong> Real ID foto yuklang<br>
+        ⏱ <strong>Muddat:</strong> 24-48 soat ichida ochiladi
+      </div>
+      <div style="font-size:10px;color:#666;font-weight:700">Priority: 🔴 HIGH</div>
+    </div>
+  </div>
+
+  <!-- Notification to curator -->
+  <div class="panel gold" style="min-height:220px;position:relative">
+    <div class="scene" style="gap:8px">
+      <span class="char sm">👔</span>
+      <div style="font-size:11px;font-weight:700;color:#b5830a;text-align:center">
+        KURATOR AZIZGA<br>BILDIRISHNOMA
+      </div>
+      <div style="background:#fff;border:2px solid #b5830a;border-radius:8px;padding:8px;font-size:11px;width:90%">
+        🔔 <strong>Kamola Yusupova</strong><br>
+        Muammo: Platforma blok<br>
+        Holat: AI javob berdi ✅<br>
+        Nazorat kerak: Ha
+      </div>
+    </div>
+  </div>
+
+  <!-- Happy student -->
+  <div class="panel green" style="min-height:220px;position:relative">
+    <div class="bg-dots"></div>
+    <div class="scene">
+      <span class="char" style="font-size:64px">😊</span>
+      <div class="bubble tail-tl" style="position:relative;top:0;left:0;margin-top:8px;font-size:11px">
+        Rahmat! 1 daqiqada<br>yechim topdim! 🎉
+      </div>
+      <div class="sfx green sm" style="bottom:8px;right:8px;transform:rotate(-6deg)">YAY!</div>
+    </div>
+  </div>
+</div>
+
+<!-- PAGE 5 — Lead distribution -->
+<div class="page layout-custom-3">
+  <div class="page-num">5</div>
+
+  <!-- Scene: New lead arrives -->
+  <div class="panel" style="min-height:200px;position:relative">
+    <div class="bg-dots"></div>
+    <span class="scene-label">Kategoriya: LEAD TAQSIMLASH</span>
+    <div class="scene" style="flex-direction:row;gap:12px">
+      <div style="text-align:center">
+        <span class="char" style="font-size:50px">🙋</span>
+        <div style="font-size:10px;font-weight:700">SARDOR</div>
+      </div>
+      <div class="bubble tail-bl" style="position:relative;font-size:11px;max-width:180px">
+        Salom! TaoBao kursiga<br>ro'yxatdan o'tmoqchiman.<br>Narxi qancha?
+      </div>
+    </div>
+  </div>
+
+  <!-- AI dispatches -->
+  <div class="panel dark" style="min-height:200px;position:relative">
+    <div class="speed-lines"></div>
+    <div class="scene" style="gap:6px">
+      <span class="char glow" style="font-size:52px">🤖</span>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center">
+        <div class="badge blue">📊 Google Sheets</div>
+        <div class="badge">📋 CRM</div>
+        <div class="badge green">📤 Telegram</div>
+      </div>
+      <div class="sfx gold sm" style="bottom:8px;right:8px;transform:rotate(4deg)">DISPATCH!</div>
+    </div>
+  </div>
+
+  <!-- Google Sheets entry -->
+  <div class="panel blue span2" style="min-height:230px;position:relative">
+    <div class="bg-grid"></div>
+    <div class="scene" style="gap:6px">
+      <div class="panel-title">GOOGLE SHEETS — LEADS</div>
+      <div style="width:95%;overflow-x:auto">
+        <table style="border-collapse:collapse;font-size:11px;width:100%">
+          <tr style="background:#0077b6;color:#fff">
+            <th style="padding:5px 8px;border:1.5px solid #111">ID</th>
+            <th style="padding:5px 8px;border:1.5px solid #111">Ism</th>
+            <th style="padding:5px 8px;border:1.5px solid #111">So'rov</th>
+            <th style="padding:5px 8px;border:1.5px solid #111">Status</th>
+          </tr>
+          <tr style="background:#f0f9ff">
+            <td style="padding:5px 8px;border:1.5px solid #ccc">001</td>
+            <td style="padding:5px 8px;border:1.5px solid #ccc">Sardor</td>
+            <td style="padding:5px 8px;border:1.5px solid #ccc">Kurs so'rovi</td>
+            <td style="padding:5px 8px;border:1.5px solid #ccc;color:green;font-weight:700">✅ Yangi</td>
+          </tr>
+          <tr style="background:#fff">
+            <td style="padding:5px 8px;border:1.5px solid #ccc">002</td>
+            <td style="padding:5px 8px;border:1.5px solid #ccc">Malika</td>
+            <td style="padding:5px 8px;border:1.5px solid #ccc">1688 kurs</td>
+            <td style="padding:5px 8px;border:1.5px solid #ccc;color:orange;font-weight:700">⏳ Kutmoqda</td>
+          </tr>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Curator notified -->
+  <div class="panel gold" style="min-height:180px;position:relative">
+    <div class="scene" style="flex-direction:row;gap:10px">
+      <span class="char sm">😊</span>
+      <div>
+        <div style="font-size:10px;font-weight:700;margin-bottom:4px">KURATOR AZIZ</div>
+        <div class="bubble tail-bl" style="position:relative;font-size:11px;max-width:160px">
+          AI hamma ishni<br>qildi! Men faqat<br>tasdiqlash qilaman.
+        </div>
+      </div>
+    </div>
+    <div class="sfx green sm" style="bottom:6px;right:6px;transform:rotate(-4deg)">RAHMAT!</div>
+  </div>
+</div>
+
+<!-- PAGE 6 — Payment & Cargo -->
+<div class="page layout-custom-1">
+  <div class="page-num">6</div>
+
+  <!-- Payment problem -->
+  <div class="panel red" style="min-height:260px;position:relative">
+    <div class="bg-dots"></div>
+    <span class="scene-label">Kategoriya: TO'LOV TIZIMI</span>
+    <div class="scene" style="gap:8px">
+      <div style="display:flex;gap:16px;align-items:flex-end">
+        <div style="text-align:center">
+          <span class="char" style="font-size:52px">😤</span>
+          <div style="font-size:10px;font-weight:700">JASUR</div>
+        </div>
+        <div class="bubble tail-bl" style="position:relative;font-size:11px;max-width:200px">
+          Alipay bilan to'lov o'tmaydi!<br>UzCard ham ishlamayapti!<br>Nima qilishni bilmayapman! 😡
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:8px;align-items:center">
+        <span style="font-size:30px">💳</span>
+        <span style="font-size:20px;color:#e94560;font-weight:900">❌</span>
+        <span style="font-size:30px">🏦</span>
+        <span style="font-size:20px;color:#e94560;font-weight:900">❌</span>
+      </div>
+      <div class="sfx" style="top:10px;right:10px;font-size:26px;transform:rotate(6deg)">ERROR!</div>
+    </div>
+  </div>
+
+  <!-- AI responds -->
+  <div class="panel dark" style="min-height:260px;position:relative">
+    <div class="speed-lines" style="opacity:.4"></div>
+    <div class="scene" style="gap:8px">
+      <span class="char glow" style="font-size:56px">🤖</span>
+      <div class="json-box" style="font-size:10px;width:90%">
+        <span class="json-key">kategoriya</span>: <span class="json-str">tolov_tizimi</span><br>
+        <span class="json-key">priority</span>: <span class="json-str">high</span><br>
+        <span class="json-key">answer</span>: <span class="json-str">Valyuta cheklovi...</span>
+      </div>
+      <div class="sfx blue sm" style="top:8px;right:8px;transform:rotate(-4deg)">DETECT!</div>
+    </div>
+  </div>
+
+  <!-- Solution steps -->
+  <div class="panel green" style="min-height:220px;position:relative">
+    <div class="bg-grid"></div>
+    <div class="scene" style="gap:6px;align-items:flex-start;padding:12px">
+      <div class="panel-title" style="align-self:center">TO'LOV YECHIMI</div>
+      <div style="font-size:11px;font-weight:700;width:100%">
+        <div style="background:#fff;border:2px solid #2d6a4f;border-radius:6px;padding:7px;margin-bottom:5px">
+          💡 <strong>1-usul:</strong> Vositachi orqali<br>
+          &nbsp;&nbsp;&nbsp;(Agent to'lovi)
+        </div>
+        <div style="background:#fff;border:2px solid #2d6a4f;border-radius:6px;padding:7px;margin-bottom:5px">
+          💡 <strong>2-usul:</strong> Kripto → CNY<br>
+          &nbsp;&nbsp;&nbsp;konvertatsiya
+        </div>
+        <div style="background:#fff;border:2px solid #2d6a4f;border-radius:6px;padding:7px">
+          💡 <strong>3-usul:</strong> Markaz hisobi<br>
+          &nbsp;&nbsp;&nbsp;orqali o'tkazma
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Cargo scene -->
+  <div class="panel blue" style="min-height:220px;position:relative">
+    <div class="bg-dots"></div>
+    <span class="scene-label">Kategoriya: KARGO LOGISTIKA</span>
+    <div class="scene" style="gap:6px">
+      <div style="display:flex;gap:12px;align-items:flex-end">
+        <div style="text-align:center">
+          <span class="char sm">🤔</span>
+          <div style="font-size:10px;font-weight:700">NILUFAR</div>
+        </div>
+        <div class="bubble tail-bl" style="position:relative;font-size:10px;max-width:160px">
+          Trek kodum bor<br>lekin yuk qayerda<br>ekanini bilmayman?
+        </div>
+      </div>
+      <div style="background:#fff;border:2px solid #0077b6;border-radius:6px;padding:7px;font-size:10px;font-weight:700;width:90%;margin-top:6px">
+        🤖 <strong>AI:</strong> Trek: CN123456789UZ<br>
+        📍 Status: Guangzhou → Toshkent<br>
+        ⏱ ETA: 12-15 kun<br>
+        🏭 Ombor: Chilonzor filiali
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ CHAPTER 4 ═══════════════════ -->
+<div class="chapter-banner">4-BOB: SHOSHILINCH VAZIYAT!</div>
+
+<!-- PAGE 7 — Emergency complaint -->
+<div class="page layout-custom-4">
+  <div class="page-num">7</div>
+
+  <!-- Big emergency panel -->
+  <div class="panel red row2" style="position:relative">
+    <div class="speed-lines" style="opacity:.6"></div>
+    <div class="scene" style="gap:10px">
+      <div class="narration" style="top:8px;left:8px">
+        Kategoriya:<br>SHOSHILINCH SHIKOYAT
+      </div>
+      <span class="char" style="font-size:80px;filter:drop-shadow(0 0 15px #e94560)">😡</span>
+      <div style="font-size:11px;font-weight:700;color:#111">FIRDAVS</div>
+      <div class="bubble shout" style="position:relative;top:0;left:0;font-size:13px;max-width:240px;text-align:center">
+        3 KUN BO'LDI! TO'LOVIM<br>O'TMADI! KURATOR<br>JAVOB BERMAYAPTI!!! 🔥
+      </div>
+      <div class="sfx lg" style="bottom:20px;right:8px;transform:rotate(-10deg)">
+        XAVF!
+      </div>
+    </div>
+  </div>
+
+  <!-- AI escalation -->
+  <div class="panel dark" style="min-height:150px;position:relative">
+    <div class="bg-grid" style="opacity:.3"></div>
+    <div class="scene" style="gap:6px">
+      <span class="char glow" style="font-size:44px">🤖</span>
+      <div class="badge" style="font-size:16px;padding:6px 14px;background:#e94560;animation:pulse 1s infinite">
+        🚨 PRIORITY: HIGH
+      </div>
+    </div>
+  </div>
+
+  <!-- Director gets alert -->
+  <div class="panel gold" style="min-height:150px;position:relative">
+    <div class="scene" style="flex-direction:row;gap:10px">
+      <span class="char sm">👔</span>
+      <div>
+        <div style="font-size:10px;font-weight:700;color:#111;margin-bottom:4px">DIREKTORGA SIGNAL</div>
+        <div style="background:#fff;border:2px solid #e94560;border-radius:6px;padding:6px;font-size:10px;font-weight:700">
+          🚨 SHOSHILINCH!<br>
+          Firdavs — To'lov muammosi<br>
+          ⚡ Darhol aloqa kerak!
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ CHAPTER 5 ═══════════════════ -->
+<div class="chapter-banner">5-BOB: KELAJAK INTEGRATSIYALARI</div>
+
+<!-- PAGE 8 — Future vision -->
+<div class="page layout-custom-2">
+  <div class="page-num">8</div>
+
+  <!-- Vision header -->
+  <div class="panel dark span3" style="min-height:140px;position:relative">
+    <div class="bg-dots" style="opacity:.3"></div>
+    <div class="scene">
+      <div class="narration" style="top:8px;left:8px">Kelajak rejasi — 2026+</div>
+      <div class="panel-title" style="color:#7dd3fc;font-size:26px">
+        TIZIM YANADA KUCHAYMOQDA
+      </div>
+      <div style="display:flex;gap:20px;margin-top:10px">
+        <div style="text-align:center;color:#fff;font-size:11px;font-weight:700">
+          <span style="font-size:36px">💳</span><br>Alipay API
+        </div>
+        <div style="text-align:center;color:#fff;font-size:11px;font-weight:700">
+          <span style="font-size:36px">📦</span><br>Kargo Bot
+        </div>
+        <div style="text-align:center;color:#fff;font-size:11px;font-weight:700">
+          <span style="font-size:36px">🎓</span><br>LMS Integratsiya
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Alipay auto-check -->
+  <div class="panel blue" style="min-height:230px;position:relative">
+    <div class="bg-grid"></div>
+    <div class="scene" style="gap:6px">
+      <div class="panel-title">ALIPAY API</div>
+      <span style="font-size:50px">💳</span>
+      <div class="bubble robo" style="position:relative;top:0;left:0;font-size:10px;max-width:180px">
+        To'lov holatini<br>AVTOMATIK tekshirib<br>xabar beraman!
+      </div>
+      <div style="background:#fff;border:2px solid #0077b6;border-radius:6px;padding:6px;font-size:10px;font-weight:700;width:90%">
+        ✅ To'lov #4521 — O'tdi<br>
+        ❌ To'lov #4522 — Xato<br>
+        ⏳ To'lov #4523 — Kutmoqda
+      </div>
+    </div>
+  </div>
+
+  <!-- Cargo bot -->
+  <div class="panel green" style="min-height:230px;position:relative">
+    <div class="bg-dots"></div>
+    <div class="scene" style="gap:6px">
+      <div class="panel-title">KARGO BOT</div>
+      <span style="font-size:50px">📦</span>
+      <div class="bubble" style="position:relative;font-size:10px;max-width:180px;background:#dcfce7;border-color:#2d6a4f">
+        Yuk holatini<br>bot ichida ko'rasiz!<br>Trek → 1 soniya ✅
+      </div>
+      <div style="display:flex;gap:6px;margin-top:4px">
+        <span style="font-size:18px">🏭</span>
+        <span style="font-size:14px;color:#666">→</span>
+        <span style="font-size:18px">✈️</span>
+        <span style="font-size:14px;color:#666">→</span>
+        <span style="font-size:18px">🚚</span>
+        <span style="font-size:14px;color:#666">→</span>
+        <span style="font-size:18px">🏠</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- LMS integration -->
+  <div class="panel gold" style="min-height:230px;position:relative">
+    <div class="scene" style="gap:6px">
+      <div class="panel-title">LMS INTEGRATSIYA</div>
+      <span style="font-size:50px">🎓</span>
+      <div class="bubble tail-tl" style="position:relative;font-size:10px;max-width:180px;background:#fffbea;border-color:#b5830a">
+        Talaba qaysi darsda<br>qolganini ko'rib,<br>maqsadli javob beraman!
+      </div>
+      <div style="background:#fff;border:2px solid #b5830a;border-radius:6px;padding:6px;font-size:10px;font-weight:700;width:90%">
+        📖 Jasur: 5-dars (Buyurtma berish)<br>
+        ✅ AI: "Quyidagi qadamlar..."
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ FINAL PAGE ═══════════════════ -->
+<div class="page layout-1">
+  <div class="page-num">9</div>
+
+  <!-- Final big panel -->
+  <div class="panel dark" style="min-height:500px;position:relative">
+    <div class="speed-lines" style="opacity:.3"></div>
+    <div class="bg-dots" style="opacity:.2"></div>
+    <div class="scene" style="gap:16px">
+      <div class="narration" style="top:10px;left:10px">Natija...</div>
+
+      <!-- Stats comparison -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;width:90%">
+        <div style="background:rgba(233,69,96,.15);border:2px solid #e94560;border-radius:8px;padding:14px;text-align:center">
+          <div style="font-family:'Bangers',cursive;font-size:18px;color:#e94560;margin-bottom:8px">ILGARI</div>
+          <span style="font-size:40px">😰😰</span>
+          <div style="color:#fff;font-size:12px;font-weight:700;margin-top:8px">
+            2 kurator<br>200+ xabar<br>Javob: 2-6 soat<br>Charchoq: ∞
+          </div>
+        </div>
+        <div style="background:rgba(45,106,79,.2);border:2px solid #2d6a4f;border-radius:8px;padding:14px;text-align:center">
+          <div style="font-family:'Bangers',cursive;font-size:18px;color:#86efac;margin-bottom:8px">HOZIR</div>
+          <span class="char glow" style="font-size:40px">🤖</span>
+          <div style="color:#fff;font-size:12px;font-weight:700;margin-top:8px">
+            1 AI + 2 kurator<br>∞ xabar<br>Javob: 3 soniya<br>Charchoq: 0
+          </div>
+        </div>
+      </div>
+
+      <!-- Hero shot -->
+      <div style="display:flex;gap:20px;align-items:flex-end;margin-top:10px">
+        <div style="text-align:center">
+          <span class="char" style="font-size:60px;filter:drop-shadow(0 0 20px #86efac)">🤖</span>
+          <div style="color:#7dd3fc;font-size:12px;font-weight:700;margin-top:6px">CURATOR AI</div>
+        </div>
+        <div style="text-align:center">
+          <span class="char" style="font-size:50px">😊</span>
+          <div style="color:#a8dadc;font-size:11px;font-weight:700;margin-top:6px">KURATOR</div>
+        </div>
+        <div style="text-align:center">
+          <span class="char" style="font-size:44px">🙋</span>
+          <div style="color:#a8dadc;font-size:11px;font-weight:700;margin-top:6px">TALABA</div>
+        </div>
+      </div>
+
+      <div class="bubble tail-tl" style="position:relative;font-size:13px;max-width:300px;text-align:center;background:rgba(255,255,255,.95)">
+        Endi biz barchasi<br><strong>birgalikda ishlayapmiz!</strong><br>
+        Zero Trust. Zero Charchoq. ✅
+      </div>
+
+      <div class="sfx gold lg" style="bottom:20px;right:20px;transform:rotate(-8deg);font-size:50px">
+        MUVAFFAQIYAT!
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- STRIP -->
+<div class="strip">DAVOM ETADI... · NEXT VOLUME · VOL.2 — ALIPAY API HUJUMI</div>
+
+<!-- END CARD -->
+<div class="end-page">
+  <div style="font-size:60px;margin-bottom:16px">🤖✨</div>
+  CURATOR AI DIGITAL TWIN<br>
+  <span style="color:#e94560">MANGA EDITION</span>
+  <div class="next">
+    Toshkent · 2026 · Zero Trust Architecture<br>
+    <span style="font-size:14px;color:#666">Barcha muammolarga AI yechim topadi</span>
+  </div>
+</div>
+
+</body>
+</html>
