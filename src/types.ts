@@ -1,5 +1,15 @@
 export type Role = 'admin' | 'operator';
 
+export interface Category {
+  id: string;
+  name: string;
+  description?: string;
+  color: string;
+  icon?: string;
+  order: number;
+  active: boolean;
+}
+
 export interface User {
   id: string;
   username: string;
@@ -45,6 +55,7 @@ export interface Ticket {
   trackingNumber: string;
   status: TicketStatus;
   stageId: string;
+  categoryId?: string;
   customerName: string;
   customerPhone: string;
   channel?: string;
@@ -62,4 +73,5 @@ export interface AppDataSnapshot {
   users: User[];
   stages: Stage[];
   tickets: Ticket[];
+  categories: Category[];
 }

@@ -1,4 +1,15 @@
-import type { Stage, User } from '../types';
+import type { Category, Stage, User } from '../types';
+
+export const seedCategories: Category[] = [
+  { id: 'cat-lost', name: 'Yuk yo‘qolgan', description: 'Mijoz yuki manzilga yetib bormagan', color: '#ef4444', icon: '📦', order: 0, active: true },
+  { id: 'cat-misroute', name: 'Yuk adashishi', description: 'Yuk noto‘g‘ri manzilga ketgan', color: '#f97316', icon: '🔀', order: 1, active: true },
+  { id: 'cat-warehouse', name: 'Skladda qolib ketgan', description: 'Yuk omborda kechikib turibdi', color: '#a855f7', icon: '🏬', order: 2, active: true },
+  { id: 'cat-damaged', name: 'Shikastlangan yuk', description: 'Yetkazib berishda yuk shikastlangan', color: '#dc2626', icon: '⚠️', order: 3, active: true },
+  { id: 'cat-delay', name: 'Yetkazib berish kechikishi', description: 'Belgilangan vaqtdan kech yetib bormoqda', color: '#f59e0b', icon: '⏱️', order: 4, active: true },
+  { id: 'cat-payment', name: 'To‘lov muammosi', description: 'To‘lov yoki tarif bilan bog‘liq', color: '#0ea5e9', icon: '💳', order: 5, active: true },
+  { id: 'cat-info', name: 'Ma’lumot olish', description: 'Mijoz oddiy ma’lumot so‘ramoqda', color: '#22c55e', icon: '💬', order: 6, active: true },
+  { id: 'cat-other', name: 'Boshqa', description: 'Boshqa turdagi murojaat', color: '#64748b', icon: '📝', order: 7, active: true },
+];
 
 export const seedUsers: User[] = [
   {

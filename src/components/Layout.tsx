@@ -6,6 +6,7 @@ import {
   LayoutDashboard,
   LogOut,
   Settings2,
+  Tags,
   Ticket as TicketIcon,
   Users,
   Database,
@@ -26,6 +27,7 @@ export default function Layout() {
   const adminLinks = [
     { to: '/users', label: 'Xodimlar', icon: Users },
     { to: '/stages', label: 'Bosqichlar', icon: Settings2 },
+    { to: '/categories', label: 'Murojaat turlari', icon: Tags },
   ];
 
   return (

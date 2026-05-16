@@ -16,9 +16,9 @@ import {
   setDoc,
   writeBatch,
 } from 'firebase/firestore';
-import type { Stage, Ticket, TicketHistoryEntry, TicketStatus, User } from '../types';
+import type { Category, Stage, Ticket, TicketHistoryEntry, TicketStatus, User } from '../types';
 import { db, FIREBASE_ENABLED } from '../firebase';
-import { seedStages, seedUsers } from '../api/seed';
+import { seedCategories, seedStages, seedUsers } from '../api/seed';
 import { handleFirestoreError } from '../utils/errors';
 import { generateTrackingNumber, randomId } from '../utils/format';
 
@@ -29,6 +29,7 @@ interface AppState {
   users: User[];
   stages: Stage[];
   tickets: Ticket[];
+  categories: Category[];
   login: (username: string, password: string) => User | null;
   logout: () => void;
   createTicket: (data: Omit<Ticket, 'id' | 'trackingNumber' | 'history' | 'createdAt' | 'updatedAt' | 'status'>) => Promise<Ticket>;
@@ -40,6 +41,8 @@ interface AppState {
   deleteUser: (id: string) => Promise<void>;
   saveStage: (stage: Stage) => Promise<void>;
   deleteStage: (id: string) => Promise<void>;
+  saveCategory: (category: Category) => Promise<void>;
+  deleteCategory: (id: string) => Promise<void>;
   runTestScenario: () => Promise<Ticket | null>;
 }
 
@@ -49,6 +52,7 @@ const STORAGE_KEYS = {
   users: 'soneee.users',
   stages: 'soneee.stages',
   tickets: 'soneee.tickets',
+  categories: 'soneee.categories',
   session: 'soneee.session',
 };
 
@@ -71,6 +75,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [users, setUsers] = useState<User[]>([]);
   const [stages, setStages] = useState<Stage[]>([]);
   const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const seededRef = useRef(false);
 
@@ -102,10 +107,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
       },
       (err) => handleFirestoreError('tickets:onSnapshot', err)
     );
+    const unsubCategories = onSnapshot(
+      collection(db, 'categories'),
+      (snap) =>
+        setCategories(
+          snap.docs
+            .map((d) => d.data() as Category)
+            .sort((a, b) => a.order - b.order)
+        ),
+      (err) => handleFirestoreError('categories:onSnapshot', err)
+    );
     return () => {
       unsubUsers();
       unsubStages();
       unsubTickets();
+      unsubCategories();
     };
   }, [backend]);
 
@@ -115,8 +131,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setUsers(loadLocal<User[]>(STORAGE_KEYS.users, seedUsers));
     setStages(loadLocal<Stage[]>(STORAGE_KEYS.stages, seedStages));
     setTickets(loadLocal<Ticket[]>(STORAGE_KEYS.tickets, []));
+    setCategories(loadLocal<Category[]>(STORAGE_KEYS.categories, seedCategories));
     if (!localStorage.getItem(STORAGE_KEYS.users)) saveLocal(STORAGE_KEYS.users, seedUsers);
     if (!localStorage.getItem(STORAGE_KEYS.stages)) saveLocal(STORAGE_KEYS.stages, seedStages);
+    if (!localStorage.getItem(STORAGE_KEYS.categories)) saveLocal(STORAGE_KEYS.categories, seedCategories);
     setReady(true);
   }, [backend]);
 
@@ -131,6 +149,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           const batch = writeBatch(fsdb);
           seedUsers.forEach((u) => batch.set(doc(fsdb, 'users', u.id), u));
           seedStages.forEach((s) => batch.set(doc(fsdb, 'stages', s.id), s));
+          seedCategories.forEach((c) => batch.set(doc(fsdb, 'categories', c.id), c));
           await batch.commit();
         } catch (err) {
           handleFirestoreError('seed:initial', err);
@@ -149,6 +168,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (backend === 'local' && ready) saveLocal(STORAGE_KEYS.tickets, tickets);
   }, [tickets, backend, ready]);
+  useEffect(() => {
+    if (backend === 'local' && ready) saveLocal(STORAGE_KEYS.categories, categories);
+  }, [categories, backend, ready]);
 
   /* ---------------- Session restore ---------------- */
   useEffect(() => {
@@ -218,6 +240,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         trackingNumber: generateTrackingNumber(),
         status: 'pending' as TicketStatus,
         stageId: data.stageId || firstStage,
+        categoryId: data.categoryId,
         customerName: data.customerName,
         customerPhone: data.customerPhone,
         channel: data.channel,
@@ -380,10 +403,33 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [removeDoc]
   );
 
+  const saveCategory = useCallback<AppState['saveCategory']>(
+    async (category) => {
+      setCategories((prev) => {
+        const exists = prev.some((c) => c.id === category.id);
+        const next = exists
+          ? prev.map((c) => (c.id === category.id ? category : c))
+          : [...prev, category];
+        return next.sort((a, b) => a.order - b.order);
+      });
+      await writeDoc('categories', category.id, category);
+    },
+    [writeDoc]
+  );
+
+  const deleteCategory = useCallback<AppState['deleteCategory']>(
+    async (id) => {
+      setCategories((prev) => prev.filter((c) => c.id !== id));
+      await removeDoc('categories', id);
+    },
+    [removeDoc]
+  );
+
   const runTestScenario = useCallback<AppState['runTestScenario']>(async () => {
     if (!currentUser || stages.length === 0) return null;
     const ticket = await createTicket({
       stageId: stages[0].id,
+      categoryId: categories[0]?.id,
       customerName: 'Test Mijoz',
       customerPhone: '+998 99 999 99 99',
       channel: 'Telefon',
@@ -399,7 +445,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setTimeout(() => moveTicket(ticket.id, stages[1].id), 500);
     }
     return ticket;
-  }, [currentUser, stages, createTicket, updateTicket, moveTicket]);
+  }, [currentUser, stages, categories, createTicket, updateTicket, moveTicket]);
 
   const value = useMemo<AppState>(
     () => ({
@@ -409,6 +455,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       users,
       stages,
       tickets,
+      categories,
       login,
       logout,
       createTicket,
@@ -420,6 +467,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       deleteUser,
       saveStage,
       deleteStage,
+      saveCategory,
+      deleteCategory,
       runTestScenario,
     }),
     [
@@ -429,6 +478,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       users,
       stages,
       tickets,
+      categories,
       login,
       logout,
       createTicket,
@@ -440,6 +490,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       deleteUser,
       saveStage,
       deleteStage,
+      saveCategory,
+      deleteCategory,
       runTestScenario,
     ]
   );

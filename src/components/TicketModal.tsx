@@ -13,10 +13,12 @@ interface Props {
 }
 
 export default function TicketModal({ open, onClose, ticket }: Props) {
-  const { stages, users, currentUser, createTicket, updateTicket, moveTicket, resolveTicket, deleteTicket } = useApp();
+  const { stages, users, categories, currentUser, createTicket, updateTicket, moveTicket, resolveTicket, deleteTicket } = useApp();
 
   const isEdit = !!ticket;
+  const activeCategories = useMemo(() => categories.filter((c) => c.active || c.id === ticket?.categoryId), [categories, ticket]);
   const [stageId, setStageId] = useState<string>(ticket?.stageId ?? stages[0]?.id ?? '');
+  const [categoryId, setCategoryId] = useState<string>(ticket?.categoryId ?? '');
   const [customerName, setCustomerName] = useState(ticket?.customerName ?? '');
   const [customerPhone, setCustomerPhone] = useState(ticket?.customerPhone ?? '');
   const [channel, setChannel] = useState(ticket?.channel ?? 'Telefon');
@@ -28,6 +30,7 @@ export default function TicketModal({ open, onClose, ticket }: Props) {
   useEffect(() => {
     if (open) {
       setStageId(ticket?.stageId ?? stages[0]?.id ?? '');
+      setCategoryId(ticket?.categoryId ?? '');
       setCustomerName(ticket?.customerName ?? '');
       setCustomerPhone(ticket?.customerPhone ?? '');
       setChannel(ticket?.channel ?? 'Telefon');
@@ -53,6 +56,7 @@ export default function TicketModal({ open, onClose, ticket }: Props) {
       await updateTicket(
         ticket.id,
         {
+          categoryId: categoryId || undefined,
           customerName,
           customerPhone,
           channel,
@@ -67,6 +71,7 @@ export default function TicketModal({ open, onClose, ticket }: Props) {
     } else {
       await createTicket({
         stageId,
+        categoryId: categoryId || undefined,
         customerName,
         customerPhone,
         channel,
@@ -108,6 +113,38 @@ export default function TicketModal({ open, onClose, ticket }: Props) {
     >
       <div className="grid md:grid-cols-3 gap-5">
         <div className="md:col-span-2 space-y-4">
+          {activeCategories.length > 0 && (
+            <div>
+              <label className="label">Murojaat turi (yo'nalish)</label>
+              <div className="flex flex-wrap gap-2 mt-2">
+                {activeCategories.map((c) => {
+                  const selected = categoryId === c.id;
+                  return (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => setCategoryId(selected ? '' : c.id)}
+                      className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-sm transition ${
+                        selected
+                          ? 'border-transparent text-white shadow-soft'
+                          : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+                      }`}
+                      style={selected ? { background: c.color } : { borderColor: `${c.color}55` }}
+                    >
+                      <span className="text-lg leading-none">{c.icon ?? '📌'}</span>
+                      <span className="font-semibold">{c.name}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              {categoryId && (
+                <div className="text-xs text-slate-500 mt-1.5">
+                  {activeCategories.find((c) => c.id === categoryId)?.description}
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="label">Mijoz ismi</label>

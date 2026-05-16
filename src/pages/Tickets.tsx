@@ -7,9 +7,10 @@ import type { Ticket, TicketStatus } from '../types';
 import { formatDateTime } from '../utils/format';
 
 export default function Tickets() {
-  const { tickets, stages, users, currentUser } = useApp();
+  const { tickets, stages, users, categories, currentUser } = useApp();
   const [q, setQ] = useState('');
   const [stageFilter, setStageFilter] = useState<string>('all');
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<TicketStatus | 'all'>('all');
   const [editing, setEditing] = useState<Ticket | null>(null);
   const [creating, setCreating] = useState(false);
@@ -20,6 +21,7 @@ export default function Tickets() {
       : tickets.filter((t) => t.createdBy === currentUser?.id || t.assigneeId === currentUser?.id);
     return scope
       .filter((t) => stageFilter === 'all' || t.stageId === stageFilter)
+      .filter((t) => categoryFilter === 'all' || t.categoryId === categoryFilter)
       .filter((t) => statusFilter === 'all' || t.status === statusFilter)
       .filter((t) => {
         if (!q.trim()) return true;
@@ -31,7 +33,7 @@ export default function Tickets() {
         );
       })
       .sort((a, b) => b.updatedAt - a.updatedAt);
-  }, [tickets, currentUser, stageFilter, statusFilter, q]);
+  }, [tickets, currentUser, stageFilter, categoryFilter, statusFilter, q]);
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
@@ -63,6 +65,14 @@ export default function Tickets() {
             </option>
           ))}
         </select>
+        <select className="input w-auto" value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
+          <option value="all">Barcha turlar</option>
+          {categories.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.icon ?? ''} {c.name}
+            </option>
+          ))}
+        </select>
         <select className="input w-auto" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as 'all' | TicketStatus)}>
           <option value="all">Barcha statuslar</option>
           <option value="pending">Kutilmoqda</option>
@@ -77,6 +87,7 @@ export default function Tickets() {
               <th className="px-4 py-3">Trek №</th>
               <th className="px-4 py-3">Mijoz</th>
               <th className="px-4 py-3">Telefon</th>
+              <th className="px-4 py-3">Murojaat turi</th>
               <th className="px-4 py-3">Bosqich</th>
               <th className="px-4 py-3">Status</th>
               <th className="px-4 py-3">Operator</th>
@@ -86,6 +97,7 @@ export default function Tickets() {
           <tbody>
             {data.map((t) => {
               const stage = stages.find((s) => s.id === t.stageId);
+              const category = categories.find((c) => c.id === t.categoryId);
               const assignee = users.find((u) => u.id === t.assigneeId);
               return (
                 <tr
@@ -96,6 +108,18 @@ export default function Tickets() {
                   <td className="px-4 py-3 font-mono text-xs text-slate-500">{t.trackingNumber}</td>
                   <td className="px-4 py-3 font-semibold text-slate-800">{t.customerName}</td>
                   <td className="px-4 py-3 text-slate-600">{t.customerPhone}</td>
+                  <td className="px-4 py-3">
+                    {category ? (
+                      <span
+                        className="badge"
+                        style={{ background: `${category.color}1a`, color: category.color }}
+                      >
+                        {category.icon ?? ''} {category.name}
+                      </span>
+                    ) : (
+                      <span className="text-slate-400 text-xs">—</span>
+                    )}
+                  </td>
                   <td className="px-4 py-3">
                     <span
                       className="badge"
@@ -124,7 +148,7 @@ export default function Tickets() {
             })}
             {data.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-10 text-center text-slate-400">
+                <td colSpan={8} className="px-4 py-10 text-center text-slate-400">
                   Murojaatlar topilmadi
                 </td>
               </tr>

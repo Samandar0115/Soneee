@@ -8,6 +8,7 @@ import Tickets from './pages/Tickets';
 import Reports from './pages/Reports';
 import UsersPage from './pages/Users';
 import StagesPage from './pages/Stages';
+import CategoriesPage from './pages/Categories';
 
 function Protected({ children }: { children: JSX.Element }) {
   const { currentUser, ready } = useApp();
@@ -57,6 +58,14 @@ export default function App() {
           element={
             <AdminOnly>
               <StagesPage />
+            </AdminOnly>
+          }
+        />
+        <Route
+          path="categories"
+          element={
+            <AdminOnly>
+              <CategoriesPage />
             </AdminOnly>
           }
         />

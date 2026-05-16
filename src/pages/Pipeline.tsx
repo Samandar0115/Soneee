@@ -8,7 +8,7 @@ import type { Ticket } from '../types';
 import { timeAgo } from '../utils/format';
 
 export default function Pipeline() {
-  const { stages, tickets, currentUser, moveTicket } = useApp();
+  const { stages, tickets, categories, currentUser, moveTicket } = useApp();
   const [editing, setEditing] = useState<Ticket | null>(null);
   const [creating, setCreating] = useState(false);
   const [dragId, setDragId] = useState<string | null>(null);
@@ -61,35 +61,48 @@ export default function Pipeline() {
               </div>
 
               <div className="space-y-2 min-h-[80px]">
-                {items.map((t) => (
-                  <motion.div
-                    key={t.id}
-                    layout
-                    initial={{ opacity: 0, y: 5 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    draggable
-                    onDragStart={() => setDragId(t.id)}
-                    onClick={() => setEditing(t)}
-                    className="bg-white rounded-xl p-3 shadow-sm hover:shadow-soft border border-slate-100 cursor-grab active:cursor-grabbing"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="font-semibold text-sm text-slate-800 truncate">
-                        {t.customerName}
+                {items.map((t) => {
+                  const cat = categories.find((c) => c.id === t.categoryId);
+                  return (
+                    <motion.div
+                      key={t.id}
+                      layout
+                      initial={{ opacity: 0, y: 5 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      draggable
+                      onDragStart={() => setDragId(t.id)}
+                      onClick={() => setEditing(t)}
+                      className="bg-white rounded-xl p-3 shadow-sm hover:shadow-soft border border-slate-100 cursor-grab active:cursor-grabbing"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="font-semibold text-sm text-slate-800 truncate">
+                          {t.customerName}
+                        </div>
+                        <PriorityBadge p={t.priority} />
                       </div>
-                      <PriorityBadge p={t.priority} />
-                    </div>
-                    <div className="text-[11px] text-slate-500 mt-0.5">{t.customerPhone}</div>
-                    {t.details?.topic && (
-                      <div className="text-xs text-slate-600 mt-1.5 line-clamp-2">
-                        {t.details.topic}
+                      <div className="text-[11px] text-slate-500 mt-0.5">{t.customerPhone}</div>
+                      {cat && (
+                        <div className="mt-1.5">
+                          <span
+                            className="badge"
+                            style={{ background: `${cat.color}1a`, color: cat.color }}
+                          >
+                            {cat.icon ?? ''} {cat.name}
+                          </span>
+                        </div>
+                      )}
+                      {t.details?.topic && (
+                        <div className="text-xs text-slate-600 mt-1.5 line-clamp-2">
+                          {t.details.topic}
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between mt-2 text-[11px] text-slate-400">
+                        <span>{t.trackingNumber}</span>
+                        <span>{timeAgo(t.updatedAt)}</span>
                       </div>
-                    )}
-                    <div className="flex items-center justify-between mt-2 text-[11px] text-slate-400">
-                      <span>{t.trackingNumber}</span>
-                      <span>{timeAgo(t.updatedAt)}</span>
-                    </div>
-                  </motion.div>
-                ))}
+                    </motion.div>
+                  );
+                })}
                 {items.length === 0 && (
                   <div className="text-center text-xs text-slate-400 py-6">— bo'sh —</div>
                 )}
