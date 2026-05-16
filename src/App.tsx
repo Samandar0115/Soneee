@@ -1,0 +1,67 @@
+import { Navigate, Route, Routes } from 'react-router-dom';
+import { useApp } from './context/AppContext';
+import Layout from './components/Layout';
+import Login from './pages/Login';
+import Dashboard from './pages/Dashboard';
+import Pipeline from './pages/Pipeline';
+import Tickets from './pages/Tickets';
+import Reports from './pages/Reports';
+import UsersPage from './pages/Users';
+import StagesPage from './pages/Stages';
+
+function Protected({ children }: { children: JSX.Element }) {
+  const { currentUser, ready } = useApp();
+  if (!ready) {
+    return (
+      <div className="flex h-screen items-center justify-center text-slate-500">
+        Yuklanmoqda…
+      </div>
+    );
+  }
+  if (!currentUser) return <Navigate to="/login" replace />;
+  return children;
+}
+
+function AdminOnly({ children }: { children: JSX.Element }) {
+  const { currentUser } = useApp();
+  if (currentUser?.role !== 'admin') return <Navigate to="/" replace />;
+  return children;
+}
+
+export default function App() {
+  return (
+    <Routes>
+      <Route path="/login" element={<Login />} />
+      <Route
+        path="/"
+        element={
+          <Protected>
+            <Layout />
+          </Protected>
+        }
+      >
+        <Route index element={<Dashboard />} />
+        <Route path="pipeline" element={<Pipeline />} />
+        <Route path="tickets" element={<Tickets />} />
+        <Route path="reports" element={<Reports />} />
+        <Route
+          path="users"
+          element={
+            <AdminOnly>
+              <UsersPage />
+            </AdminOnly>
+          }
+        />
+        <Route
+          path="stages"
+          element={
+            <AdminOnly>
+              <StagesPage />
+            </AdminOnly>
+          }
+        />
+      </Route>
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  );
+}
