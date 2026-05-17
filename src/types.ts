@@ -74,4 +74,48 @@ export interface AppDataSnapshot {
   stages: Stage[];
   tickets: Ticket[];
   categories: Category[];
+  announcements: Announcement[];
+  branches: Branch[];
+  tariff: TariffSettings;
+}
+
+export type AnnouncementCategory =
+  | 'china-uzb'
+  | 'uzb-cargo'
+  | 'payment'
+  | 'general';
+
+export interface Announcement {
+  id: string;
+  category: AnnouncementCategory;
+  title: string;
+  content: string;
+  pinned: boolean;
+  active: boolean;
+  createdBy: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface Branch {
+  id: string;
+  name: string;
+  city?: string;
+  address: string;
+  phone: string;
+  workingHours?: string;
+  lat?: number;
+  lng?: number;
+  isNew: boolean;
+  order: number;
+  active: boolean;
+}
+
+export interface TariffSettings {
+  id: 'main';
+  pricePerM3: number;
+  kgPerM3: number;
+  currency: string;
+  notes: string;
+  updatedAt: number;
 }

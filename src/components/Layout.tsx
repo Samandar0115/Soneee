@@ -1,6 +1,6 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import {
-  BarChart3,
+  BookOpen,
   Headphones,
   KanbanSquare,
   LayoutDashboard,
@@ -22,7 +22,7 @@ export default function Layout() {
     { to: '/', label: 'Boshqaruv paneli', icon: LayoutDashboard, end: true },
     { to: '/pipeline', label: 'Pipeline (Kanban)', icon: KanbanSquare },
     { to: '/tickets', label: 'Murojaatlar', icon: TicketIcon },
-    { to: '/reports', label: 'Hisobotlar', icon: BarChart3 },
+    { to: '/knowledge', label: 'Bilim bazasi', icon: BookOpen },
   ];
   const adminLinks = [
     { to: '/users', label: 'Xodimlar', icon: Users },

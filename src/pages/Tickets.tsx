@@ -18,7 +18,9 @@ export default function Tickets() {
   const data = useMemo(() => {
     const scope = currentUser?.role === 'admin'
       ? tickets
-      : tickets.filter((t) => t.createdBy === currentUser?.id || t.assigneeId === currentUser?.id);
+      : tickets.filter(
+          (t) => t.assigneeId === currentUser?.id || (t.createdBy === currentUser?.id && !t.assigneeId)
+        );
     return scope
       .filter((t) => stageFilter === 'all' || t.stageId === stageFilter)
       .filter((t) => categoryFilter === 'all' || t.categoryId === categoryFilter)

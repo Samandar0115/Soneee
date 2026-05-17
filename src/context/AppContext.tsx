@@ -16,9 +16,26 @@ import {
   setDoc,
   writeBatch,
 } from 'firebase/firestore';
-import type { Category, Stage, Ticket, TicketHistoryEntry, TicketStatus, User } from '../types';
+import type {
+  Announcement,
+  Branch,
+  Category,
+  Stage,
+  TariffSettings,
+  Ticket,
+  TicketHistoryEntry,
+  TicketStatus,
+  User,
+} from '../types';
 import { db, FIREBASE_ENABLED } from '../firebase';
-import { seedCategories, seedStages, seedUsers } from '../api/seed';
+import {
+  seedAnnouncements,
+  seedBranches,
+  seedCategories,
+  seedStages,
+  seedTariff,
+  seedUsers,
+} from '../api/seed';
 import { handleFirestoreError } from '../utils/errors';
 import { generateTrackingNumber, randomId } from '../utils/format';
 
@@ -30,6 +47,9 @@ interface AppState {
   stages: Stage[];
   tickets: Ticket[];
   categories: Category[];
+  announcements: Announcement[];
+  branches: Branch[];
+  tariff: TariffSettings;
   login: (username: string, password: string) => User | null;
   logout: () => void;
   createTicket: (data: Omit<Ticket, 'id' | 'trackingNumber' | 'history' | 'createdAt' | 'updatedAt' | 'status'>) => Promise<Ticket>;
@@ -43,6 +63,11 @@ interface AppState {
   deleteStage: (id: string) => Promise<void>;
   saveCategory: (category: Category) => Promise<void>;
   deleteCategory: (id: string) => Promise<void>;
+  saveAnnouncement: (a: Announcement) => Promise<void>;
+  deleteAnnouncement: (id: string) => Promise<void>;
+  saveBranch: (b: Branch) => Promise<void>;
+  deleteBranch: (id: string) => Promise<void>;
+  saveTariff: (t: TariffSettings) => Promise<void>;
   runTestScenario: () => Promise<Ticket | null>;
 }
 
@@ -53,6 +78,9 @@ const STORAGE_KEYS = {
   stages: 'soneee.stages',
   tickets: 'soneee.tickets',
   categories: 'soneee.categories',
+  announcements: 'soneee.announcements',
+  branches: 'soneee.branches',
+  tariff: 'soneee.tariff',
   session: 'soneee.session',
 };
 
@@ -76,6 +104,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [stages, setStages] = useState<Stage[]>([]);
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [tariff, setTariff] = useState<TariffSettings>(seedTariff);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const seededRef = useRef(false);
 
@@ -117,11 +148,37 @@ export function AppProvider({ children }: { children: ReactNode }) {
         ),
       (err) => handleFirestoreError('categories:onSnapshot', err)
     );
+    const unsubAnn = onSnapshot(
+      collection(db, 'announcements'),
+      (snap) =>
+        setAnnouncements(
+          snap.docs.map((d) => d.data() as Announcement).sort((a, b) => b.updatedAt - a.updatedAt)
+        ),
+      (err) => handleFirestoreError('announcements:onSnapshot', err)
+    );
+    const unsubBranches = onSnapshot(
+      collection(db, 'branches'),
+      (snap) =>
+        setBranches(
+          snap.docs.map((d) => d.data() as Branch).sort((a, b) => a.order - b.order)
+        ),
+      (err) => handleFirestoreError('branches:onSnapshot', err)
+    );
+    const unsubTariff = onSnapshot(
+      doc(db, 'settings', 'tariff'),
+      (snap) => {
+        if (snap.exists()) setTariff(snap.data() as TariffSettings);
+      },
+      (err) => handleFirestoreError('tariff:onSnapshot', err)
+    );
     return () => {
       unsubUsers();
       unsubStages();
       unsubTickets();
       unsubCategories();
+      unsubAnn();
+      unsubBranches();
+      unsubTariff();
     };
   }, [backend]);
 
@@ -132,9 +189,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setStages(loadLocal<Stage[]>(STORAGE_KEYS.stages, seedStages));
     setTickets(loadLocal<Ticket[]>(STORAGE_KEYS.tickets, []));
     setCategories(loadLocal<Category[]>(STORAGE_KEYS.categories, seedCategories));
+    setAnnouncements(loadLocal<Announcement[]>(STORAGE_KEYS.announcements, seedAnnouncements));
+    setBranches(loadLocal<Branch[]>(STORAGE_KEYS.branches, seedBranches));
+    setTariff(loadLocal<TariffSettings>(STORAGE_KEYS.tariff, seedTariff));
     if (!localStorage.getItem(STORAGE_KEYS.users)) saveLocal(STORAGE_KEYS.users, seedUsers);
     if (!localStorage.getItem(STORAGE_KEYS.stages)) saveLocal(STORAGE_KEYS.stages, seedStages);
     if (!localStorage.getItem(STORAGE_KEYS.categories)) saveLocal(STORAGE_KEYS.categories, seedCategories);
+    if (!localStorage.getItem(STORAGE_KEYS.announcements)) saveLocal(STORAGE_KEYS.announcements, seedAnnouncements);
+    if (!localStorage.getItem(STORAGE_KEYS.branches)) saveLocal(STORAGE_KEYS.branches, seedBranches);
+    if (!localStorage.getItem(STORAGE_KEYS.tariff)) saveLocal(STORAGE_KEYS.tariff, seedTariff);
     setReady(true);
   }, [backend]);
 
@@ -150,6 +213,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
           seedUsers.forEach((u) => batch.set(doc(fsdb, 'users', u.id), u));
           seedStages.forEach((s) => batch.set(doc(fsdb, 'stages', s.id), s));
           seedCategories.forEach((c) => batch.set(doc(fsdb, 'categories', c.id), c));
+          seedAnnouncements.forEach((a) => batch.set(doc(fsdb, 'announcements', a.id), a));
+          seedBranches.forEach((b) => batch.set(doc(fsdb, 'branches', b.id), b));
+          batch.set(doc(fsdb, 'settings', 'tariff'), seedTariff);
           await batch.commit();
         } catch (err) {
           handleFirestoreError('seed:initial', err);
@@ -171,6 +237,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (backend === 'local' && ready) saveLocal(STORAGE_KEYS.categories, categories);
   }, [categories, backend, ready]);
+  useEffect(() => {
+    if (backend === 'local' && ready) saveLocal(STORAGE_KEYS.announcements, announcements);
+  }, [announcements, backend, ready]);
+  useEffect(() => {
+    if (backend === 'local' && ready) saveLocal(STORAGE_KEYS.branches, branches);
+  }, [branches, backend, ready]);
+  useEffect(() => {
+    if (backend === 'local' && ready) saveLocal(STORAGE_KEYS.tariff, tariff);
+  }, [tariff, backend, ready]);
 
   /* ---------------- Session restore ---------------- */
   useEffect(() => {
@@ -425,6 +500,62 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [removeDoc]
   );
 
+  const saveAnnouncement = useCallback<AppState['saveAnnouncement']>(
+    async (a) => {
+      const next: Announcement = { ...a, updatedAt: Date.now() };
+      setAnnouncements((prev) => {
+        const exists = prev.some((x) => x.id === next.id);
+        const list = exists ? prev.map((x) => (x.id === next.id ? next : x)) : [next, ...prev];
+        return [...list].sort((x, y) => y.updatedAt - x.updatedAt);
+      });
+      await writeDoc('announcements', next.id, next);
+    },
+    [writeDoc]
+  );
+
+  const deleteAnnouncement = useCallback<AppState['deleteAnnouncement']>(
+    async (id) => {
+      setAnnouncements((prev) => prev.filter((a) => a.id !== id));
+      await removeDoc('announcements', id);
+    },
+    [removeDoc]
+  );
+
+  const saveBranch = useCallback<AppState['saveBranch']>(
+    async (b) => {
+      setBranches((prev) => {
+        const exists = prev.some((x) => x.id === b.id);
+        const list = exists ? prev.map((x) => (x.id === b.id ? b : x)) : [...prev, b];
+        return list.sort((x, y) => x.order - y.order);
+      });
+      await writeDoc('branches', b.id, b);
+    },
+    [writeDoc]
+  );
+
+  const deleteBranch = useCallback<AppState['deleteBranch']>(
+    async (id) => {
+      setBranches((prev) => prev.filter((b) => b.id !== id));
+      await removeDoc('branches', id);
+    },
+    [removeDoc]
+  );
+
+  const saveTariff = useCallback<AppState['saveTariff']>(
+    async (t) => {
+      const next: TariffSettings = { ...t, id: 'main', updatedAt: Date.now() };
+      setTariff(next);
+      if (backend === 'firebase' && db) {
+        try {
+          await setDoc(doc(db, 'settings', 'tariff'), next);
+        } catch (err) {
+          handleFirestoreError('tariff:set', err);
+        }
+      }
+    },
+    [backend]
+  );
+
   const runTestScenario = useCallback<AppState['runTestScenario']>(async () => {
     if (!currentUser || stages.length === 0) return null;
     const ticket = await createTicket({
@@ -456,6 +587,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       stages,
       tickets,
       categories,
+      announcements,
+      branches,
+      tariff,
       login,
       logout,
       createTicket,
@@ -469,6 +603,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       deleteStage,
       saveCategory,
       deleteCategory,
+      saveAnnouncement,
+      deleteAnnouncement,
+      saveBranch,
+      deleteBranch,
+      saveTariff,
       runTestScenario,
     }),
     [
@@ -479,6 +618,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       stages,
       tickets,
       categories,
+      announcements,
+      branches,
+      tariff,
       login,
       logout,
       createTicket,
@@ -492,6 +634,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       deleteStage,
       saveCategory,
       deleteCategory,
+      saveAnnouncement,
+      deleteAnnouncement,
+      saveBranch,
+      deleteBranch,
+      saveTariff,
       runTestScenario,
     ]
   );

@@ -1,0 +1,951 @@
+import { useMemo, useState } from 'react';
+import {
+  Megaphone,
+  MapPin,
+  Coins,
+  Calculator,
+  Plus,
+  Pencil,
+  Trash2,
+  Pin,
+  PinOff,
+  Phone,
+  Sparkles,
+  Power,
+  PowerOff,
+  Globe,
+} from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import toast from 'react-hot-toast';
+import PageHeader from '../components/PageHeader';
+import Modal from '../components/Modal';
+import { useApp } from '../context/AppContext';
+import type {
+  Announcement,
+  AnnouncementCategory,
+  Branch,
+  TariffSettings,
+} from '../types';
+import { formatDateTime, randomId, timeAgo } from '../utils/format';
+
+type Tab = 'announcements' | 'branches' | 'tariff' | 'calc';
+
+const CAT_META: Record<AnnouncementCategory, { label: string; color: string; icon: string }> = {
+  'china-uzb': { label: 'Xitoy → Uzb', color: '#ef4444', icon: '🇨🇳' },
+  'uzb-cargo': { label: 'Uzbdagi yuklar', color: '#0ea5e9', icon: '🇺🇿' },
+  payment: { label: 'To‘lov', color: '#16a34a', icon: '💳' },
+  general: { label: 'Umumiy', color: '#64748b', icon: '📢' },
+};
+
+export default function Knowledge() {
+  const { currentUser } = useApp();
+  const isAdmin = currentUser?.role === 'admin';
+  const [tab, setTab] = useState<Tab>('announcements');
+
+  const tabs: { key: Tab; label: string; icon: typeof Megaphone }[] = [
+    { key: 'announcements', label: 'E’lonlar', icon: Megaphone },
+    { key: 'branches', label: 'Filiallar', icon: MapPin },
+    { key: 'tariff', label: 'Tariflar', icon: Coins },
+    { key: 'calc', label: 'Yuk kalkulyatori', icon: Calculator },
+  ];
+
+  return (
+    <div className="p-6 max-w-7xl mx-auto">
+      <PageHeader
+        title="Bilim bazasi"
+        subtitle={
+          isAdmin
+            ? 'Operatorlar shu yerdagi ma’lumotlardan foydalanadi. Hammasini siz tahrirlaysiz.'
+            : 'Sizning ish davomida kerak bo‘ladigan barcha ma’lumotlar — e’lonlar, filiallar, tariflar va kalkulyator.'
+        }
+      />
+
+      <div className="card p-1.5 mb-5 inline-flex flex-wrap gap-1">
+        {tabs.map((t) => {
+          const Icon = t.icon;
+          const active = tab === t.key;
+          return (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition ${
+                active
+                  ? 'bg-brand-600 text-white shadow-soft'
+                  : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              <Icon className="h-4 w-4" />
+              {t.label}
+            </button>
+          );
+        })}
+      </div>
+
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={tab}
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -8 }}
+          transition={{ duration: 0.15 }}
+        >
+          {tab === 'announcements' && <AnnouncementsTab isAdmin={isAdmin} />}
+          {tab === 'branches' && <BranchesTab isAdmin={isAdmin} />}
+          {tab === 'tariff' && <TariffTab isAdmin={isAdmin} />}
+          {tab === 'calc' && <CalculatorTab />}
+        </motion.div>
+      </AnimatePresence>
+    </div>
+  );
+}
+
+/* ============================= E'LONLAR ============================= */
+
+function AnnouncementsTab({ isAdmin }: { isAdmin: boolean }) {
+  const { announcements, saveAnnouncement, deleteAnnouncement, currentUser } = useApp();
+  const [filter, setFilter] = useState<AnnouncementCategory | 'all'>('all');
+  const [editing, setEditing] = useState<Announcement | null>(null);
+  const [open, setOpen] = useState(false);
+
+  const visible = useMemo(() => {
+    const list = isAdmin ? announcements : announcements.filter((a) => a.active);
+    return list
+      .filter((a) => filter === 'all' || a.category === filter)
+      .sort((a, b) => Number(b.pinned) - Number(a.pinned) || b.updatedAt - a.updatedAt);
+  }, [announcements, filter, isAdmin]);
+
+  function startCreate() {
+    setEditing({
+      id: randomId('ann'),
+      category: 'general',
+      title: '',
+      content: '',
+      pinned: false,
+      active: true,
+      createdBy: currentUser?.id ?? 'admin',
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+    setOpen(true);
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
+        <div className="flex flex-wrap gap-2">
+          <Chip active={filter === 'all'} onClick={() => setFilter('all')} label="Barchasi" />
+          {(Object.keys(CAT_META) as AnnouncementCategory[]).map((k) => (
+            <Chip
+              key={k}
+              active={filter === k}
+              onClick={() => setFilter(k)}
+              label={`${CAT_META[k].icon} ${CAT_META[k].label}`}
+              color={CAT_META[k].color}
+            />
+          ))}
+        </div>
+        {isAdmin && (
+          <button className="btn-primary" onClick={startCreate}>
+            <Plus className="h-4 w-4" /> Yangi e’lon
+          </button>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {visible.map((a) => {
+          const meta = CAT_META[a.category];
+          return (
+            <motion.div
+              key={a.id}
+              layout
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className={`card p-5 relative ${!a.active ? 'opacity-60' : ''}`}
+              style={{ borderLeft: `4px solid ${meta.color}` }}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span
+                    className="badge"
+                    style={{ background: `${meta.color}1a`, color: meta.color }}
+                  >
+                    {meta.icon} {meta.label}
+                  </span>
+                  {a.pinned && (
+                    <span className="badge bg-amber-100 text-amber-700">
+                      <Pin className="h-3 w-3" /> Pin
+                    </span>
+                  )}
+                  {!a.active && (
+                    <span className="badge bg-slate-200 text-slate-600">Yashirin</span>
+                  )}
+                </div>
+                {isAdmin && (
+                  <div className="flex items-center gap-1">
+                    <IconBtn
+                      title={a.pinned ? 'Pinni olib tashlash' : 'Pin qilish'}
+                      onClick={() => saveAnnouncement({ ...a, pinned: !a.pinned })}
+                    >
+                      {a.pinned ? <PinOff className="h-3.5 w-3.5" /> : <Pin className="h-3.5 w-3.5" />}
+                    </IconBtn>
+                    <IconBtn
+                      title="Tahrirlash"
+                      onClick={() => {
+                        setEditing(a);
+                        setOpen(true);
+                      }}
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </IconBtn>
+                    <IconBtn
+                      title={a.active ? 'Yashirish' : 'Ko‘rsatish'}
+                      onClick={() => saveAnnouncement({ ...a, active: !a.active })}
+                    >
+                      {a.active ? <PowerOff className="h-3.5 w-3.5" /> : <Power className="h-3.5 w-3.5" />}
+                    </IconBtn>
+                    <IconBtn
+                      title="O‘chirish"
+                      danger
+                      onClick={() => {
+                        if (confirm("E'lonni o'chirishni tasdiqlaysizmi?")) {
+                          deleteAnnouncement(a.id);
+                          toast.success("O'chirildi");
+                        }
+                      }}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </IconBtn>
+                  </div>
+                )}
+              </div>
+              <h3 className="font-bold text-slate-900 mt-2">{a.title}</h3>
+              <p className="text-sm text-slate-600 mt-1 whitespace-pre-wrap leading-relaxed">
+                {a.content}
+              </p>
+              <div className="text-[11px] text-slate-400 mt-3">
+                Yangilangan: {timeAgo(a.updatedAt)}
+              </div>
+            </motion.div>
+          );
+        })}
+        {visible.length === 0 && (
+          <div className="col-span-full card p-10 text-center text-slate-400">
+            Hozircha e’lonlar yo‘q
+          </div>
+        )}
+      </div>
+
+      <Modal
+        open={open}
+        onClose={() => setOpen(false)}
+        title={editing?.title ? 'E’lonni tahrirlash' : 'Yangi e’lon'}
+        size="lg"
+      >
+        {editing && (
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="label">Toifa</label>
+                <select
+                  className="input mt-1"
+                  value={editing.category}
+                  onChange={(e) =>
+                    setEditing({ ...editing, category: e.target.value as AnnouncementCategory })
+                  }
+                >
+                  {(Object.keys(CAT_META) as AnnouncementCategory[]).map((k) => (
+                    <option key={k} value={k}>
+                      {CAT_META[k].icon} {CAT_META[k].label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex items-end gap-3">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={editing.pinned}
+                    onChange={(e) => setEditing({ ...editing, pinned: e.target.checked })}
+                    className="h-4 w-4"
+                  />
+                  <span className="text-sm font-semibold text-slate-700">Pin</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={editing.active}
+                    onChange={(e) => setEditing({ ...editing, active: e.target.checked })}
+                    className="h-4 w-4"
+                  />
+                  <span className="text-sm font-semibold text-slate-700">Faol</span>
+                </label>
+              </div>
+            </div>
+            <div>
+              <label className="label">Sarlavha</label>
+              <input
+                className="input mt-1"
+                value={editing.title}
+                onChange={(e) => setEditing({ ...editing, title: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className="label">Matn</label>
+              <textarea
+                className="input mt-1"
+                rows={8}
+                value={editing.content}
+                onChange={(e) => setEditing({ ...editing, content: e.target.value })}
+              />
+            </div>
+            <button
+              onClick={async () => {
+                if (!editing.title.trim()) return toast.error('Sarlavha kerak');
+                await saveAnnouncement(editing);
+                toast.success('Saqlandi');
+                setOpen(false);
+              }}
+              className="btn-primary w-full"
+            >
+              Saqlash
+            </button>
+          </div>
+        )}
+      </Modal>
+    </div>
+  );
+}
+
+/* ============================= FILIALLAR ============================= */
+
+function BranchesTab({ isAdmin }: { isAdmin: boolean }) {
+  const { branches, saveBranch, deleteBranch } = useApp();
+  const [editing, setEditing] = useState<Branch | null>(null);
+  const [open, setOpen] = useState(false);
+
+  const visible = useMemo(
+    () => (isAdmin ? branches : branches.filter((b) => b.active)),
+    [branches, isAdmin]
+  );
+
+  function startCreate() {
+    setEditing({
+      id: randomId('br'),
+      name: '',
+      city: '',
+      address: '',
+      phone: '',
+      workingHours: '',
+      lat: undefined,
+      lng: undefined,
+      isNew: true,
+      order: branches.length,
+      active: true,
+    });
+    setOpen(true);
+  }
+
+  return (
+    <div>
+      <div className="flex justify-end mb-3">
+        {isAdmin && (
+          <button className="btn-primary" onClick={startCreate}>
+            <Plus className="h-4 w-4" /> Yangi filial
+          </button>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {visible.map((b) => (
+          <motion.div
+            key={b.id}
+            layout
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className={`card p-5 ${!b.active ? 'opacity-60' : ''}`}
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <div className="h-10 w-10 rounded-xl bg-brand-50 text-brand-700 flex items-center justify-center">
+                  <MapPin className="h-5 w-5" />
+                </div>
+                <div>
+                  <div className="font-bold text-slate-900">{b.name}</div>
+                  {b.city && <div className="text-xs text-slate-500">{b.city}</div>}
+                </div>
+              </div>
+              {b.isNew && (
+                <span className="badge bg-emerald-100 text-emerald-700">
+                  <Sparkles className="h-3 w-3" /> YANGI
+                </span>
+              )}
+            </div>
+
+            <div className="mt-3 space-y-1.5 text-sm">
+              <div className="text-slate-600">{b.address}</div>
+              {b.phone && (
+                <a
+                  href={`tel:${b.phone.replace(/\s/g, '')}`}
+                  className="flex items-center gap-2 text-brand-700 hover:text-brand-800 font-semibold"
+                >
+                  <Phone className="h-3.5 w-3.5" /> {b.phone}
+                </a>
+              )}
+              {b.workingHours && (
+                <div className="text-xs text-slate-500">{b.workingHours}</div>
+              )}
+              {b.lat != null && b.lng != null && (
+                <a
+                  href={`https://yandex.uz/maps/?text=${b.lat},${b.lng}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 text-xs text-brand-600 hover:underline"
+                >
+                  <Globe className="h-3 w-3" /> Xaritada ko‘rish
+                </a>
+              )}
+            </div>
+
+            {isAdmin && (
+              <div className="flex gap-2 mt-3 pt-3 border-t border-slate-100">
+                <button
+                  onClick={() => {
+                    setEditing(b);
+                    setOpen(true);
+                  }}
+                  className="btn-ghost flex-1 text-xs"
+                >
+                  <Pencil className="h-3.5 w-3.5" /> Tahrirlash
+                </button>
+                <button
+                  onClick={() => saveBranch({ ...b, active: !b.active })}
+                  className="p-2 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-600"
+                  title={b.active ? 'Yashirish' : 'Faollashtirish'}
+                >
+                  {b.active ? <PowerOff className="h-4 w-4" /> : <Power className="h-4 w-4" />}
+                </button>
+                <button
+                  onClick={() => {
+                    if (confirm("Filialni o'chirishni tasdiqlaysizmi?")) {
+                      deleteBranch(b.id);
+                      toast.success("O'chirildi");
+                    }
+                  }}
+                  className="p-2 rounded-xl border border-rose-200 hover:bg-rose-50 text-rose-600"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+            )}
+          </motion.div>
+        ))}
+        {visible.length === 0 && (
+          <div className="col-span-full card p-10 text-center text-slate-400">
+            Filiallar yo‘q
+          </div>
+        )}
+      </div>
+
+      <Modal
+        open={open}
+        onClose={() => setOpen(false)}
+        title={editing?.name ? 'Filialni tahrirlash' : 'Yangi filial'}
+        size="lg"
+      >
+        {editing && (
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="label">Nomi</label>
+                <input
+                  className="input mt-1"
+                  value={editing.name}
+                  onChange={(e) => setEditing({ ...editing, name: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="label">Shahar</label>
+                <input
+                  className="input mt-1"
+                  value={editing.city ?? ''}
+                  onChange={(e) => setEditing({ ...editing, city: e.target.value })}
+                />
+              </div>
+              <div className="col-span-2">
+                <label className="label">Manzil</label>
+                <input
+                  className="input mt-1"
+                  value={editing.address}
+                  onChange={(e) => setEditing({ ...editing, address: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="label">Telefon</label>
+                <input
+                  className="input mt-1"
+                  value={editing.phone}
+                  onChange={(e) => setEditing({ ...editing, phone: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="label">Ish vaqti</label>
+                <input
+                  className="input mt-1"
+                  value={editing.workingHours ?? ''}
+                  onChange={(e) => setEditing({ ...editing, workingHours: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="label">Latitude (kenglik)</label>
+                <input
+                  type="number"
+                  step="any"
+                  className="input mt-1"
+                  value={editing.lat ?? ''}
+                  onChange={(e) =>
+                    setEditing({
+                      ...editing,
+                      lat: e.target.value === '' ? undefined : Number(e.target.value),
+                    })
+                  }
+                />
+              </div>
+              <div>
+                <label className="label">Longitude (uzunlik)</label>
+                <input
+                  type="number"
+                  step="any"
+                  className="input mt-1"
+                  value={editing.lng ?? ''}
+                  onChange={(e) =>
+                    setEditing({
+                      ...editing,
+                      lng: e.target.value === '' ? undefined : Number(e.target.value),
+                    })
+                  }
+                />
+              </div>
+              <div>
+                <label className="label">Tartib</label>
+                <input
+                  type="number"
+                  className="input mt-1"
+                  value={editing.order}
+                  onChange={(e) => setEditing({ ...editing, order: Number(e.target.value) })}
+                />
+              </div>
+              <div className="flex items-center gap-4 mt-5">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={editing.isNew}
+                    onChange={(e) => setEditing({ ...editing, isNew: e.target.checked })}
+                    className="h-4 w-4"
+                  />
+                  <span className="text-sm font-semibold text-slate-700">Yangi ochilgan</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={editing.active}
+                    onChange={(e) => setEditing({ ...editing, active: e.target.checked })}
+                    className="h-4 w-4"
+                  />
+                  <span className="text-sm font-semibold text-slate-700">Faol</span>
+                </label>
+              </div>
+            </div>
+            <button
+              onClick={async () => {
+                if (!editing.name.trim() || !editing.address.trim()) {
+                  return toast.error('Nomi va manzil majburiy');
+                }
+                await saveBranch(editing);
+                toast.success('Saqlandi');
+                setOpen(false);
+              }}
+              className="btn-primary w-full"
+            >
+              Saqlash
+            </button>
+          </div>
+        )}
+      </Modal>
+    </div>
+  );
+}
+
+/* ============================= TARIFLAR ============================= */
+
+function TariffTab({ isAdmin }: { isAdmin: boolean }) {
+  const { tariff, saveTariff } = useApp();
+  const [draft, setDraft] = useState<TariffSettings>(tariff);
+  const [editMode, setEditMode] = useState(false);
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="card p-6">
+        <div className="text-xs uppercase tracking-wider text-slate-500 font-semibold">
+          Asosiy tarif
+        </div>
+        <div className="mt-3 flex items-end gap-4 flex-wrap">
+          <div>
+            <div className="text-xs text-slate-500">1 m³ narxi</div>
+            <div className="text-4xl font-bold text-brand-700">
+              {tariff.pricePerM3} <span className="text-xl text-slate-400">{tariff.currency}</span>
+            </div>
+          </div>
+          <div className="text-slate-300 text-2xl">/</div>
+          <div>
+            <div className="text-xs text-slate-500">teng keladi</div>
+            <div className="text-4xl font-bold text-slate-800">
+              {tariff.kgPerM3} <span className="text-xl text-slate-400">kg</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-4 p-3 rounded-xl bg-brand-50 text-sm text-brand-900">
+          <b>1 kg = {(tariff.pricePerM3 / tariff.kgPerM3).toFixed(2)} {tariff.currency}</b>
+          <div className="text-xs text-brand-800/80 mt-1">
+            (hajm va og‘irlikdan qaysi biri qimmatroq bo‘lsa, mijozdan o‘sha summa olinadi)
+          </div>
+        </div>
+
+        <p className="text-sm text-slate-600 mt-4 whitespace-pre-wrap">{tariff.notes}</p>
+
+        <div className="text-[11px] text-slate-400 mt-3">
+          Yangilangan: {formatDateTime(tariff.updatedAt)}
+        </div>
+      </div>
+
+      {isAdmin && (
+        <div className="card p-6">
+          <div className="flex items-center justify-between">
+            <div className="text-xs uppercase tracking-wider text-slate-500 font-semibold">
+              Tarif sozlamalari (admin)
+            </div>
+            {!editMode && (
+              <button
+                onClick={() => {
+                  setDraft(tariff);
+                  setEditMode(true);
+                }}
+                className="btn-ghost text-xs"
+              >
+                <Pencil className="h-3.5 w-3.5" /> Tahrirlash
+              </button>
+            )}
+          </div>
+          <div className="grid grid-cols-2 gap-3 mt-3">
+            <div>
+              <label className="label">1 m³ narxi</label>
+              <input
+                type="number"
+                disabled={!editMode}
+                className="input mt-1 disabled:bg-slate-50"
+                value={draft.pricePerM3}
+                onChange={(e) => setDraft({ ...draft, pricePerM3: Number(e.target.value) })}
+              />
+            </div>
+            <div>
+              <label className="label">Kg / m³</label>
+              <input
+                type="number"
+                disabled={!editMode}
+                className="input mt-1 disabled:bg-slate-50"
+                value={draft.kgPerM3}
+                onChange={(e) => setDraft({ ...draft, kgPerM3: Number(e.target.value) })}
+              />
+            </div>
+            <div>
+              <label className="label">Valyuta</label>
+              <input
+                disabled={!editMode}
+                className="input mt-1 disabled:bg-slate-50"
+                value={draft.currency}
+                onChange={(e) => setDraft({ ...draft, currency: e.target.value })}
+              />
+            </div>
+          </div>
+          <div className="mt-3">
+            <label className="label">Tushuntirish</label>
+            <textarea
+              disabled={!editMode}
+              rows={5}
+              className="input mt-1 disabled:bg-slate-50"
+              value={draft.notes}
+              onChange={(e) => setDraft({ ...draft, notes: e.target.value })}
+            />
+          </div>
+          {editMode && (
+            <div className="flex gap-2 mt-3">
+              <button
+                onClick={async () => {
+                  await saveTariff(draft);
+                  toast.success('Tarif yangilandi');
+                  setEditMode(false);
+                }}
+                className="btn-primary flex-1"
+              >
+                Saqlash
+              </button>
+              <button
+                onClick={() => {
+                  setDraft(tariff);
+                  setEditMode(false);
+                }}
+                className="btn-ghost"
+              >
+                Bekor qilish
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ============================= KALKULYATOR ============================= */
+
+function CalculatorTab() {
+  const { tariff } = useApp();
+  const [length, setLength] = useState('');
+  const [width, setWidth] = useState('');
+  const [height, setHeight] = useState('');
+  const [unit, setUnit] = useState<'cm' | 'm'>('cm');
+  const [weight, setWeight] = useState('');
+
+  const result = useMemo(() => {
+    const L = Number(length);
+    const W = Number(width);
+    const H = Number(height);
+    const kg = Number(weight);
+    if (!L || !W || !H || !kg) return null;
+    const factor = unit === 'cm' ? 1_000_000 : 1; // cm³ → m³
+    const volumeM3 = (L * W * H) / factor;
+    const volumetricKg = volumeM3 * tariff.kgPerM3;
+    const priceByVolume = volumeM3 * tariff.pricePerM3;
+    const priceByWeight = (kg / tariff.kgPerM3) * tariff.pricePerM3;
+    const useVolume = priceByVolume >= priceByWeight;
+    const chargedPrice = useVolume ? priceByVolume : priceByWeight;
+    const reason = useVolume
+      ? `Yuk hajmi ${volumeM3.toFixed(3)} m³ ga teng. Bu hajmdagi yuk og'irligi (volumetric) — ${volumetricKg.toFixed(1)} kg. Bu raqam haqiqiy og'irlik ${kg} kg dan KATTA, shuning uchun narx HAJM bo'yicha hisoblandi.`
+      : `Yuk hajmi ${volumeM3.toFixed(3)} m³ (volumetric ${volumetricKg.toFixed(1)} kg). Lekin haqiqiy og'irlik ${kg} kg bundan KATTA, shuning uchun narx OG'IRLIK bo'yicha hisoblandi.`;
+    return {
+      volumeM3,
+      volumetricKg,
+      priceByVolume,
+      priceByWeight,
+      useVolume,
+      chargedPrice,
+      reason,
+    };
+  }, [length, width, height, weight, unit, tariff]);
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="card p-6">
+        <h3 className="font-bold text-slate-900 flex items-center gap-2">
+          <Calculator className="h-5 w-5 text-brand-600" /> Yuk parametrlari
+        </h3>
+        <p className="text-xs text-slate-500 mt-1">
+          Tarif: 1 m³ = <b>{tariff.pricePerM3} {tariff.currency}</b> = <b>{tariff.kgPerM3} kg</b>
+        </p>
+
+        <div className="mt-4 flex items-center gap-2">
+          <span className="text-xs text-slate-500 font-semibold">O‘lchov birligi:</span>
+          <div className="flex gap-1">
+            <button
+              onClick={() => setUnit('cm')}
+              className={`px-3 py-1 rounded-lg text-xs font-semibold ${
+                unit === 'cm' ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-600'
+              }`}
+            >
+              cm
+            </button>
+            <button
+              onClick={() => setUnit('m')}
+              className={`px-3 py-1 rounded-lg text-xs font-semibold ${
+                unit === 'm' ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-600'
+              }`}
+            >
+              metr
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-3 gap-3 mt-3">
+          <div>
+            <label className="label">Uzunlik ({unit})</label>
+            <input
+              type="number"
+              className="input mt-1"
+              value={length}
+              onChange={(e) => setLength(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="label">Eni ({unit})</label>
+            <input
+              type="number"
+              className="input mt-1"
+              value={width}
+              onChange={(e) => setWidth(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="label">Balandlik ({unit})</label>
+            <input
+              type="number"
+              className="input mt-1"
+              value={height}
+              onChange={(e) => setHeight(e.target.value)}
+            />
+          </div>
+        </div>
+
+        <div className="mt-3">
+          <label className="label">Haqiqiy og‘irlik (kg)</label>
+          <input
+            type="number"
+            className="input mt-1"
+            value={weight}
+            onChange={(e) => setWeight(e.target.value)}
+          />
+        </div>
+
+        <button
+          onClick={() => {
+            setLength('');
+            setWidth('');
+            setHeight('');
+            setWeight('');
+          }}
+          className="btn-ghost mt-3 text-xs"
+        >
+          Tozalash
+        </button>
+      </div>
+
+      <div className="card p-6">
+        <h3 className="font-bold text-slate-900">Hisob-kitob natijasi</h3>
+        {!result ? (
+          <p className="text-sm text-slate-400 mt-3">
+            Barcha 4 ta maydonni to‘ldiring (uzunlik, eni, balandlik, og‘irlik)
+          </p>
+        ) : (
+          <div className="mt-3 space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <Stat label="Hajm" value={`${result.volumeM3.toFixed(3)} m³`} />
+              <Stat
+                label="Volumetric og‘irlik"
+                value={`${result.volumetricKg.toFixed(1)} kg`}
+              />
+              <Stat
+                label="Hajm bo‘yicha narx"
+                value={`${result.priceByVolume.toFixed(2)} ${tariff.currency}`}
+                tone={result.useVolume ? 'win' : undefined}
+              />
+              <Stat
+                label="Og‘irlik bo‘yicha narx"
+                value={`${result.priceByWeight.toFixed(2)} ${tariff.currency}`}
+                tone={!result.useVolume ? 'win' : undefined}
+              />
+            </div>
+
+            <motion.div
+              key={result.chargedPrice}
+              initial={{ scale: 0.97, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="p-4 rounded-2xl bg-gradient-to-br from-brand-600 to-brand-800 text-white"
+            >
+              <div className="text-xs uppercase tracking-wider opacity-80">Mijozdan olinadigan summa</div>
+              <div className="text-3xl font-bold mt-1">
+                {result.chargedPrice.toFixed(2)} {tariff.currency}
+              </div>
+            </motion.div>
+
+            <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900">
+              <b>Nega bu narx?</b>
+              <div className="mt-1 leading-relaxed">{result.reason}</div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ============================= UI helpers ============================= */
+
+function Chip({
+  active,
+  onClick,
+  label,
+  color,
+}: {
+  active: boolean;
+  onClick: () => void;
+  label: string;
+  color?: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`px-3 py-1.5 rounded-full text-xs font-semibold transition ${
+        active ? 'text-white shadow-soft' : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
+      }`}
+      style={active ? { background: color ?? '#2f66ff' } : undefined}
+    >
+      {label}
+    </button>
+  );
+}
+
+function IconBtn({
+  children,
+  onClick,
+  title,
+  danger,
+}: {
+  children: React.ReactNode;
+  onClick: () => void;
+  title?: string;
+  danger?: boolean;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      className={`p-1.5 rounded-lg ${
+        danger
+          ? 'text-rose-600 hover:bg-rose-50'
+          : 'text-slate-500 hover:bg-slate-100'
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function Stat({ label, value, tone }: { label: string; value: string; tone?: 'win' }) {
+  return (
+    <div
+      className={`rounded-xl p-3 ${
+        tone === 'win'
+          ? 'bg-emerald-50 border border-emerald-200'
+          : 'bg-slate-50 border border-slate-100'
+      }`}
+    >
+      <div className="text-[11px] uppercase tracking-wider text-slate-500">{label}</div>
+      <div
+        className={`font-bold text-lg ${
+          tone === 'win' ? 'text-emerald-700' : 'text-slate-800'
+        }`}
+      >
+        {value}
+      </div>
+    </div>
+  );
+}

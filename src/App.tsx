@@ -5,7 +5,7 @@ import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Pipeline from './pages/Pipeline';
 import Tickets from './pages/Tickets';
-import Reports from './pages/Reports';
+import Knowledge from './pages/Knowledge';
 import UsersPage from './pages/Users';
 import StagesPage from './pages/Stages';
 import CategoriesPage from './pages/Categories';
@@ -44,7 +44,7 @@ export default function App() {
         <Route index element={<Dashboard />} />
         <Route path="pipeline" element={<Pipeline />} />
         <Route path="tickets" element={<Tickets />} />
-        <Route path="reports" element={<Reports />} />
+        <Route path="knowledge" element={<Knowledge />} />
         <Route
           path="users"
           element={

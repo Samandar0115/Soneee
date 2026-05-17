@@ -15,7 +15,7 @@ export default function Dashboard() {
   const visibleTickets = useMemo(() => {
     if (currentUser?.role === 'admin') return tickets;
     return tickets.filter(
-      (t) => t.createdBy === currentUser?.id || t.assigneeId === currentUser?.id
+      (t) => t.assigneeId === currentUser?.id || (t.createdBy === currentUser?.id && !t.assigneeId)
     );
   }, [tickets, currentUser]);
 

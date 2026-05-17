@@ -1,4 +1,120 @@
-import type { Category, Stage, User } from '../types';
+import type { Announcement, Branch, Category, Stage, TariffSettings, User } from '../types';
+
+export const seedAnnouncements: Announcement[] = [
+  {
+    id: 'ann-1',
+    category: 'china-uzb',
+    title: 'Xitoy → O‘zbekiston yo‘nalishida yangi reys',
+    content:
+      'Har hafta seshanba va juma kunlari Guanchjoudan Toshkentga to‘g‘ridan-to‘g‘ri yo‘nalish ochildi. Yo‘l vaqti — o‘rtacha 18 kun. Mijozlarga tracking raqami yuborilgandan keyin 24 soat ichida holatni tekshirish mumkin.',
+    pinned: true,
+    active: true,
+    createdBy: 'admin-1',
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  },
+  {
+    id: 'ann-2',
+    category: 'uzb-cargo',
+    title: 'O‘zbekistondagi ichki yetkazib berish jadvali',
+    content:
+      'Toshkent — Samarqand: har kuni, 09:00.\nToshkent — Buxoro: dushanba, chorshanba, juma 10:00.\nToshkent — Andijon: har kuni 14:00.\nViloyatga yetkazish odatda 1–2 kun ichida amalga oshiriladi.',
+    pinned: false,
+    active: true,
+    createdBy: 'admin-1',
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  },
+  {
+    id: 'ann-3',
+    category: 'payment',
+    title: 'To‘lov qoidalarida o‘zgarishlar',
+    content:
+      'Endi to‘lovni Click, Payme, Uzcard, Humo orqali qabul qilamiz. Naqd to‘lov faqat filiallarda. Yuk yetkazilgandan so‘ng 3 kun ichida to‘lov amalga oshirilmasa, kunlik 0.5% jarima qo‘shiladi.',
+    pinned: true,
+    active: true,
+    createdBy: 'admin-1',
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  },
+  {
+    id: 'ann-4',
+    category: 'general',
+    title: 'Bayram kunlari ish rejimi',
+    content:
+      'Mustaqillik kuni (1-sentabr) — filiallar dam oladi. Qabul va yetkazib berish 2-sentabrdan davom etadi. Operatorlar mijozlarni oldindan ogohlantirib qo‘yishi kerak.',
+    pinned: false,
+    active: true,
+    createdBy: 'admin-1',
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  },
+];
+
+export const seedBranches: Branch[] = [
+  {
+    id: 'br-tashkent-main',
+    name: 'Toshkent (Bosh ofis)',
+    city: 'Toshkent',
+    address: 'Toshkent sh., Chilonzor t., Bunyodkor ko‘chasi 12',
+    phone: '+998 71 200 00 01',
+    workingHours: 'Du-Sh: 09:00-19:00, Ya: 10:00-15:00',
+    lat: 41.2995,
+    lng: 69.2401,
+    isNew: false,
+    order: 0,
+    active: true,
+  },
+  {
+    id: 'br-samarkand',
+    name: 'Samarqand filiali',
+    city: 'Samarqand',
+    address: 'Samarqand sh., Registon ko‘chasi 7',
+    phone: '+998 66 233 00 02',
+    workingHours: 'Du-Sh: 09:00-18:00',
+    lat: 39.6542,
+    lng: 66.9597,
+    isNew: false,
+    order: 1,
+    active: true,
+  },
+  {
+    id: 'br-bukhara',
+    name: 'Buxoro filiali',
+    city: 'Buxoro',
+    address: 'Buxoro sh., Mustaqillik ko‘chasi 15',
+    phone: '+998 65 224 00 03',
+    workingHours: 'Du-Sh: 09:00-18:00',
+    lat: 39.7747,
+    lng: 64.4286,
+    isNew: true,
+    order: 2,
+    active: true,
+  },
+  {
+    id: 'br-andijan',
+    name: 'Andijon filiali',
+    city: 'Andijon',
+    address: 'Andijon sh., Navoiy ko‘chasi 22',
+    phone: '+998 74 223 00 04',
+    workingHours: 'Du-Sh: 09:00-18:00',
+    lat: 40.7821,
+    lng: 72.3442,
+    isNew: true,
+    order: 3,
+    active: true,
+  },
+];
+
+export const seedTariff: TariffSettings = {
+  id: 'main',
+  pricePerM3: 800,
+  kgPerM3: 125,
+  currency: 'USD',
+  notes:
+    '1 m³ yuk narxi = 800 USD va u 125 kg ga to‘g‘ri keladi. Mijozdan haqiqiy og‘irlik va o‘lchamlar (uzunlik, eni, balandlik) olinadi. Hajm bo‘yicha va og‘irlik bo‘yicha narx hisoblanadi — qaysi biri katta bo‘lsa, shu summa olinadi.',
+  updatedAt: Date.now(),
+};
 
 export const seedCategories: Category[] = [
   { id: 'cat-lost', name: 'Yuk yo‘qolgan', description: 'Mijoz yuki manzilga yetib bormagan', color: '#ef4444', icon: '📦', order: 0, active: true },
