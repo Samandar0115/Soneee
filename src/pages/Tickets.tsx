@@ -1,10 +1,43 @@
 import { useMemo, useState } from 'react';
-import { Plus, Search } from 'lucide-react';
+import { Plus, Search, Download } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
 import TicketModal from '../components/TicketModal';
 import { useApp } from '../context/AppContext';
 import type { Ticket, TicketStatus } from '../types';
 import { formatDateTime } from '../utils/format';
+
+function exportCSV(rows: Ticket[], stages: any[], categories: any[], users: any[]) {
+  const headers = ['Trek', 'Mijoz', 'Telefon', 'Kanal', 'Tur', 'Bosqich', 'Status', 'Muhimlik', 'Operator', 'Yaratilgan', 'Yangilangan', 'Hal etilgan'];
+  const lines = [headers.join(';')];
+  rows.forEach((t) => {
+    const stage = stages.find((s) => s.id === t.stageId)?.name ?? '';
+    const cat = categories.find((c) => c.id === t.categoryId)?.name ?? '';
+    const assignee = users.find((u) => u.id === t.assigneeId);
+    const f = (v: string | number | undefined) =>
+      `"${String(v ?? '').replace(/"/g, '""')}"`;
+    lines.push([
+      f(t.trackingNumber),
+      f(t.customerName),
+      f(t.customerPhone),
+      f(t.channel),
+      f(cat),
+      f(stage),
+      f(t.status),
+      f(t.priority),
+      f(assignee?.fullName ?? assignee?.username),
+      f(formatDateTime(t.createdAt)),
+      f(formatDateTime(t.updatedAt)),
+      f(t.resolvedAt ? formatDateTime(t.resolvedAt) : ''),
+    ].join(';'));
+  });
+  const blob = new Blob(['﻿' + lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `soneee-tickets-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 export default function Tickets() {
   const { tickets, stages, users, categories, currentUser } = useApp();
@@ -43,9 +76,14 @@ export default function Tickets() {
         title="Murojaatlar"
         subtitle="Barcha ticketlar ro'yxati"
         actions={
-          <button className="btn-primary" onClick={() => setCreating(true)}>
-            <Plus className="h-4 w-4" /> Yangi
-          </button>
+          <>
+            <button onClick={() => exportCSV(data, stages, categories, users)} className="btn-ghost">
+              <Download className="h-4 w-4" /> CSV eksport ({data.length})
+            </button>
+            <button className="btn-primary" onClick={() => setCreating(true)}>
+              <Plus className="h-4 w-4" /> Yangi
+            </button>
+          </>
         }
       />
 

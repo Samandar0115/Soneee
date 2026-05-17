@@ -18,18 +18,24 @@ import {
 } from 'firebase/firestore';
 import type {
   Announcement,
+  AppSettings,
+  Attachment,
   Branch,
   Category,
+  CustomerRating,
+  Lang,
   Stage,
   TariffSettings,
   Ticket,
   TicketHistoryEntry,
+  TicketNote,
   TicketStatus,
   User,
 } from '../types';
 import { db, FIREBASE_ENABLED } from '../firebase';
 import {
   seedAnnouncements,
+  seedAppSettings,
   seedBranches,
   seedCategories,
   seedStages,
@@ -50,13 +56,24 @@ interface AppState {
   announcements: Announcement[];
   branches: Branch[];
   tariff: TariffSettings;
+  settings: AppSettings;
+  lang: Lang;
+  theme: 'light' | 'dark';
+  setLang: (l: Lang) => void;
+  setTheme: (t: 'light' | 'dark') => void;
   login: (username: string, password: string) => User | null;
   logout: () => void;
-  createTicket: (data: Omit<Ticket, 'id' | 'trackingNumber' | 'history' | 'createdAt' | 'updatedAt' | 'status'>) => Promise<Ticket>;
+  findByTracking: (tracking: string) => Ticket | undefined;
+  findByPhone: (phone: string) => Ticket[];
+  createTicket: (data: Omit<Ticket, 'id' | 'trackingNumber' | 'history' | 'createdAt' | 'updatedAt' | 'status'> & { trackingNumber?: string }) => Promise<Ticket>;
   updateTicket: (id: string, patch: Partial<Ticket>, note?: string) => Promise<void>;
   moveTicket: (id: string, stageId: string) => Promise<void>;
   resolveTicket: (id: string, resolution: string) => Promise<void>;
   deleteTicket: (id: string) => Promise<void>;
+  addAttachment: (ticketId: string, file: Attachment) => Promise<void>;
+  removeAttachment: (ticketId: string, attachmentId: string) => Promise<void>;
+  addNote: (ticketId: string, kind: 'internal' | 'public', text: string) => Promise<void>;
+  rateTicket: (ticketId: string, rating: CustomerRating) => Promise<void>;
   saveUser: (user: User) => Promise<void>;
   deleteUser: (id: string) => Promise<void>;
   saveStage: (stage: Stage) => Promise<void>;
@@ -68,6 +85,7 @@ interface AppState {
   saveBranch: (b: Branch) => Promise<void>;
   deleteBranch: (id: string) => Promise<void>;
   saveTariff: (t: TariffSettings) => Promise<void>;
+  saveSettings: (s: AppSettings) => Promise<void>;
   runTestScenario: () => Promise<Ticket | null>;
 }
 
@@ -81,6 +99,9 @@ const STORAGE_KEYS = {
   announcements: 'soneee.announcements',
   branches: 'soneee.branches',
   tariff: 'soneee.tariff',
+  settings: 'soneee.settings',
+  lang: 'soneee.lang',
+  theme: 'soneee.theme',
   session: 'soneee.session',
 };
 
@@ -107,7 +128,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [tariff, setTariff] = useState<TariffSettings>(seedTariff);
+  const [settings, setSettings] = useState<AppSettings>(seedAppSettings);
+  const [lang, setLangState] = useState<Lang>(() => (localStorage.getItem(STORAGE_KEYS.lang) as Lang) || 'uz');
+  const [theme, setThemeState] = useState<'light' | 'dark'>(
+    () => (localStorage.getItem(STORAGE_KEYS.theme) as 'light' | 'dark') || 'light'
+  );
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', theme === 'dark');
+    localStorage.setItem(STORAGE_KEYS.theme, theme);
+  }, [theme]);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.lang, lang);
+  }, [lang]);
+
+  const setLang = useCallback((l: Lang) => setLangState(l), []);
+  const setTheme = useCallback((t: 'light' | 'dark') => setThemeState(t), []);
   const seededRef = useRef(false);
 
   const backend: 'firebase' | 'local' = FIREBASE_ENABLED && db ? 'firebase' : 'local';
@@ -171,6 +209,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       },
       (err) => handleFirestoreError('tariff:onSnapshot', err)
     );
+    const unsubSettings = onSnapshot(
+      doc(db, 'settings', 'app'),
+      (snap) => {
+        if (snap.exists()) setSettings(snap.data() as AppSettings);
+      },
+      (err) => handleFirestoreError('settings:onSnapshot', err)
+    );
     return () => {
       unsubUsers();
       unsubStages();
@@ -179,6 +224,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       unsubAnn();
       unsubBranches();
       unsubTariff();
+      unsubSettings();
     };
   }, [backend]);
 
@@ -192,12 +238,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setAnnouncements(loadLocal<Announcement[]>(STORAGE_KEYS.announcements, seedAnnouncements));
     setBranches(loadLocal<Branch[]>(STORAGE_KEYS.branches, seedBranches));
     setTariff(loadLocal<TariffSettings>(STORAGE_KEYS.tariff, seedTariff));
+    setSettings(loadLocal<AppSettings>(STORAGE_KEYS.settings, seedAppSettings));
     if (!localStorage.getItem(STORAGE_KEYS.users)) saveLocal(STORAGE_KEYS.users, seedUsers);
     if (!localStorage.getItem(STORAGE_KEYS.stages)) saveLocal(STORAGE_KEYS.stages, seedStages);
     if (!localStorage.getItem(STORAGE_KEYS.categories)) saveLocal(STORAGE_KEYS.categories, seedCategories);
     if (!localStorage.getItem(STORAGE_KEYS.announcements)) saveLocal(STORAGE_KEYS.announcements, seedAnnouncements);
     if (!localStorage.getItem(STORAGE_KEYS.branches)) saveLocal(STORAGE_KEYS.branches, seedBranches);
     if (!localStorage.getItem(STORAGE_KEYS.tariff)) saveLocal(STORAGE_KEYS.tariff, seedTariff);
+    if (!localStorage.getItem(STORAGE_KEYS.settings)) saveLocal(STORAGE_KEYS.settings, seedAppSettings);
     setReady(true);
   }, [backend]);
 
@@ -216,6 +264,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           seedAnnouncements.forEach((a) => batch.set(doc(fsdb, 'announcements', a.id), a));
           seedBranches.forEach((b) => batch.set(doc(fsdb, 'branches', b.id), b));
           batch.set(doc(fsdb, 'settings', 'tariff'), seedTariff);
+          batch.set(doc(fsdb, 'settings', 'app'), seedAppSettings);
           await batch.commit();
         } catch (err) {
           handleFirestoreError('seed:initial', err);
@@ -246,6 +295,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (backend === 'local' && ready) saveLocal(STORAGE_KEYS.tariff, tariff);
   }, [tariff, backend, ready]);
+  useEffect(() => {
+    if (backend === 'local' && ready) saveLocal(STORAGE_KEYS.settings, settings);
+  }, [settings, backend, ready]);
 
   /* ---------------- Session restore ---------------- */
   useEffect(() => {
@@ -310,21 +362,53 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const id = randomId('tkt');
       const now = Date.now();
       const firstStage = stages[0]?.id ?? '';
+      const priority = data.priority ?? 'normal';
+
+      // Auto-assignment
+      let assigneeId = data.assigneeId;
+      if (!assigneeId && settings.autoAssign !== 'off') {
+        const operators = users.filter((u) => u.role === 'operator');
+        if (operators.length > 0) {
+          if (settings.autoAssign === 'least-busy') {
+            const loadMap = new Map<string, number>();
+            operators.forEach((o) => loadMap.set(o.id, 0));
+            tickets.forEach((t) => {
+              if (t.status === 'pending' && t.assigneeId && loadMap.has(t.assigneeId)) {
+                loadMap.set(t.assigneeId, (loadMap.get(t.assigneeId) ?? 0) + 1);
+              }
+            });
+            assigneeId = [...loadMap.entries()].sort((a, b) => a[1] - b[1])[0]?.[0];
+          } else {
+            const lastAssigned = tickets
+              .filter((t) => t.assigneeId && operators.find((o) => o.id === t.assigneeId))
+              .sort((a, b) => b.createdAt - a.createdAt)[0]?.assigneeId;
+            const idx = operators.findIndex((o) => o.id === lastAssigned);
+            assigneeId = operators[(idx + 1) % operators.length].id;
+          }
+        }
+      }
+
+      const slaDueAt = now + (settings.slaMinutes[priority] ?? 480) * 60_000;
+
       const ticket: Ticket = {
         id,
-        trackingNumber: generateTrackingNumber(),
+        trackingNumber: data.trackingNumber || generateTrackingNumber(),
         status: 'pending' as TicketStatus,
         stageId: data.stageId || firstStage,
         categoryId: data.categoryId,
         customerName: data.customerName,
         customerPhone: data.customerPhone,
         channel: data.channel,
-        priority: data.priority ?? 'normal',
+        priority,
         createdBy: data.createdBy,
         createdAt: now,
         updatedAt: now,
-        assigneeId: data.assigneeId,
+        assigneeId,
         details: data.details ?? {},
+        attachments: [],
+        internalNotes: [],
+        publicComments: [],
+        slaDueAt,
         history: [
           {
             id: randomId('h'),
@@ -340,7 +424,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       await writeDoc('tickets', id, ticket);
       return ticket;
     },
-    [stages, currentUser, writeDoc]
+    [stages, users, tickets, settings, currentUser, writeDoc]
   );
 
   const appendHistory = (ticket: Ticket, entry: Omit<TicketHistoryEntry, 'id' | 'timestamp'>) => {
@@ -556,6 +640,126 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [backend]
   );
 
+  const saveSettings = useCallback<AppState['saveSettings']>(
+    async (s) => {
+      const next: AppSettings = { ...s, id: 'main', updatedAt: Date.now() };
+      setSettings(next);
+      if (backend === 'firebase' && db) {
+        try {
+          await setDoc(doc(db, 'settings', 'app'), next);
+        } catch (err) {
+          handleFirestoreError('settings:set', err);
+        }
+      }
+    },
+    [backend]
+  );
+
+  const findByTracking = useCallback<AppState['findByTracking']>(
+    (tracking) => tickets.find((t) => t.trackingNumber.toLowerCase() === tracking.toLowerCase().trim()),
+    [tickets]
+  );
+
+  const findByPhone = useCallback<AppState['findByPhone']>(
+    (phone) => {
+      const norm = phone.replace(/\D/g, '');
+      if (!norm) return [];
+      return tickets
+        .filter((t) => t.customerPhone.replace(/\D/g, '').includes(norm))
+        .sort((a, b) => b.createdAt - a.createdAt);
+    },
+    [tickets]
+  );
+
+  const addAttachment = useCallback<AppState['addAttachment']>(
+    async (ticketId, file) => {
+      let updated: Ticket | null = null;
+      setTickets((prev) =>
+        prev.map((t) => {
+          if (t.id !== ticketId) return t;
+          const next: Ticket = {
+            ...t,
+            attachments: [...(t.attachments ?? []), file],
+            updatedAt: Date.now(),
+          };
+          updated = next;
+          return next;
+        })
+      );
+      if (updated) await writeDoc('tickets', ticketId, updated);
+    },
+    [writeDoc]
+  );
+
+  const removeAttachment = useCallback<AppState['removeAttachment']>(
+    async (ticketId, attachmentId) => {
+      let updated: Ticket | null = null;
+      setTickets((prev) =>
+        prev.map((t) => {
+          if (t.id !== ticketId) return t;
+          const next: Ticket = {
+            ...t,
+            attachments: (t.attachments ?? []).filter((a) => a.id !== attachmentId),
+            updatedAt: Date.now(),
+          };
+          updated = next;
+          return next;
+        })
+      );
+      if (updated) await writeDoc('tickets', ticketId, updated);
+    },
+    [writeDoc]
+  );
+
+  const addNote = useCallback<AppState['addNote']>(
+    async (ticketId, kind, text) => {
+      if (!text.trim()) return;
+      const note: TicketNote = {
+        id: randomId('n'),
+        text: text.trim(),
+        authorId: currentUser?.id ?? 'system',
+        authorName: currentUser?.fullName ?? currentUser?.username,
+        createdAt: Date.now(),
+      };
+      let updated: Ticket | null = null;
+      setTickets((prev) =>
+        prev.map((t) => {
+          if (t.id !== ticketId) return t;
+          const next: Ticket = {
+            ...t,
+            updatedAt: Date.now(),
+            firstResponseAt: t.firstResponseAt ?? Date.now(),
+          };
+          if (kind === 'internal') {
+            next.internalNotes = [...(t.internalNotes ?? []), note];
+          } else {
+            next.publicComments = [...(t.publicComments ?? []), note];
+          }
+          updated = next;
+          return next;
+        })
+      );
+      if (updated) await writeDoc('tickets', ticketId, updated);
+    },
+    [currentUser, writeDoc]
+  );
+
+  const rateTicket = useCallback<AppState['rateTicket']>(
+    async (ticketId, rating) => {
+      let updated: Ticket | null = null;
+      setTickets((prev) =>
+        prev.map((t) => {
+          if (t.id !== ticketId) return t;
+          const next: Ticket = { ...t, rating, updatedAt: Date.now() };
+          updated = next;
+          return next;
+        })
+      );
+      if (updated) await writeDoc('tickets', ticketId, updated);
+    },
+    [writeDoc]
+  );
+
   const runTestScenario = useCallback<AppState['runTestScenario']>(async () => {
     if (!currentUser || stages.length === 0) return null;
     const ticket = await createTicket({
@@ -590,13 +794,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
       announcements,
       branches,
       tariff,
+      settings,
+      lang,
+      theme,
+      setLang,
+      setTheme,
       login,
       logout,
+      findByTracking,
+      findByPhone,
       createTicket,
       updateTicket,
       moveTicket,
       resolveTicket,
       deleteTicket,
+      addAttachment,
+      removeAttachment,
+      addNote,
+      rateTicket,
       saveUser,
       deleteUser,
       saveStage,
@@ -608,6 +823,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       saveBranch,
       deleteBranch,
       saveTariff,
+      saveSettings,
       runTestScenario,
     }),
     [
@@ -621,13 +837,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
       announcements,
       branches,
       tariff,
+      settings,
+      lang,
+      theme,
+      setLang,
+      setTheme,
       login,
       logout,
+      findByTracking,
+      findByPhone,
       createTicket,
       updateTicket,
       moveTicket,
       resolveTicket,
       deleteTicket,
+      addAttachment,
+      removeAttachment,
+      addNote,
+      rateTicket,
       saveUser,
       deleteUser,
       saveStage,
@@ -639,6 +866,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       saveBranch,
       deleteBranch,
       saveTariff,
+      saveSettings,
       runTestScenario,
     ]
   );

@@ -1,4 +1,12 @@
-import type { Announcement, Branch, Category, Stage, TariffSettings, User } from '../types';
+import type { Announcement, AppSettings, Branch, Category, Stage, TariffSettings, User } from '../types';
+
+export const seedAppSettings: AppSettings = {
+  id: 'main',
+  autoAssign: 'least-busy',
+  slaMinutes: { low: 1440, normal: 480, high: 120, urgent: 30 },
+  defaultLang: 'uz',
+  updatedAt: Date.now(),
+};
 
 export const seedAnnouncements: Announcement[] = [
   {

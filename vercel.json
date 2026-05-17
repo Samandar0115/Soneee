@@ -5,6 +5,6 @@
   "outputDirectory": "dist",
   "installCommand": "npm install",
   "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
+    { "source": "/((?!sw\\.js|manifest\\.webmanifest|favicon\\.svg|assets/.*).*)", "destination": "/index.html" }
   ]
 }

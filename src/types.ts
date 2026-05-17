@@ -67,6 +67,12 @@ export interface Ticket {
   assigneeId?: string;
   details: Record<string, string>;
   history: TicketHistoryEntry[];
+  attachments?: Attachment[];
+  internalNotes?: TicketNote[];
+  publicComments?: TicketNote[];
+  rating?: CustomerRating;
+  slaDueAt?: number;
+  firstResponseAt?: number;
 }
 
 export interface AppDataSnapshot {
@@ -118,4 +124,38 @@ export interface TariffSettings {
   currency: string;
   notes: string;
   updatedAt: number;
+}
+
+export type Lang = 'uz' | 'ru';
+
+export interface AppSettings {
+  id: 'main';
+  autoAssign: 'off' | 'round-robin' | 'least-busy';
+  slaMinutes: Record<NonNullable<Ticket['priority']>, number>;
+  defaultLang: Lang;
+  updatedAt: number;
+}
+
+export interface Attachment {
+  id: string;
+  name: string;
+  type: string;
+  size: number;
+  dataUrl: string;
+  uploadedBy: string;
+  uploadedAt: number;
+}
+
+export interface TicketNote {
+  id: string;
+  text: string;
+  authorId: string;
+  authorName?: string;
+  createdAt: number;
+}
+
+export interface CustomerRating {
+  score: number;
+  feedback?: string;
+  ratedAt: number;
 }

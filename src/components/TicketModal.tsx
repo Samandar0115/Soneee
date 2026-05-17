@@ -1,9 +1,23 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import type { Stage, Ticket } from '../types';
 import Modal from './Modal';
-import { formatDateTime, timeAgo } from '../utils/format';
-import { CheckCircle2, Trash2, History } from 'lucide-react';
+import { formatDateTime, randomId, timeAgo } from '../utils/format';
+import {
+  CheckCircle2,
+  Trash2,
+  History,
+  Paperclip,
+  X,
+  MessageSquare,
+  Lock,
+  AlertTriangle,
+  Phone,
+  FileText,
+  Image as ImageIcon,
+  Download,
+  Clock as ClockIcon,
+} from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface Props {
@@ -13,7 +27,23 @@ interface Props {
 }
 
 export default function TicketModal({ open, onClose, ticket }: Props) {
-  const { stages, users, categories, currentUser, createTicket, updateTicket, moveTicket, resolveTicket, deleteTicket } = useApp();
+  const {
+    stages,
+    users,
+    categories,
+    currentUser,
+    tickets,
+    findByPhone,
+    findByTracking,
+    createTicket,
+    updateTicket,
+    moveTicket,
+    resolveTicket,
+    deleteTicket,
+    addAttachment,
+    removeAttachment,
+    addNote,
+  } = useApp();
 
   const isEdit = !!ticket;
   const activeCategories = useMemo(() => categories.filter((c) => c.active || c.id === ticket?.categoryId), [categories, ticket]);
@@ -26,6 +56,34 @@ export default function TicketModal({ open, onClose, ticket }: Props) {
   const [assigneeId, setAssigneeId] = useState(ticket?.assigneeId ?? currentUser?.id ?? '');
   const [details, setDetails] = useState<Record<string, string>>(ticket?.details ?? {});
   const [resolution, setResolution] = useState('');
+  const [customTracking, setCustomTracking] = useState('');
+  const [internalNoteDraft, setInternalNoteDraft] = useState('');
+  const [publicNoteDraft, setPublicNoteDraft] = useState('');
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const duplicateTicket = useMemo(() => {
+    if (isEdit) return null;
+    const tn = customTracking.trim();
+    if (!tn) return null;
+    return findByTracking(tn);
+  }, [isEdit, customTracking, findByTracking]);
+
+  const customerHistory = useMemo(() => {
+    const phone = customerPhone.trim();
+    if (!phone) return [];
+    const list = findByPhone(phone);
+    return list.filter((x) => x.id !== ticket?.id).slice(0, 6);
+  }, [customerPhone, findByPhone, ticket]);
+
+  const slaInfo = useMemo(() => {
+    if (!ticket?.slaDueAt || ticket.status === 'resolved') return null;
+    const diff = ticket.slaDueAt - Date.now();
+    const overdue = diff < 0;
+    const mins = Math.round(Math.abs(diff) / 60_000);
+    const hrs = Math.floor(mins / 60);
+    const txt = hrs > 0 ? `${hrs}s ${mins % 60}daq` : `${mins}daq`;
+    return { overdue, txt };
+  }, [ticket]);
 
   useEffect(() => {
     if (open) {
@@ -38,6 +96,9 @@ export default function TicketModal({ open, onClose, ticket }: Props) {
       setAssigneeId(ticket?.assigneeId ?? currentUser?.id ?? '');
       setDetails(ticket?.details ?? {});
       setResolution('');
+      setCustomTracking('');
+      setInternalNoteDraft('');
+      setPublicNoteDraft('');
     }
   }, [open, ticket, stages, currentUser]);
 
@@ -69,6 +130,10 @@ export default function TicketModal({ open, onClose, ticket }: Props) {
       if (ticket.stageId !== stageId) await moveTicket(ticket.id, stageId);
       toast.success('Saqlandi');
     } else {
+      if (duplicateTicket) {
+        toast.error("Bu trek raqami bilan murojaat allaqachon mavjud");
+        return;
+      }
       await createTicket({
         stageId,
         categoryId: categoryId || undefined,
@@ -79,10 +144,47 @@ export default function TicketModal({ open, onClose, ticket }: Props) {
         createdBy: currentUser.id,
         assigneeId,
         details,
+        trackingNumber: customTracking.trim() || undefined,
       });
       toast.success('Yangi murojaat yaratildi');
     }
     onClose();
+  }
+
+  async function handleFile(files: FileList | null) {
+    if (!ticket || !files) return;
+    for (const file of Array.from(files)) {
+      if (file.size > 2 * 1024 * 1024) {
+        toast.error(`${file.name} — 2 MB dan katta`);
+        continue;
+      }
+      const reader = new FileReader();
+      await new Promise<void>((resolve) => {
+        reader.onload = async () => {
+          await addAttachment(ticket.id, {
+            id: randomId('att'),
+            name: file.name,
+            type: file.type,
+            size: file.size,
+            dataUrl: reader.result as string,
+            uploadedBy: currentUser?.id ?? 'system',
+            uploadedAt: Date.now(),
+          });
+          resolve();
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+    toast.success('Fayl(lar) yuklandi');
+  }
+
+  async function pushNote(kind: 'internal' | 'public') {
+    if (!ticket) return;
+    const text = kind === 'internal' ? internalNoteDraft : publicNoteDraft;
+    if (!text.trim()) return;
+    await addNote(ticket.id, kind, text);
+    if (kind === 'internal') setInternalNoteDraft('');
+    else setPublicNoteDraft('');
   }
 
   async function handleResolve() {
@@ -113,6 +215,43 @@ export default function TicketModal({ open, onClose, ticket }: Props) {
     >
       <div className="grid md:grid-cols-3 gap-5">
         <div className="md:col-span-2 space-y-4">
+          {!isEdit && (
+            <div>
+              <label className="label">Trek raqami (ixtiyoriy — bo'sh qoldirsangiz avtomatik)</label>
+              <input
+                className="input mt-1 font-mono"
+                placeholder="T-XXXX-YYYY"
+                value={customTracking}
+                onChange={(e) => setCustomTracking(e.target.value)}
+              />
+              {duplicateTicket && (
+                <div className="mt-2 flex items-start gap-2 p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs">
+                  <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <b>Dublikat:</b> bu trek raqami {duplicateTicket.customerName} ({duplicateTicket.customerPhone}) uchun allaqachon mavjud.
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {slaInfo && (
+            <div
+              className={`flex items-center gap-2 p-3 rounded-xl border text-sm ${
+                slaInfo.overdue
+                  ? 'bg-rose-50 border-rose-200 text-rose-800'
+                  : 'bg-emerald-50 border-emerald-200 text-emerald-800'
+              }`}
+            >
+              <ClockIcon className="h-4 w-4" />
+              {slaInfo.overdue ? (
+                <span>SLA <b>{slaInfo.txt}</b> oldin kechikkan</span>
+              ) : (
+                <span>SLA muddatigacha <b>{slaInfo.txt}</b> qoldi</span>
+              )}
+            </div>
+          )}
+
           {activeCategories.length > 0 && (
             <div>
               <label className="label">Murojaat turi (yo'nalish)</label>
@@ -239,6 +378,125 @@ export default function TicketModal({ open, onClose, ticket }: Props) {
             </div>
           )}
 
+          {isEdit && ticket && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-3">
+                <div className="flex items-center gap-2 label">
+                  <Lock className="h-3.5 w-3.5" /> Ichki izohlar (faqat operatorlar)
+                </div>
+                <div className="max-h-40 overflow-y-auto scroll-thin mt-2 space-y-1.5">
+                  {(ticket.internalNotes ?? []).map((n) => (
+                    <div key={n.id} className="text-xs p-2 rounded-lg bg-amber-50 border border-amber-100">
+                      <div className="text-amber-900 whitespace-pre-wrap">{n.text}</div>
+                      <div className="text-[10px] text-amber-600 mt-0.5">
+                        {n.authorName} · {timeAgo(n.createdAt)}
+                      </div>
+                    </div>
+                  ))}
+                  {(ticket.internalNotes ?? []).length === 0 && (
+                    <div className="text-xs text-slate-400 text-center py-2">— bo'sh —</div>
+                  )}
+                </div>
+                <div className="mt-2 flex gap-1">
+                  <input
+                    className="input text-xs"
+                    placeholder="Ichki izoh..."
+                    value={internalNoteDraft}
+                    onChange={(e) => setInternalNoteDraft(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && pushNote('internal')}
+                  />
+                  <button onClick={() => pushNote('internal')} className="btn-ghost text-xs">+</button>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-3">
+                <div className="flex items-center gap-2 label">
+                  <MessageSquare className="h-3.5 w-3.5" /> Ommaviy izohlar (mijoz ko'radi)
+                </div>
+                <div className="max-h-40 overflow-y-auto scroll-thin mt-2 space-y-1.5">
+                  {(ticket.publicComments ?? []).map((n) => (
+                    <div key={n.id} className="text-xs p-2 rounded-lg bg-brand-50 border border-brand-100">
+                      <div className="text-brand-900 whitespace-pre-wrap">{n.text}</div>
+                      <div className="text-[10px] text-brand-600 mt-0.5">
+                        {n.authorName} · {timeAgo(n.createdAt)}
+                      </div>
+                    </div>
+                  ))}
+                  {(ticket.publicComments ?? []).length === 0 && (
+                    <div className="text-xs text-slate-400 text-center py-2">— bo'sh —</div>
+                  )}
+                </div>
+                <div className="mt-2 flex gap-1">
+                  <input
+                    className="input text-xs"
+                    placeholder="Ommaviy izoh..."
+                    value={publicNoteDraft}
+                    onChange={(e) => setPublicNoteDraft(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && pushNote('public')}
+                  />
+                  <button onClick={() => pushNote('public')} className="btn-ghost text-xs">+</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {isEdit && ticket && (
+            <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-3">
+              <div className="flex items-center justify-between">
+                <div className="label flex items-center gap-2">
+                  <Paperclip className="h-3.5 w-3.5" /> Fayllar ({(ticket.attachments ?? []).length})
+                </div>
+                <button onClick={() => fileInputRef.current?.click()} className="btn-ghost text-xs">
+                  <Paperclip className="h-3.5 w-3.5" /> Yuklash
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  hidden
+                  onChange={(e) => handleFile(e.target.files)}
+                />
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2">
+                {(ticket.attachments ?? []).map((a) => (
+                  <div key={a.id} className="relative group rounded-lg border border-slate-200 dark:border-slate-700 p-2 text-xs">
+                    {a.type.startsWith('image/') ? (
+                      <a href={a.dataUrl} target="_blank" rel="noreferrer">
+                        <img src={a.dataUrl} alt={a.name} className="w-full h-20 object-cover rounded" />
+                      </a>
+                    ) : (
+                      <div className="h-20 flex items-center justify-center bg-slate-50 dark:bg-slate-800 rounded">
+                        <FileText className="h-8 w-8 text-slate-400" />
+                      </div>
+                    )}
+                    <div className="mt-1 truncate font-semibold">{a.name}</div>
+                    <div className="text-[10px] text-slate-400">{Math.round(a.size / 1024)} KB</div>
+                    <div className="absolute top-1 right-1 hidden group-hover:flex gap-1">
+                      <a
+                        href={a.dataUrl}
+                        download={a.name}
+                        className="p-1 rounded bg-white text-brand-600 shadow"
+                      >
+                        <Download className="h-3 w-3" />
+                      </a>
+                      <button
+                        onClick={() => removeAttachment(ticket.id, a.id)}
+                        className="p-1 rounded bg-white text-rose-600 shadow"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                {(ticket.attachments ?? []).length === 0 && (
+                  <div className="col-span-full text-xs text-slate-400 text-center py-3">
+                    Fayl yo'q (rasm, hujjat — max 2 MB)
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {isEdit && ticket?.status !== 'resolved' && (
             <div className="rounded-xl border border-emerald-200 bg-emerald-50/40 p-4">
               <div className="label text-emerald-700 mb-2 flex items-center gap-2">
@@ -259,6 +517,29 @@ export default function TicketModal({ open, onClose, ticket }: Props) {
         </div>
 
         <div className="space-y-3">
+          {customerHistory.length > 0 && (
+            <div className="card p-3">
+              <div className="flex items-center gap-2 text-slate-500 text-xs">
+                <Phone className="h-3.5 w-3.5" /> Bu mijozning oldingi murojaatlari ({customerHistory.length})
+              </div>
+              <div className="mt-2 space-y-1.5 max-h-40 overflow-y-auto scroll-thin pr-1">
+                {customerHistory.map((h) => {
+                  const stg = stages.find((s) => s.id === h.stageId);
+                  return (
+                    <div key={h.id} className="text-xs border-l-2 pl-2" style={{ borderColor: stg?.color ?? '#94a3b8' }}>
+                      <div className="font-semibold text-slate-700 dark:text-slate-300 truncate">
+                        {h.trackingNumber}
+                      </div>
+                      <div className="text-slate-400">
+                        {stg?.name ?? '—'} · {h.status === 'resolved' ? '✓ hal' : '⏳ jarayonda'} · {timeAgo(h.createdAt)}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {isEdit && ticket && (
             <div className="card p-3">
               <div className="flex items-center gap-2 text-slate-500 text-xs">

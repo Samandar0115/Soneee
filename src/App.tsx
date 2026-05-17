@@ -9,6 +9,9 @@ import Knowledge from './pages/Knowledge';
 import UsersPage from './pages/Users';
 import StagesPage from './pages/Stages';
 import CategoriesPage from './pages/Categories';
+import SettingsPage from './pages/Settings';
+import Track from './pages/Track';
+import GlobalSearch from './components/GlobalSearch';
 
 function Protected({ children }: { children: JSX.Element }) {
   const { currentUser, ready } = useApp();
@@ -31,16 +34,19 @@ function AdminOnly({ children }: { children: JSX.Element }) {
 
 export default function App() {
   return (
-    <Routes>
-      <Route path="/login" element={<Login />} />
-      <Route
-        path="/"
-        element={
-          <Protected>
-            <Layout />
-          </Protected>
-        }
-      >
+    <>
+      <GlobalSearch />
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route path="/track" element={<Track />} />
+        <Route
+          path="/"
+          element={
+            <Protected>
+              <Layout />
+            </Protected>
+          }
+        >
         <Route index element={<Dashboard />} />
         <Route path="pipeline" element={<Pipeline />} />
         <Route path="tickets" element={<Tickets />} />
@@ -69,8 +75,17 @@ export default function App() {
             </AdminOnly>
           }
         />
+        <Route
+          path="settings"
+          element={
+            <AdminOnly>
+              <SettingsPage />
+            </AdminOnly>
+          }
+        />
       </Route>
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </>
   );
 }

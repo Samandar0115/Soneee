@@ -10,6 +10,10 @@
   }
   body {
     font-family: 'Inter', system-ui, sans-serif;
+    @apply bg-slate-100 text-slate-900;
+  }
+  html.dark body {
+    @apply bg-slate-950 text-slate-100;
   }
 }
 
@@ -29,8 +33,17 @@
   .card {
     @apply rounded-2xl bg-white border border-slate-200 shadow-soft;
   }
+  html.dark .card {
+    @apply bg-slate-900 border-slate-800;
+  }
   .input {
     @apply w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100;
+  }
+  html.dark .input {
+    @apply bg-slate-900 border-slate-800 text-slate-100;
+  }
+  html.dark .btn-ghost {
+    @apply bg-slate-900 text-slate-200 border-slate-800 hover:bg-slate-800;
   }
   .label {
     @apply text-xs font-semibold uppercase tracking-wide text-slate-500;

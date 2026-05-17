@@ -5,7 +5,11 @@ import {
   KanbanSquare,
   LayoutDashboard,
   LogOut,
+  Moon,
+  Search,
+  Settings,
   Settings2,
+  Sun,
   Tags,
   Ticket as TicketIcon,
   Users,
@@ -13,22 +17,29 @@ import {
   Cloud,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { tFn } from '../i18n';
 
 export default function Layout() {
-  const { currentUser, logout, backend } = useApp();
+  const { currentUser, logout, backend, lang, setLang, theme, setTheme } = useApp();
+  const t = tFn(lang);
   const nav = useNavigate();
 
   const links = [
-    { to: '/', label: 'Boshqaruv paneli', icon: LayoutDashboard, end: true },
-    { to: '/pipeline', label: 'Pipeline (Kanban)', icon: KanbanSquare },
-    { to: '/tickets', label: 'Murojaatlar', icon: TicketIcon },
-    { to: '/knowledge', label: 'Bilim bazasi', icon: BookOpen },
+    { to: '/', label: t('nav.dashboard'), icon: LayoutDashboard, end: true },
+    { to: '/pipeline', label: t('nav.pipeline'), icon: KanbanSquare },
+    { to: '/tickets', label: t('nav.tickets'), icon: TicketIcon },
+    { to: '/knowledge', label: t('nav.knowledge'), icon: BookOpen },
   ];
   const adminLinks = [
-    { to: '/users', label: 'Xodimlar', icon: Users },
-    { to: '/stages', label: 'Bosqichlar', icon: Settings2 },
-    { to: '/categories', label: 'Murojaat turlari', icon: Tags },
+    { to: '/users', label: t('nav.users'), icon: Users },
+    { to: '/stages', label: t('nav.stages'), icon: Settings2 },
+    { to: '/categories', label: t('nav.categories'), icon: Tags },
+    { to: '/settings', label: t('nav.settings'), icon: Settings },
   ];
+
+  function triggerSearch() {
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
+  }
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -50,13 +61,51 @@ export default function Layout() {
           {currentUser?.role === 'admin' && (
             <>
               <div className="px-3 mt-5 mb-2 text-[11px] uppercase tracking-wider text-slate-500">
-                Administrator
+                {t('nav.admin')}
               </div>
               {adminLinks.map((l) => (
                 <NavItem key={l.to} {...l} />
               ))}
             </>
           )}
+
+          <div className="mt-5 px-3 space-y-2">
+            <button
+              onClick={triggerSearch}
+              className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs text-slate-300 bg-white/5 hover:bg-white/10"
+            >
+              <Search className="h-3.5 w-3.5" />
+              <span className="flex-1 text-left">{t('search.global')}</span>
+              <kbd className="text-[10px] border border-white/20 rounded px-1.5 py-0.5">⌘K</kbd>
+            </button>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+                className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-xl text-xs bg-white/5 hover:bg-white/10 text-slate-300"
+              >
+                {theme === 'dark' ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
+                {theme === 'dark' ? t('common.theme.light') : t('common.theme.dark')}
+              </button>
+              <div className="flex bg-white/5 rounded-xl overflow-hidden">
+                <button
+                  onClick={() => setLang('uz')}
+                  className={`px-2 py-1.5 text-xs font-semibold ${
+                    lang === 'uz' ? 'bg-brand-500 text-white' : 'text-slate-300 hover:bg-white/10'
+                  }`}
+                >
+                  UZ
+                </button>
+                <button
+                  onClick={() => setLang('ru')}
+                  className={`px-2 py-1.5 text-xs font-semibold ${
+                    lang === 'ru' ? 'bg-brand-500 text-white' : 'text-slate-300 hover:bg-white/10'
+                  }`}
+                >
+                  RU
+                </button>
+              </div>
+            </div>
+          </div>
         </nav>
 
         <div className="px-3 py-3 border-t border-white/5 space-y-2">
