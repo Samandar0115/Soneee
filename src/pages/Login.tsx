@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { useNavigate, Navigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Headphones, ShieldCheck } from 'lucide-react';
+import { Headphones } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useApp } from '../context/AppContext';
 
 export default function Login() {
-  const { login, currentUser, backend } = useApp();
+  const { login, currentUser } = useApp();
   const nav = useNavigate();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -52,7 +52,7 @@ export default function Login() {
               className="input mt-1"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              placeholder="admin yoki operator1"
+              placeholder="username"
             />
           </div>
           <div>
@@ -70,21 +70,8 @@ export default function Login() {
           </button>
         </form>
 
-        <div className="mt-5 p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-600 space-y-1">
-          <div className="font-semibold text-slate-700 flex items-center gap-1">
-            <ShieldCheck className="h-3.5 w-3.5" /> Demo hisoblar
-          </div>
-          <div>
-            Admin: <code className="bg-white px-1.5 py-0.5 rounded">admin</code> /{' '}
-            <code className="bg-white px-1.5 py-0.5 rounded">admin123</code>
-          </div>
-          <div>
-            Operator: <code className="bg-white px-1.5 py-0.5 rounded">operator1</code> /{' '}
-            <code className="bg-white px-1.5 py-0.5 rounded">operator123</code>
-          </div>
-          <div className="mt-2 text-[11px] text-slate-500">
-            Rejim: <b>{backend === 'firebase' ? 'Firebase real-time' : 'Demo (localStorage)'}</b>
-          </div>
+        <div className="mt-5 text-[11px] text-slate-400 text-center">
+          Login ma'lumotlarini administratordan oling
         </div>
       </motion.div>
     </div>
