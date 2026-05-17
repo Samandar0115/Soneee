@@ -153,6 +153,16 @@ export interface AppSettings {
   updatedAt: number;
 }
 
+export interface ResponseTemplate {
+  id: string;
+  title: string;
+  body: string;
+  category?: string;
+  order: number;
+  active: boolean;
+  createdAt: number;
+}
+
 export interface Attachment {
   id: string;
   name: string;

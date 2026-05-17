@@ -2,12 +2,14 @@ import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
+  BarChart3,
   BookOpen,
   Headphones,
   KanbanSquare,
   LayoutDashboard,
   LogOut,
   Menu,
+  MessageSquare,
   Moon,
   Search,
   Settings,
@@ -54,9 +56,11 @@ export default function Layout() {
     { to: '/knowledge', label: t('nav.knowledge'), icon: BookOpen },
   ];
   const adminLinks = [
+    { to: '/analytics', label: 'Analitika', icon: BarChart3 },
     { to: '/users', label: t('nav.users'), icon: Users },
     { to: '/stages', label: t('nav.stages'), icon: Settings2 },
     { to: '/categories', label: t('nav.categories'), icon: Tags },
+    { to: '/templates', label: 'Javob shablonlari', icon: MessageSquare },
     { to: '/settings', label: t('nav.settings'), icon: Settings },
   ];
 

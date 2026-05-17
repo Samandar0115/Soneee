@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import type { Stage, Ticket } from '../types';
 import Modal from './Modal';
+import CopyButton from './CopyButton';
 import { formatDateTime, randomId, timeAgo } from '../utils/format';
 import {
   CheckCircle2,
@@ -33,6 +34,7 @@ export default function TicketModal({ open, onClose, ticket }: Props) {
     categories,
     currentUser,
     tickets,
+    templates,
     findByPhone,
     findByTracking,
     createTicket,
@@ -290,7 +292,10 @@ export default function TicketModal({ open, onClose, ticket }: Props) {
               <input className="input mt-1" value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
             </div>
             <div>
-              <label className="label">Telefon</label>
+              <label className="label flex items-center justify-between">
+                <span>Telefon</span>
+                {customerPhone && <CopyButton value={customerPhone} label="Telefon" />}
+              </label>
               <input className="input mt-1" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} />
             </div>
             <div>
@@ -410,8 +415,30 @@ export default function TicketModal({ open, onClose, ticket }: Props) {
               </div>
 
               <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-3">
-                <div className="flex items-center gap-2 label">
-                  <MessageSquare className="h-3.5 w-3.5" /> Ommaviy izohlar (mijoz ko'radi)
+                <div className="flex items-center justify-between label">
+                  <span className="flex items-center gap-2">
+                    <MessageSquare className="h-3.5 w-3.5" /> Ommaviy izohlar (mijoz ko'radi)
+                  </span>
+                  {templates.filter((tpl) => tpl.active).length > 0 && (
+                    <select
+                      className="text-[10px] bg-transparent border border-slate-200 dark:border-slate-700 rounded px-1 py-0.5 cursor-pointer"
+                      defaultValue=""
+                      onChange={(e) => {
+                        const tpl = templates.find((x) => x.id === e.target.value);
+                        if (tpl) {
+                          setPublicNoteDraft((prev) => (prev ? prev + '\n' + tpl.body : tpl.body));
+                        }
+                        e.target.value = '';
+                      }}
+                    >
+                      <option value="" disabled>📋 Shablon...</option>
+                      {templates.filter((tpl) => tpl.active).map((tpl) => (
+                        <option key={tpl.id} value={tpl.id}>
+                          {tpl.title}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </div>
                 <div className="max-h-40 overflow-y-auto scroll-thin mt-2 space-y-1.5">
                   {(ticket.publicComments ?? []).map((n) => (
@@ -427,12 +454,12 @@ export default function TicketModal({ open, onClose, ticket }: Props) {
                   )}
                 </div>
                 <div className="mt-2 flex gap-1">
-                  <input
+                  <textarea
                     className="input text-xs"
                     placeholder="Ommaviy izoh..."
+                    rows={2}
                     value={publicNoteDraft}
                     onChange={(e) => setPublicNoteDraft(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && pushNote('public')}
                   />
                   <button onClick={() => pushNote('public')} className="btn-ghost text-xs">+</button>
                 </div>

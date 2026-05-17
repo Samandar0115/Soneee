@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Plus,
   Search,
@@ -8,7 +9,6 @@ import {
   ArrowUpDown,
   AlertTriangle,
   Calendar,
-  Users as UsersIcon,
   X,
   CheckSquare,
   Square,
@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
 import TicketModal from '../components/TicketModal';
+import CopyButton from '../components/CopyButton';
 import { useApp } from '../context/AppContext';
 import type { Stage, Ticket, TicketStatus, User, Category } from '../types';
 import { formatDateTime, timeAgo } from '../utils/format';
@@ -55,6 +56,8 @@ function exportCSV(rows: Ticket[], stages: Stage[], categories: Category[], user
 export default function Tickets() {
   const { tickets, stages, users, categories, currentUser, moveTicket, updateTicket } = useApp();
 
+  const [searchParams, setSearchParams] = useSearchParams();
+  const isAdminInit = useApp().currentUser?.role === 'admin';
   const [q, setQ] = useState('');
   const [debouncedQ, setDebouncedQ] = useState('');
   const [stageFilter, setStageFilter] = useState<string>('all');
@@ -63,7 +66,7 @@ export default function Tickets() {
   const [assigneeFilter, setAssigneeFilter] = useState<string>('all');
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
   const [dateRange, setDateRange] = useState<DateRange>('all');
-  const [quick, setQuick] = useState<QuickFilter>('all');
+  const [quick, setQuick] = useState<QuickFilter>(isAdminInit ? 'all' : 'mine');
   const [sortBy, setSortBy] = useState<SortKey>('updated');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [page, setPage] = useState(0);
@@ -71,6 +74,22 @@ export default function Tickets() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [editing, setEditing] = useState<Ticket | null>(null);
   const [creating, setCreating] = useState(false);
+
+  // URL paramlarni o'qish (klaviatura yorliqlaridan keladi)
+  useEffect(() => {
+    const newParam = searchParams.get('new');
+    const quickParam = searchParams.get('quick');
+    if (newParam === '1') {
+      setCreating(true);
+      searchParams.delete('new');
+      setSearchParams(searchParams, { replace: true });
+    }
+    if (quickParam === 'mine' || quickParam === 'overdue' || quickParam === 'today' || quickParam === 'stale' || quickParam === 'unassigned') {
+      setQuick(quickParam as QuickFilter);
+      searchParams.delete('quick');
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedQ(q.trim().toLowerCase()), 200);
@@ -402,16 +421,22 @@ export default function Tickets() {
                   <td className="px-3 py-2.5" onClick={(e) => { e.stopPropagation(); toggleSelect(t.id); }}>
                     {sel ? <CheckSquare className="h-4 w-4 text-brand-600" /> : <Square className="h-4 w-4 text-slate-300" />}
                   </td>
-                  <td className="px-3 py-2.5 font-mono text-xs text-slate-500" onClick={() => setEditing(t)}>
+                  <td className="px-3 py-2.5 font-mono text-xs text-slate-500">
                     <div className="flex items-center gap-1.5">
-                      {t.trackingNumber}
+                      <span onClick={() => setEditing(t)} className="cursor-pointer">{t.trackingNumber}</span>
+                      <CopyButton value={t.trackingNumber} label="Trek" />
                       {(t.attachments ?? []).length > 0 && (
                         <Paperclip className="h-3 w-3 text-slate-400" />
                       )}
                     </div>
                   </td>
                   <td className="px-3 py-2.5 font-semibold text-slate-800 dark:text-slate-200" onClick={() => setEditing(t)}>{t.customerName}</td>
-                  <td className="px-3 py-2.5 text-slate-600 dark:text-slate-400" onClick={() => setEditing(t)}>{t.customerPhone}</td>
+                  <td className="px-3 py-2.5 text-slate-600 dark:text-slate-400">
+                    <div className="flex items-center gap-1.5">
+                      <span onClick={() => setEditing(t)} className="cursor-pointer">{t.customerPhone}</span>
+                      <CopyButton value={t.customerPhone} label="Telefon" />
+                    </div>
+                  </td>
                   <td className="px-3 py-2.5" onClick={() => setEditing(t)}>
                     {category ? (
                       <span className="badge" style={{ background: `${category.color}1a`, color: category.color }}>

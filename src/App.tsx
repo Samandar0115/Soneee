@@ -10,8 +10,11 @@ import UsersPage from './pages/Users';
 import StagesPage from './pages/Stages';
 import CategoriesPage from './pages/Categories';
 import SettingsPage from './pages/Settings';
+import Analytics from './pages/Analytics';
+import TemplatesPage from './pages/Templates';
 import Track from './pages/Track';
 import GlobalSearch from './components/GlobalSearch';
+import KeyboardShortcuts from './components/KeyboardShortcuts';
 
 function Protected({ children }: { children: JSX.Element }) {
   const { currentUser, ready } = useApp();
@@ -36,6 +39,7 @@ export default function App() {
   return (
     <>
       <GlobalSearch />
+      <KeyboardShortcuts />
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/track" element={<Track />} />
@@ -80,6 +84,22 @@ export default function App() {
           element={
             <AdminOnly>
               <SettingsPage />
+            </AdminOnly>
+          }
+        />
+        <Route
+          path="analytics"
+          element={
+            <AdminOnly>
+              <Analytics />
+            </AdminOnly>
+          }
+        />
+        <Route
+          path="templates"
+          element={
+            <AdminOnly>
+              <TemplatesPage />
             </AdminOnly>
           }
         />

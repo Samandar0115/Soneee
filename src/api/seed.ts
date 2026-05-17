@@ -1,4 +1,14 @@
-import type { Announcement, AppSettings, Branch, Category, Stage, TariffSettings, User } from '../types';
+import type { Announcement, AppSettings, Branch, Category, ResponseTemplate, Stage, TariffSettings, User } from '../types';
+
+export const seedTemplates: ResponseTemplate[] = [
+  { id: 'tpl-greeting', title: 'Salomlashish', body: 'Assalomu alaykum, iPOST Cargo. Sizga qanday yordam berishimiz mumkin?', category: 'salomlashish', order: 0, active: true, createdAt: Date.now() },
+  { id: 'tpl-apology', title: 'Uzr so‘rash', body: 'Yetkazib berishdagi kechikish uchun uzr so‘raymiz. Yukingizning hozirgi holatini tekshirib, sizga eng qisqa muddatda batafsil ma\'lumot beramiz.', category: 'uzr', order: 1, active: true, createdAt: Date.now() },
+  { id: 'tpl-tracking', title: 'Trek tekshirishni so‘rash', body: 'Yukni tekshirishimiz uchun trek raqamingizni yuboring (masalan: T-XXXX-YYYY).', category: 'so\'rov', order: 2, active: true, createdAt: Date.now() },
+  { id: 'tpl-onway', title: 'Yo‘lda javob', body: 'Yukingiz hozirda yo‘lda. Taxminiy yetib kelish muddati: 2-4 ish kuni ichida. Yangiliklar haqida sizga albatta xabar beramiz.', category: 'holat', order: 3, active: true, createdAt: Date.now() },
+  { id: 'tpl-warehouse', title: 'Omborda', body: 'Yukingiz omborga keldi. Filialimizdan olib ketishingiz mumkin. Manzil va ish vaqtini yuboramizmi?', category: 'holat', order: 4, active: true, createdAt: Date.now() },
+  { id: 'tpl-payment', title: 'To‘lov haqida', body: 'To‘lovni Click, Payme yoki naqd ravishda filialda amalga oshira olasiz. Iltimos, ohirgi kvitansiyani saqlab qo‘ying.', category: 'to\'lov', order: 5, active: true, createdAt: Date.now() },
+  { id: 'tpl-thanks', title: 'Xayrlashish', body: 'iPOST Cargoga ishonch bildirganingiz uchun rahmat. Yangi murojaatlaringizni kutib qolamiz!', category: 'xayrlash', order: 6, active: true, createdAt: Date.now() },
+];
 
 export const seedAppSettings: AppSettings = {
   id: 'main',

@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Save, Settings as SettingsIcon, Zap, Clock, Languages } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { Save, Settings as SettingsIcon, Zap, Clock, Languages, Download, Upload, Archive } from 'lucide-react';
 import toast from 'react-hot-toast';
 import PageHeader from '../components/PageHeader';
 import { useApp } from '../context/AppContext';
@@ -14,12 +14,39 @@ const PRIORITY_LABELS: Record<string, string> = {
 };
 
 export default function SettingsPage() {
-  const { settings, saveSettings } = useApp();
+  const { settings, saveSettings, exportBackup, importBackup } = useApp();
   const [draft, setDraft] = useState<AppSettings>(settings);
+  const fileRef = useRef<HTMLInputElement | null>(null);
 
   async function save() {
     await saveSettings(draft);
     toast.success('Sozlamalar saqlandi');
+  }
+
+  function downloadBackup() {
+    const json = exportBackup();
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `ipost-backup-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success('Backup yuklandi');
+  }
+
+  function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (!confirm('Backup yuklash barcha joriy ma\'lumotlarni almashtiradi. Davom etamiz?')) return;
+      const ok = importBackup(reader.result as string);
+      if (ok) toast.success('Backup tiklandi');
+      else toast.error('Backup formati noto\'g\'ri');
+    };
+    reader.readAsText(file);
+    e.target.value = '';
   }
 
   return (
@@ -146,6 +173,34 @@ export default function SettingsPage() {
           </p>
           <div className="mt-3 p-3 rounded-xl bg-slate-100 dark:bg-slate-800 font-mono text-xs break-all">
             {window.location.origin}/track
+          </div>
+        </div>
+
+        <div className="card p-6 lg:col-span-2">
+          <div className="flex items-center gap-2 mb-3">
+            <Archive className="h-5 w-5 text-brand-600" />
+            <h3 className="font-bold">Backup va tiklash</h3>
+          </div>
+          <p className="text-xs text-slate-500 mb-3">
+            Barcha ma'lumotlar (xodimlar, murojaatlar, bosqichlar, e'lonlar, filiallar, tariflar, shablonlar) JSON fayl sifatida yuklab oling. Kerak bo'lganda qaytadan tiklash mumkin.
+          </p>
+          <div className="flex gap-2">
+            <button onClick={downloadBackup} className="btn-primary">
+              <Download className="h-4 w-4" /> JSON backup yuklash
+            </button>
+            <button onClick={() => fileRef.current?.click()} className="btn-ghost">
+              <Upload className="h-4 w-4" /> Backupdan tiklash
+            </button>
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".json,application/json"
+              hidden
+              onChange={handleImport}
+            />
+          </div>
+          <div className="mt-3 text-[11px] text-amber-600 dark:text-amber-400">
+            ⚠️ Tiklash barcha joriy ma'lumotlarni almashtiradi. Avval joriy holatni yuklab olishni tavsiya etamiz.
           </div>
         </div>
       </div>

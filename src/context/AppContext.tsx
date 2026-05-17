@@ -24,6 +24,7 @@ import type {
   Category,
   CustomerRating,
   Lang,
+  ResponseTemplate,
   Stage,
   TariffSettings,
   Ticket,
@@ -40,6 +41,7 @@ import {
   seedCategories,
   seedStages,
   seedTariff,
+  seedTemplates,
   seedUsers,
 } from '../api/seed';
 import { handleFirestoreError } from '../utils/errors';
@@ -57,6 +59,7 @@ interface AppState {
   branches: Branch[];
   tariff: TariffSettings;
   settings: AppSettings;
+  templates: ResponseTemplate[];
   lang: Lang;
   theme: 'light' | 'dark';
   setLang: (l: Lang) => void;
@@ -86,6 +89,10 @@ interface AppState {
   deleteBranch: (id: string) => Promise<void>;
   saveTariff: (t: TariffSettings) => Promise<void>;
   saveSettings: (s: AppSettings) => Promise<void>;
+  saveTemplate: (t: ResponseTemplate) => Promise<void>;
+  deleteTemplate: (id: string) => Promise<void>;
+  exportBackup: () => string;
+  importBackup: (json: string) => boolean;
   runTestScenario: () => Promise<Ticket | null>;
 }
 
@@ -100,6 +107,7 @@ const STORAGE_KEYS = {
   branches: 'ipost.branches',
   tariff: 'ipost.tariff',
   settings: 'ipost.settings',
+  templates: 'ipost.templates',
   lang: 'ipost.lang',
   theme: 'ipost.theme',
   session: 'ipost.session',
@@ -129,6 +137,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [branches, setBranches] = useState<Branch[]>([]);
   const [tariff, setTariff] = useState<TariffSettings>(seedTariff);
   const [settings, setSettings] = useState<AppSettings>(seedAppSettings);
+  const [templates, setTemplates] = useState<ResponseTemplate[]>([]);
   const [lang, setLangState] = useState<Lang>(() => (localStorage.getItem(STORAGE_KEYS.lang) as Lang) || 'uz');
   const [theme, setThemeState] = useState<'light' | 'dark'>(
     () => (localStorage.getItem(STORAGE_KEYS.theme) as 'light' | 'dark') || 'light'
@@ -216,6 +225,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
       },
       (err) => handleFirestoreError('settings:onSnapshot', err)
     );
+    const unsubTemplates = onSnapshot(
+      collection(db, 'templates'),
+      (snap) =>
+        setTemplates(
+          snap.docs.map((d) => d.data() as ResponseTemplate).sort((a, b) => a.order - b.order)
+        ),
+      (err) => handleFirestoreError('templates:onSnapshot', err)
+    );
     return () => {
       unsubUsers();
       unsubStages();
@@ -225,6 +242,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       unsubBranches();
       unsubTariff();
       unsubSettings();
+      unsubTemplates();
     };
   }, [backend]);
 
@@ -239,6 +257,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setBranches(loadLocal<Branch[]>(STORAGE_KEYS.branches, seedBranches));
     setTariff(loadLocal<TariffSettings>(STORAGE_KEYS.tariff, seedTariff));
     setSettings(loadLocal<AppSettings>(STORAGE_KEYS.settings, seedAppSettings));
+    setTemplates(loadLocal<ResponseTemplate[]>(STORAGE_KEYS.templates, seedTemplates));
     if (!localStorage.getItem(STORAGE_KEYS.users)) saveLocal(STORAGE_KEYS.users, seedUsers);
     if (!localStorage.getItem(STORAGE_KEYS.stages)) saveLocal(STORAGE_KEYS.stages, seedStages);
     if (!localStorage.getItem(STORAGE_KEYS.categories)) saveLocal(STORAGE_KEYS.categories, seedCategories);
@@ -246,6 +265,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (!localStorage.getItem(STORAGE_KEYS.branches)) saveLocal(STORAGE_KEYS.branches, seedBranches);
     if (!localStorage.getItem(STORAGE_KEYS.tariff)) saveLocal(STORAGE_KEYS.tariff, seedTariff);
     if (!localStorage.getItem(STORAGE_KEYS.settings)) saveLocal(STORAGE_KEYS.settings, seedAppSettings);
+    if (!localStorage.getItem(STORAGE_KEYS.templates)) saveLocal(STORAGE_KEYS.templates, seedTemplates);
     setReady(true);
   }, [backend]);
 
@@ -265,6 +285,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           seedBranches.forEach((b) => batch.set(doc(fsdb, 'branches', b.id), b));
           batch.set(doc(fsdb, 'settings', 'tariff'), seedTariff);
           batch.set(doc(fsdb, 'settings', 'app'), seedAppSettings);
+          seedTemplates.forEach((t) => batch.set(doc(fsdb, 'templates', t.id), t));
           await batch.commit();
         } catch (err) {
           handleFirestoreError('seed:initial', err);
@@ -298,6 +319,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (backend === 'local' && ready) saveLocal(STORAGE_KEYS.settings, settings);
   }, [settings, backend, ready]);
+  useEffect(() => {
+    if (backend === 'local' && ready) saveLocal(STORAGE_KEYS.templates, templates);
+  }, [templates, backend, ready]);
 
   /* ---------------- Session restore ---------------- */
   useEffect(() => {
@@ -655,6 +679,68 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [backend]
   );
 
+  const saveTemplate = useCallback<AppState['saveTemplate']>(
+    async (tpl) => {
+      setTemplates((prev) => {
+        const exists = prev.some((x) => x.id === tpl.id);
+        const next = exists ? prev.map((x) => (x.id === tpl.id ? tpl : x)) : [...prev, tpl];
+        return next.sort((a, b) => a.order - b.order);
+      });
+      await writeDoc('templates', tpl.id, tpl);
+    },
+    [writeDoc]
+  );
+
+  const deleteTemplate = useCallback<AppState['deleteTemplate']>(
+    async (id) => {
+      setTemplates((prev) => prev.filter((t) => t.id !== id));
+      await removeDoc('templates', id);
+    },
+    [removeDoc]
+  );
+
+  const exportBackup = useCallback<AppState['exportBackup']>(() => {
+    return JSON.stringify(
+      {
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        users,
+        stages,
+        tickets,
+        categories,
+        announcements,
+        branches,
+        tariff,
+        settings,
+        templates,
+      },
+      null,
+      2
+    );
+  }, [users, stages, tickets, categories, announcements, branches, tariff, settings, templates]);
+
+  const importBackup = useCallback<AppState['importBackup']>(
+    (json) => {
+      try {
+        const data = JSON.parse(json);
+        if (!data.version) return false;
+        if (Array.isArray(data.users)) setUsers(data.users);
+        if (Array.isArray(data.stages)) setStages(data.stages);
+        if (Array.isArray(data.tickets)) setTickets(data.tickets);
+        if (Array.isArray(data.categories)) setCategories(data.categories);
+        if (Array.isArray(data.announcements)) setAnnouncements(data.announcements);
+        if (Array.isArray(data.branches)) setBranches(data.branches);
+        if (data.tariff) setTariff(data.tariff);
+        if (data.settings) setSettings(data.settings);
+        if (Array.isArray(data.templates)) setTemplates(data.templates);
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    []
+  );
+
   const findByTracking = useCallback<AppState['findByTracking']>(
     (tracking) => tickets.find((t) => t.trackingNumber.toLowerCase() === tracking.toLowerCase().trim()),
     [tickets]
@@ -795,6 +881,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       branches,
       tariff,
       settings,
+      templates,
       lang,
       theme,
       setLang,
@@ -824,6 +911,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       deleteBranch,
       saveTariff,
       saveSettings,
+      saveTemplate,
+      deleteTemplate,
+      exportBackup,
+      importBackup,
       runTestScenario,
     }),
     [
@@ -838,6 +929,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       branches,
       tariff,
       settings,
+      templates,
       lang,
       theme,
       setLang,
@@ -867,6 +959,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       deleteBranch,
       saveTariff,
       saveSettings,
+      saveTemplate,
+      deleteTemplate,
+      exportBackup,
+      importBackup,
       runTestScenario,
     ]
   );
