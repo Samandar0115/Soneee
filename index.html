@@ -11,10 +11,15 @@
     <meta name="theme-color" content="#2f66ff" />
     <title>iPOST CRM — Virtual Control Room</title>
     <script>
+      // Eski SW (soneee-crm-v1) sahifani buzgan edi.
+      // Bu skript barcha SW'larni va keshlarni majburan tozalaydi.
       if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js').catch(() => {});
+        navigator.serviceWorker.getRegistrations().then((regs) => {
+          regs.forEach((reg) => reg.unregister());
         });
+        if ('caches' in window) {
+          caches.keys().then((keys) => keys.forEach((k) => caches.delete(k)));
+        }
       }
     </script>
   </head>

@@ -1,34 +1,24 @@
-const CACHE = 'ipost-crm-v1';
-const ASSETS = ['/', '/index.html', '/manifest.webmanifest', '/favicon.svg'];
+// Kill switch: avvalgi keshlangan SW (soneee-crm-v1) yangi deploy fayllarini topa olmay,
+// foydalanuvchini "oq ekran"ga olib kelar edi. Bu SW har gal o'zini va kesh ma'lumotlarini
+// o'chiradi, shu tariqa keyingi sahifa yuklanishida bevosita Vercel'dan yangi versiya tushadi.
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)));
   self.skipWaiting();
 });
 
-self.addEventListener('activate', (e) => {
+self.addEventListener('activate', async (e) => {
   e.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))
-    )
+    (async () => {
+      const keys = await caches.keys();
+      await Promise.all(keys.map((k) => caches.delete(k)));
+      const regs = await self.registration.unregister();
+      const clientsList = await self.clients.matchAll({ type: 'window' });
+      clientsList.forEach((client) => client.navigate(client.url));
+    })()
   );
-  self.clients.claim();
 });
 
 self.addEventListener('fetch', (e) => {
-  const req = e.request;
-  if (req.method !== 'GET') return;
-  e.respondWith(
-    caches.match(req).then(
-      (cached) =>
-        cached ||
-        fetch(req)
-          .then((res) => {
-            const copy = res.clone();
-            caches.open(CACHE).then((c) => c.put(req, copy));
-            return res;
-          })
-          .catch(() => caches.match('/index.html'))
-    )
-  );
+  // Hech narsa keshlamaslik — to'g'ridan-to'g'ri tarmoqdan.
+  e.respondWith(fetch(e.request).catch(() => new Response('', { status: 503 })));
 });
