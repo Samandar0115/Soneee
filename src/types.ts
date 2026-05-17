@@ -103,9 +103,26 @@ export interface Announcement {
   updatedAt: number;
 }
 
+export type Region =
+  | 'tashkent-city'
+  | 'tashkent-region'
+  | 'andijan'
+  | 'bukhara'
+  | 'fergana'
+  | 'jizzakh'
+  | 'khorezm'
+  | 'namangan'
+  | 'navoi'
+  | 'kashkadarya'
+  | 'karakalpakstan'
+  | 'samarkand'
+  | 'syrdarya'
+  | 'surkhandarya';
+
 export interface Branch {
   id: string;
   name: string;
+  region: Region;
   city?: string;
   address: string;
   phone: string;

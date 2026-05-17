@@ -14,6 +14,7 @@ import {
   Power,
   PowerOff,
   Globe,
+  Search,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
@@ -24,9 +25,11 @@ import type {
   Announcement,
   AnnouncementCategory,
   Branch,
+  Region,
   TariffSettings,
 } from '../types';
 import { formatDateTime, randomId, timeAgo } from '../utils/format';
+import { REGIONS, regionName, regionIcon } from '../utils/regions';
 
 type Tab = 'announcements' | 'branches' | 'tariff' | 'calc';
 
@@ -322,16 +325,55 @@ function BranchesTab({ isAdmin }: { isAdmin: boolean }) {
   const { branches, saveBranch, deleteBranch } = useApp();
   const [editing, setEditing] = useState<Branch | null>(null);
   const [open, setOpen] = useState(false);
+  const [regionFilter, setRegionFilter] = useState<Region | 'all'>('all');
+  const [search, setSearch] = useState('');
+  const [layout, setLayout] = useState<'group' | 'grid'>('group');
 
-  const visible = useMemo(
+  const scope = useMemo(
     () => (isAdmin ? branches : branches.filter((b) => b.active)),
     [branches, isAdmin]
   );
+
+  const visible = useMemo(() => {
+    const s = search.trim().toLowerCase();
+    return scope
+      .filter((b) => regionFilter === 'all' || b.region === regionFilter)
+      .filter((b) => {
+        if (!s) return true;
+        return (
+          b.name.toLowerCase().includes(s) ||
+          b.address.toLowerCase().includes(s) ||
+          (b.city ?? '').toLowerCase().includes(s) ||
+          b.phone.replace(/\s/g, '').includes(s.replace(/\s/g, '')) ||
+          regionName(b.region).toLowerCase().includes(s)
+        );
+      });
+  }, [scope, regionFilter, search]);
+
+  const regionCounts = useMemo(() => {
+    const map = new Map<Region, number>();
+    scope.forEach((b) => map.set(b.region, (map.get(b.region) ?? 0) + 1));
+    return map;
+  }, [scope]);
+
+  const grouped = useMemo(() => {
+    const map = new Map<Region, Branch[]>();
+    visible.forEach((b) => {
+      const arr = map.get(b.region) ?? [];
+      arr.push(b);
+      map.set(b.region, arr);
+    });
+    return REGIONS.filter((r) => map.has(r.key)).map((r) => ({
+      region: r,
+      items: (map.get(r.key) ?? []).sort((a, b) => a.order - b.order),
+    }));
+  }, [visible]);
 
   function startCreate() {
     setEditing({
       id: randomId('br'),
       name: '',
+      region: 'tashkent-city',
       city: '',
       address: '',
       phone: '',
@@ -345,24 +387,13 @@ function BranchesTab({ isAdmin }: { isAdmin: boolean }) {
     setOpen(true);
   }
 
-  return (
-    <div>
-      <div className="flex justify-end mb-3">
-        {isAdmin && (
-          <button className="btn-primary" onClick={startCreate}>
-            <Plus className="h-4 w-4" /> Yangi filial
-          </button>
-        )}
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {visible.map((b) => (
+  const renderCard = (b: Branch) => (
           <motion.div
             key={b.id}
             layout
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
-            className={`card p-5 ${!b.active ? 'opacity-60' : ''}`}
+            className={`card p-4 ${!b.active ? 'opacity-60' : ''}`}
           >
             <div className="flex items-start justify-between gap-2">
               <div className="flex items-center gap-2">
@@ -438,13 +469,94 @@ function BranchesTab({ isAdmin }: { isAdmin: boolean }) {
               </div>
             )}
           </motion.div>
-        ))}
-        {visible.length === 0 && (
-          <div className="col-span-full card p-10 text-center text-slate-400">
-            Filiallar yo‘q
+  );
+
+  return (
+    <div>
+      <div className="card p-3 mb-4 space-y-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="relative flex-1 min-w-[200px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+            <input
+              className="input pl-9"
+              placeholder="Filial nomi, manzil, telefon yoki shahar bo'yicha qidiruv..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
           </div>
-        )}
+          <div className="flex bg-slate-100 dark:bg-slate-800 rounded-xl p-1">
+            <button
+              onClick={() => setLayout('group')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${
+                layout === 'group' ? 'bg-white dark:bg-slate-900 shadow-soft text-brand-700' : 'text-slate-600'
+              }`}
+            >
+              Viloyatlar bo'yicha
+            </button>
+            <button
+              onClick={() => setLayout('grid')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${
+                layout === 'grid' ? 'bg-white dark:bg-slate-900 shadow-soft text-brand-700' : 'text-slate-600'
+              }`}
+            >
+              Hammasi grid
+            </button>
+          </div>
+          {isAdmin && (
+            <button className="btn-primary" onClick={startCreate}>
+              <Plus className="h-4 w-4" /> Yangi filial
+            </button>
+          )}
+        </div>
+
+        <div className="flex gap-1.5 flex-wrap">
+          <Chip
+            active={regionFilter === 'all'}
+            onClick={() => setRegionFilter('all')}
+            label={`Barchasi (${scope.length})`}
+          />
+          {REGIONS.map((r) => {
+            const count = regionCounts.get(r.key) ?? 0;
+            if (count === 0 && regionFilter !== r.key) return null;
+            return (
+              <Chip
+                key={r.key}
+                active={regionFilter === r.key}
+                onClick={() => setRegionFilter(r.key)}
+                label={`${r.icon} ${r.name} (${count})`}
+                color="#2f66ff"
+              />
+            );
+          })}
+        </div>
       </div>
+
+      {visible.length === 0 ? (
+        <div className="card p-10 text-center text-slate-400">
+          Filiallar topilmadi
+        </div>
+      ) : layout === 'grid' ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {visible.map(renderCard)}
+        </div>
+      ) : (
+        <div className="space-y-6">
+          {grouped.map(({ region, items }) => (
+            <div key={region.key}>
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-xl">{region.icon}</span>
+                <h3 className="font-bold text-slate-800 dark:text-slate-200">{region.name}</h3>
+                <span className="badge bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                  {items.length} ta filial
+                </span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {items.map(renderCard)}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       <Modal
         open={open}
@@ -462,6 +574,20 @@ function BranchesTab({ isAdmin }: { isAdmin: boolean }) {
                   value={editing.name}
                   onChange={(e) => setEditing({ ...editing, name: e.target.value })}
                 />
+              </div>
+              <div>
+                <label className="label">Viloyat</label>
+                <select
+                  className="input mt-1"
+                  value={editing.region}
+                  onChange={(e) => setEditing({ ...editing, region: e.target.value as Region })}
+                >
+                  {REGIONS.map((r) => (
+                    <option key={r.key} value={r.key}>
+                      {r.icon} {r.name}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className="label">Shahar</label>
@@ -604,10 +730,34 @@ function TariffTab({ isAdmin }: { isAdmin: boolean }) {
           </div>
         </div>
 
-        <div className="mt-4 p-3 rounded-xl bg-brand-50 text-sm text-brand-900">
-          <b>1 kg = {(tariff.pricePerM3 / tariff.kgPerM3).toFixed(2)} {tariff.currency}</b>
-          <div className="text-xs text-brand-800/80 mt-1">
+        <div className="mt-4 p-4 rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-700 text-white shadow-soft">
+          <div className="text-xs uppercase tracking-wider opacity-80">Asosiy hisob</div>
+          <div className="text-3xl font-bold mt-1">
+            1 kg = {(tariff.pricePerM3 / tariff.kgPerM3).toFixed(2)} {tariff.currency}
+          </div>
+          <div className="text-xs opacity-90 mt-1">
             (hajm va og‘irlikdan qaysi biri qimmatroq bo‘lsa, mijozdan o‘sha summa olinadi)
+          </div>
+        </div>
+
+        <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+          <div className="rounded-xl bg-slate-50 dark:bg-slate-800 p-2">
+            <div className="text-[10px] text-slate-500 uppercase">10 kg</div>
+            <div className="font-bold text-slate-800 dark:text-slate-200">
+              {((10 * tariff.pricePerM3) / tariff.kgPerM3).toFixed(2)} {tariff.currency}
+            </div>
+          </div>
+          <div className="rounded-xl bg-slate-50 dark:bg-slate-800 p-2">
+            <div className="text-[10px] text-slate-500 uppercase">50 kg</div>
+            <div className="font-bold text-slate-800 dark:text-slate-200">
+              {((50 * tariff.pricePerM3) / tariff.kgPerM3).toFixed(2)} {tariff.currency}
+            </div>
+          </div>
+          <div className="rounded-xl bg-slate-50 dark:bg-slate-800 p-2">
+            <div className="text-[10px] text-slate-500 uppercase">100 kg</div>
+            <div className="font-bold text-slate-800 dark:text-slate-200">
+              {((100 * tariff.pricePerM3) / tariff.kgPerM3).toFixed(2)} {tariff.currency}
+            </div>
           </div>
         </div>
 
