@@ -92,17 +92,17 @@ interface AppState {
 const AppContext = createContext<AppState | null>(null);
 
 const STORAGE_KEYS = {
-  users: 'soneee.users',
-  stages: 'soneee.stages',
-  tickets: 'soneee.tickets',
-  categories: 'soneee.categories',
-  announcements: 'soneee.announcements',
-  branches: 'soneee.branches',
-  tariff: 'soneee.tariff',
-  settings: 'soneee.settings',
-  lang: 'soneee.lang',
-  theme: 'soneee.theme',
-  session: 'soneee.session',
+  users: 'ipost.users',
+  stages: 'ipost.stages',
+  tickets: 'ipost.tickets',
+  categories: 'ipost.categories',
+  announcements: 'ipost.announcements',
+  branches: 'ipost.branches',
+  tariff: 'ipost.tariff',
+  settings: 'ipost.settings',
+  lang: 'ipost.lang',
+  theme: 'ipost.theme',
+  session: 'ipost.session',
 };
 
 function loadLocal<T>(key: string, fallback: T): T {

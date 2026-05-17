@@ -59,7 +59,7 @@ export default function Track() {
             <Headphones className="h-6 w-6" />
           </div>
           <div>
-            <div className="text-xl font-bold">Soneee Cargo</div>
+            <div className="text-xl font-bold">iPOST Cargo</div>
             <div className="text-xs opacity-80">Murojaat holatini tekshirish</div>
           </div>
         </div>
@@ -195,7 +195,7 @@ export default function Track() {
         )}
 
         <div className="text-center mt-6 text-xs text-white/70">
-          Soneee CRM · Call Center Virtual Control Room
+          iPOST CRM · Call Center Virtual Control Room
         </div>
       </div>
     </div>

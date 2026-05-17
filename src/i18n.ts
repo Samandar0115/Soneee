@@ -31,7 +31,7 @@ const dict: Dict = {
   'common.export': { uz: 'Excel/CSV eksport', ru: 'Экспорт CSV' },
 
   // Login
-  'login.title': { uz: 'Soneee CRM', ru: 'Soneee CRM' },
+  'login.title': { uz: 'iPOST CRM', ru: 'iPOST CRM' },
   'login.subtitle': { uz: 'Call Center Virtual Control Room', ru: 'Call Center Виртуальная Диспетчерская' },
   'login.username': { uz: 'Foydalanuvchi nomi', ru: 'Имя пользователя' },
   'login.password': { uz: 'Parol', ru: 'Пароль' },

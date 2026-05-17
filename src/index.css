@@ -11,46 +11,101 @@
   body {
     font-family: 'Inter', system-ui, sans-serif;
     @apply bg-slate-100 text-slate-900;
+    transition: background-color 0.3s ease, color 0.3s ease;
   }
   html.dark body {
-    @apply bg-slate-950 text-slate-100;
+    @apply bg-[#05070d] text-slate-100;
+  }
+  html.dark main {
+    background: linear-gradient(180deg, #050810 0%, #0a0d18 100%);
   }
 }
 
 @layer components {
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed;
+    transform: translateY(0);
+  }
+  .btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+  }
+  .btn:active:not(:disabled) {
+    transform: translateY(0);
   }
   .btn-primary {
-    @apply btn bg-brand-600 text-white hover:bg-brand-700 shadow-soft;
+    @apply btn bg-brand-600 text-white hover:bg-brand-500 shadow-soft hover:shadow-lg hover:shadow-brand-500/30;
   }
   .btn-ghost {
-    @apply btn bg-white text-slate-700 hover:bg-slate-100 border border-slate-200;
-  }
-  .btn-danger {
-    @apply btn bg-rose-600 text-white hover:bg-rose-700;
-  }
-  .card {
-    @apply rounded-2xl bg-white border border-slate-200 shadow-soft;
-  }
-  html.dark .card {
-    @apply bg-slate-900 border-slate-800;
-  }
-  .input {
-    @apply w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100;
-  }
-  html.dark .input {
-    @apply bg-slate-900 border-slate-800 text-slate-100;
+    @apply btn bg-white text-slate-700 hover:bg-slate-50 border border-slate-200 hover:border-brand-300;
   }
   html.dark .btn-ghost {
-    @apply bg-slate-900 text-slate-200 border-slate-800 hover:bg-slate-800;
+    @apply bg-slate-900 text-slate-200 border-slate-800 hover:bg-slate-800 hover:border-brand-700;
+  }
+  .btn-danger {
+    @apply btn bg-rose-600 text-white hover:bg-rose-500 shadow-soft hover:shadow-lg hover:shadow-rose-500/30;
+  }
+  .card {
+    @apply rounded-2xl bg-white border border-slate-200 shadow-soft transition-all duration-200;
+  }
+  .card-interactive {
+    @apply card cursor-pointer hover:-translate-y-0.5 hover:shadow-xl hover:border-brand-300;
+  }
+  html.dark .card {
+    @apply bg-[#0d1018] border-slate-800;
+  }
+  html.dark .card-interactive:hover {
+    @apply border-brand-600 shadow-brand-900/40;
+  }
+  .input {
+    @apply w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition-all duration-200 focus:border-brand-500 focus:ring-2 focus:ring-brand-100 hover:border-slate-300;
+  }
+  html.dark .input {
+    @apply bg-[#0d1018] border-slate-800 text-slate-100 focus:ring-brand-900 hover:border-slate-700;
   }
   .label {
     @apply text-xs font-semibold uppercase tracking-wide text-slate-500;
   }
-  .badge {
-    @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold;
+  html.dark .label {
+    @apply text-slate-400;
   }
+  .badge {
+    @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold transition-colors;
+  }
+}
+
+/* Hover utilities */
+.hover-lift {
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s ease;
+}
+.hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 30px -10px rgba(15, 23, 42, 0.25);
+}
+html.dark .hover-lift:hover {
+  box-shadow: 0 12px 30px -10px rgba(47, 102, 255, 0.35);
+}
+
+.hover-scale {
+  transition: transform 0.2s ease;
+}
+.hover-scale:hover {
+  transform: scale(1.03);
+}
+.hover-scale:active {
+  transform: scale(0.98);
+}
+
+/* Smooth row hover for tables */
+html.dark tbody tr:hover {
+  background-color: rgba(47, 102, 255, 0.08) !important;
+}
+tbody tr {
+  transition: background-color 0.15s ease;
+}
+
+/* Custom scrollbar in dark */
+html.dark .scroll-thin::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.25);
 }
 
 .scroll-thin::-webkit-scrollbar {
@@ -60,4 +115,16 @@
 .scroll-thin::-webkit-scrollbar-thumb {
   background: rgba(15, 23, 42, 0.18);
   border-radius: 6px;
+}
+
+/* Focus visible for accessibility */
+*:focus-visible {
+  outline: 2px solid #2f66ff;
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+/* Selection */
+::selection {
+  background: rgba(47, 102, 255, 0.3);
 }

@@ -47,7 +47,7 @@ function exportCSV(rows: Ticket[], stages: Stage[], categories: Category[], user
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `soneee-tickets-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.download = `ipost-tickets-${new Date().toISOString().slice(0, 10)}.csv`;
   a.click();
   URL.revokeObjectURL(url);
 }
@@ -395,7 +395,7 @@ export default function Tickets() {
               return (
                 <tr
                   key={t.id}
-                  className={`border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer ${
+                  className={`border-b border-slate-100 dark:border-slate-800/60 cursor-pointer transition-colors ${
                     sel ? 'bg-brand-50 dark:bg-brand-900/20' : ''
                   }`}
                 >

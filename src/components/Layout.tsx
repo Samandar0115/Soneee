@@ -43,13 +43,13 @@ export default function Layout() {
 
   return (
     <div className="flex h-screen overflow-hidden">
-      <aside className="hidden md:flex w-64 flex-col bg-slate-900 text-slate-200">
+      <aside className="hidden md:flex w-64 flex-col bg-slate-900 dark:bg-[#020409] text-slate-200 border-r border-transparent dark:border-slate-800/50">
         <div className="px-5 py-5 flex items-center gap-3 border-b border-white/5">
           <div className="h-10 w-10 rounded-xl bg-brand-500 flex items-center justify-center">
             <Headphones className="h-5 w-5 text-white" />
           </div>
           <div>
-            <div className="font-bold text-white leading-tight">Soneee CRM</div>
+            <div className="font-bold text-white leading-tight">iPOST CRM</div>
             <div className="text-xs text-slate-400">Virtual Control Room</div>
           </div>
         </div>
@@ -146,7 +146,7 @@ export default function Layout() {
         </div>
       </aside>
 
-      <main className="flex-1 overflow-y-auto bg-slate-100">
+      <main className="flex-1 overflow-y-auto bg-slate-100 dark:bg-[#05070d] transition-colors duration-300">
         <Outlet />
       </main>
     </div>
@@ -169,14 +169,14 @@ function NavItem({
       to={to}
       end={end}
       className={({ isActive }) =>
-        `flex items-center gap-3 rounded-xl px-3 py-2 text-sm transition ${
+        `group flex items-center gap-3 rounded-xl px-3 py-2 text-sm transition-all duration-200 ${
           isActive
-            ? 'bg-brand-500 text-white shadow-soft'
-            : 'text-slate-300 hover:bg-white/5'
+            ? 'bg-gradient-to-r from-brand-600 to-brand-500 text-white shadow-lg shadow-brand-900/40 translate-x-0.5'
+            : 'text-slate-300 hover:bg-white/10 hover:text-white hover:translate-x-1'
         }`
       }
     >
-      <Icon className="h-4 w-4" />
+      <Icon className="h-4 w-4 transition-transform duration-200 group-hover:scale-110" />
       <span>{label}</span>
     </NavLink>
   );

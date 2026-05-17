@@ -1,4 +1,4 @@
-const CACHE = 'soneee-crm-v1';
+const CACHE = 'ipost-crm-v1';
 const ASSETS = ['/', '/index.html', '/manifest.webmanifest', '/favicon.svg'];
 
 self.addEventListener('install', (e) => {

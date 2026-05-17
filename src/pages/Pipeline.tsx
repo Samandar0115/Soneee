@@ -38,7 +38,7 @@ export default function Pipeline() {
           return (
             <div
               key={stage.id}
-              className="min-w-[300px] w-[300px] flex-shrink-0 bg-slate-200/40 rounded-2xl p-3"
+              className="min-w-[300px] w-[300px] flex-shrink-0 bg-slate-200/40 dark:bg-slate-900/50 rounded-2xl p-3 transition-colors"
               onDragOver={(e) => e.preventDefault()}
               onDrop={() => {
                 if (dragId) {
@@ -53,9 +53,9 @@ export default function Pipeline() {
                     className="h-2.5 w-2.5 rounded-full"
                     style={{ background: stage.color }}
                   />
-                  <h3 className="font-bold text-slate-800 text-sm">{stage.name}</h3>
+                  <h3 className="font-bold text-slate-800 dark:text-slate-200 text-sm">{stage.name}</h3>
                 </div>
-                <span className="text-xs font-semibold text-slate-500 bg-white px-2 py-0.5 rounded-full">
+                <span className="text-xs font-semibold text-slate-500 bg-white dark:bg-slate-800 dark:text-slate-300 px-2 py-0.5 rounded-full">
                   {items.length}
                 </span>
               </div>
@@ -69,10 +69,13 @@ export default function Pipeline() {
                       layout
                       initial={{ opacity: 0, y: 5 }}
                       animate={{ opacity: 1, y: 0 }}
+                      whileHover={{ y: -3, scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      transition={{ type: 'spring', stiffness: 400, damping: 25 }}
                       draggable
                       onDragStart={() => setDragId(t.id)}
                       onClick={() => setEditing(t)}
-                      className="bg-white rounded-xl p-3 shadow-sm hover:shadow-soft border border-slate-100 cursor-grab active:cursor-grabbing"
+                      className="bg-white dark:bg-[#0d1018] rounded-xl p-3 shadow-sm hover:shadow-xl hover:shadow-brand-500/10 border border-slate-100 dark:border-slate-800 hover:border-brand-300 dark:hover:border-brand-700 cursor-grab active:cursor-grabbing transition-colors"
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="font-semibold text-sm text-slate-800 truncate">

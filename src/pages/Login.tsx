@@ -30,17 +30,22 @@ export default function Login() {
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-brand-700 via-brand-600 to-brand-900">
       <motion.div
-        initial={{ opacity: 0, y: 24 }}
-        animate={{ opacity: 1, y: 0 }}
+        initial={{ opacity: 0, y: 24, scale: 0.96 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ type: 'spring', stiffness: 200, damping: 20 }}
         className="w-full max-w-md card p-7"
       >
         <div className="flex items-center gap-3 mb-6">
-          <div className="h-12 w-12 rounded-2xl bg-brand-600 flex items-center justify-center text-white">
+          <motion.div
+            whileHover={{ rotate: [0, -10, 10, 0], scale: 1.05 }}
+            transition={{ duration: 0.5 }}
+            className="h-12 w-12 rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center text-white shadow-lg shadow-brand-500/30"
+          >
             <Headphones className="h-6 w-6" />
-          </div>
+          </motion.div>
           <div>
-            <div className="text-xl font-bold text-slate-900">Soneee CRM</div>
-            <div className="text-xs text-slate-500">Call Center Virtual Control Room</div>
+            <div className="text-xl font-bold text-slate-900 dark:text-slate-100">iPOST CRM</div>
+            <div className="text-xs text-slate-500 dark:text-slate-400">Call Center Virtual Control Room</div>
           </div>
         </div>
 
