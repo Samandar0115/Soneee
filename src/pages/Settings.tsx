@@ -1,9 +1,11 @@
-import { useRef, useState } from 'react';
-import { Save, Settings as SettingsIcon, Zap, Clock, Languages, Download, Upload, Archive } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Save, Settings as SettingsIcon, Zap, Clock, Languages, Download, Upload, Archive, Cloud, CloudOff, ShieldCheck, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import PageHeader from '../components/PageHeader';
 import { useApp } from '../context/AppContext';
 import type { AppSettings } from '../types';
+import { checkKVStatus, loadFromKV, saveToKV, resetKVStatus, type KVStatus } from '../utils/vercelKV';
+import { formatDateTime } from '../utils/format';
 
 const PRIORITIES: Array<keyof AppSettings['slaMinutes']> = ['low', 'normal', 'high', 'urgent'];
 const PRIORITY_LABELS: Record<string, string> = {
@@ -17,6 +19,66 @@ export default function SettingsPage() {
   const { settings, saveSettings, exportBackup, importBackup } = useApp();
   const [draft, setDraft] = useState<AppSettings>(settings);
   const fileRef = useRef<HTMLInputElement | null>(null);
+  const [kv, setKV] = useState<KVStatus | null>(null);
+  const [kvBusy, setKvBusy] = useState(false);
+
+  useEffect(() => {
+    checkKVStatus().then(setKV);
+  }, []);
+
+  async function refreshKV() {
+    resetKVStatus();
+    const s = await checkKVStatus();
+    setKV(s);
+  }
+
+  async function pushToVercel() {
+    setKvBusy(true);
+    toast.loading('Vercel xotirasiga saqlanmoqda...', { id: 'kv-save' });
+    try {
+      const data = JSON.parse(exportBackup());
+      const result = await saveToKV(data);
+      if (result.ok) {
+        toast.success('Vercel xotirasiga saqlandi', { id: 'kv-save' });
+        await refreshKV();
+      } else if (!result.configured) {
+        toast.error('Vercel KV ulanmagan. Quyidagi ko\'rsatmaga qarang.', { id: 'kv-save' });
+      } else {
+        toast.error(`Xato: ${result.error}`, { id: 'kv-save' });
+      }
+    } catch (err) {
+      toast.error('Xato: ' + (err as Error).message, { id: 'kv-save' });
+    } finally {
+      setKvBusy(false);
+    }
+  }
+
+  async function pullFromVercel() {
+    setKvBusy(true);
+    toast.loading('Vercel xotirasidan o\'qilmoqda...', { id: 'kv-load' });
+    try {
+      const result = await loadFromKV();
+      if (!result || !result.data) {
+        toast.error('Vercel xotirasida ma\'lumot yo\'q', { id: 'kv-load' });
+        return;
+      }
+      if (!confirm("Vercel'dan tiklash joriy ma'lumotlarni almashtiradi. Davom etamiz?")) {
+        toast.dismiss('kv-load');
+        return;
+      }
+      const ok = importBackup(JSON.stringify(result.data));
+      if (ok) {
+        toast.success('Tiklandi! Sahifa qayta yuklanadi...', { id: 'kv-load' });
+        setTimeout(() => window.location.reload(), 1200);
+      } else {
+        toast.error('Format noto\'g\'ri', { id: 'kv-load' });
+      }
+    } catch (err) {
+      toast.error('Xato: ' + (err as Error).message, { id: 'kv-load' });
+    } finally {
+      setKvBusy(false);
+    }
+  }
 
   async function save() {
     await saveSettings(draft);
@@ -177,9 +239,76 @@ export default function SettingsPage() {
         </div>
 
         <div className="card p-6 lg:col-span-2">
+          <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+            <div className="flex items-center gap-2">
+              {kv?.configured ? (
+                <ShieldCheck className="h-5 w-5 text-emerald-600" />
+              ) : kv?.available ? (
+                <CloudOff className="h-5 w-5 text-amber-600" />
+              ) : (
+                <Cloud className="h-5 w-5 text-slate-400" />
+              )}
+              <h3 className="font-bold">Vercel xotirasi (xavfsiz markaziy saqlash)</h3>
+            </div>
+            <button onClick={refreshKV} className="btn-ghost text-xs">
+              <RefreshCw className="h-3.5 w-3.5" /> Yangilash
+            </button>
+          </div>
+
+          {kv === null ? (
+            <p className="text-xs text-slate-500">Holat tekshirilmoqda...</p>
+          ) : kv.configured ? (
+            <>
+              <div className="flex items-center gap-2 text-sm text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 px-3 py-2 rounded-xl border border-emerald-200 dark:border-emerald-800/50">
+                <ShieldCheck className="h-4 w-4" />
+                <span>
+                  Vercel KV (Redis) ulangan
+                  {kv.updatedAt && <> · oxirgi yangilanish: {formatDateTime(kv.updatedAt)}</>}
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-2">
+                Hozir barcha ma'lumotlar brauzer xotirasida (localStorage). Vercel KV — markaziy, shifrlangan va barcha xodimlar bir manbadan o'qiydigan ishonchli xotira. Pastdagi tugmalar bilan qo'lda yoki avto-sinxronlash mumkin.
+              </p>
+              <div className="flex gap-2 mt-3 flex-wrap">
+                <button onClick={pushToVercel} disabled={kvBusy} className="btn-primary disabled:opacity-50">
+                  <Upload className="h-4 w-4" /> Vercel'ga saqlash
+                </button>
+                <button onClick={pullFromVercel} disabled={kvBusy} className="btn-ghost disabled:opacity-50">
+                  <Download className="h-4 w-4" /> Vercel'dan tiklash
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="flex items-center gap-2 text-sm text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 rounded-xl border border-amber-200 dark:border-amber-800/50">
+                <CloudOff className="h-4 w-4 flex-shrink-0" />
+                <span>Vercel KV ulanmagan — ma'lumotlar hozir faqat brauzer xotirasida.</span>
+              </div>
+              <p className="text-xs text-slate-600 dark:text-slate-300 mt-2 font-semibold">
+                Ulash uchun (5 daqiqa):
+              </p>
+              <ol className="list-decimal list-inside text-xs text-slate-600 dark:text-slate-300 space-y-1 mt-1">
+                <li>Vercel Dashboard'ga kiring → loyihangiz</li>
+                <li>
+                  <b>Storage</b> tab → <b>Create Database</b> → <b>Marketplace Database</b> →{' '}
+                  <b>Upstash Redis</b> (yoki boshqa Redis integratsiya) ni tanlang
+                </li>
+                <li>Bepul tarifni tanlab "Continue" — integratsiya o'rnatiladi</li>
+                <li>
+                  Loyihangizga ulang — <code>KV_REST_API_URL</code> va <code>KV_REST_API_TOKEN</code>{' '}
+                  env'lari avtomatik qo'shiladi
+                </li>
+                <li>Vercel loyihani qaytadan deploy qiladi (taxminan 1 daqiqa)</li>
+                <li>Bu sahifaga qaytib "Yangilash" tugmasini bosing</li>
+              </ol>
+            </>
+          )}
+        </div>
+
+        <div className="card p-6 lg:col-span-2">
           <div className="flex items-center gap-2 mb-3">
             <Archive className="h-5 w-5 text-brand-600" />
-            <h3 className="font-bold">Backup va tiklash</h3>
+            <h3 className="font-bold">Lokal backup (JSON fayl)</h3>
           </div>
           <p className="text-xs text-slate-500 mb-3">
             Barcha ma'lumotlar (xodimlar, murojaatlar, bosqichlar, e'lonlar, filiallar, tariflar, shablonlar) JSON fayl sifatida yuklab oling. Kerak bo'lganda qaytadan tiklash mumkin.

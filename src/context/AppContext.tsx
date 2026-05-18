@@ -46,6 +46,7 @@ import {
 } from '../api/seed';
 import { handleFirestoreError } from '../utils/errors';
 import { generateTrackingNumber, randomId } from '../utils/format';
+import { loadFromKV } from '../utils/vercelKV';
 
 interface AppState {
   ready: boolean;
@@ -339,6 +340,37 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (u) setCurrentUser(u);
     }
   }, [ready, users]);
+
+  /* ---------------- Vercel KV auto-load (faqat local rejimda, faqat birinchi marta) ---------------- */
+  const kvLoadedRef = useRef(false);
+  useEffect(() => {
+    if (backend !== 'local' || !ready || kvLoadedRef.current) return;
+    kvLoadedRef.current = true;
+    (async () => {
+      try {
+        const remote = await loadFromKV();
+        if (!remote || !remote.data) return;
+        const data = remote.data;
+        // Mahalliy ma'lumot bo'sh bo'lsa Vercel'dan tiklab olamiz (yangi qurilma uchun)
+        const noLocal =
+          tickets.length === 0 &&
+          (users.length === 0 || users.every((u) => u.id.startsWith('admin-') || u.id.startsWith('op-')));
+        if (noLocal) {
+          if (Array.isArray(data.users)) setUsers(data.users);
+          if (Array.isArray(data.stages)) setStages(data.stages);
+          if (Array.isArray(data.tickets)) setTickets(data.tickets);
+          if (Array.isArray(data.categories)) setCategories(data.categories);
+          if (Array.isArray(data.announcements)) setAnnouncements(data.announcements);
+          if (Array.isArray(data.branches)) setBranches(data.branches);
+          if (data.tariff) setTariff(data.tariff);
+          if (data.settings) setSettings(data.settings);
+          if (Array.isArray(data.templates)) setTemplates(data.templates);
+        }
+      } catch {
+        // jim
+      }
+    })();
+  }, [backend, ready, tickets.length, users]);
 
   /* ---------------- Auth ---------------- */
   const login = useCallback(
