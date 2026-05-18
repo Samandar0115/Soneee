@@ -365,6 +365,32 @@ export default function SettingsPage() {
               />
             </div>
           </div>
+          <div className="mt-3">
+            <label className="label">ICE serverlar (ixtiyoriy — LAN ichida bo'sh qoldiring)</label>
+            <input
+              className="input mt-1 font-mono text-xs"
+              placeholder="stun:stun.l.google.com:19302   yoki   turn:user:pass@turn.example.com:3478"
+              value={draft.sip?.iceServers ?? ''}
+              onChange={(e) =>
+                setDraft({
+                  ...draft,
+                  sip: {
+                    enabled: draft.sip?.enabled ?? false,
+                    serverHost: draft.sip?.serverHost ?? '',
+                    wsUri: draft.sip?.wsUri ?? '',
+                    iceServers: e.target.value,
+                    registrar: draft.sip?.registrar,
+                    sipUri: draft.sip?.sipUri,
+                    password: draft.sip?.password,
+                    displayName: draft.sip?.displayName,
+                  },
+                })
+              }
+            />
+            <p className="text-[11px] text-slate-400 mt-1">
+              Vergul yoki probel bilan ajrating. Mahalliy tarmoq (LAN) ichida hech narsa kerak emas.
+            </p>
+          </div>
           <div className="mt-3 p-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40 text-[11px] text-amber-800 dark:text-amber-200 space-y-1">
             <div>
               ⓘ Asterisk uchun WebSocket odatda <code className="font-mono">ws://HOST:8088/ws</code> portida turadi
@@ -373,6 +399,10 @@ export default function SettingsPage() {
             <div>
               ⚠ Sayt HTTPS'da bo'lsa (Vercel kabi), brauzer <b>wss://</b> talab qiladi. Mahalliy IP uchun
               odatda LAN ichida ishlatilgan brauzer va SIP server kerak.
+            </div>
+            <div className="font-semibold pt-1">
+              🔒 Telefon kodlari sayt ichiga to'liq bundle qilingan — tashqi telefon servisi YO'Q.
+              Brauzeringiz to'g'ridan-to'g'ri sizning serveringizga ulanadi.
             </div>
           </div>
         </div>

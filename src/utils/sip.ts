@@ -1,9 +1,46 @@
-// JsSIP asosida ichki softphone — WebRTC orqali to'g'ridan-to'g'ri qo'ng'iroq qilish.
-// SPA bo'lganligi uchun sahifa o'zgarganda ham aloqa uzilmaydi (komponent
-// Layout ichida turadi).
+// ============================================================================
+// Ichki softphone — to'liq mahalliy SIP klient (MicroSIP'ning brauzer ekvivalenti)
+// ============================================================================
+//
+// Bu modul:
+//   1. SIP protokolini JS'da amalga oshiruvchi JsSIP kutubxonasidan foydalanadi
+//      (bizning ilovamiz bundle'iga qo'shilgan, runtime'da TASHQI sayt yo'q).
+//   2. Brauzeringizdan to'g'ridan-to'g'ri sizning Asterisk/FreePBX serveringizga
+//      WebSocket orqali ulanadi (192.168.7.x dagi WS porti).
+//   3. Audio oqimi WebRTC orqali brauzer ↔ SIP server o'rtasida P2P bo'lib o'tadi.
+//   4. Hech qanday tashqi telefon servisi YO'Q. Vercel faqat statik HTML/JS uzatadi.
+//
+// Mahalliy tarmoq (LAN) ichida ishlasak — STUN/TURN serverlar ham KERAK EMAS.
+// ICE serverlar ixtiyoriy, sozlamalardan kiritiladi (bo'sh = pure LAN rejimi).
+// ============================================================================
 
 import JsSIP from 'jssip';
 import type { SipConfig } from '../types';
+
+// Konfiguratsiya stringidan ICE serverlar ro'yxatini yig'amiz.
+// Format: "stun:server1:port, turn:user:pass@server:port" — vergul/probel bilan ajratilgan.
+// Bo'sh string yoki undefined — hech qanday ICE server (pure LAN).
+function parseIceServers(input?: string): RTCIceServer[] {
+  if (!input || !input.trim()) return [];
+  return input
+    .split(/[,\s]+/)
+    .filter(Boolean)
+    .map((entry) => {
+      const isTurn = entry.startsWith('turn:') || entry.startsWith('turns:');
+      if (isTurn) {
+        // turn:user:pass@host:port  yoki  turn:host:port
+        const m = entry.match(/^(turns?):(?:([^:]+):([^@]+)@)?(.+)$/);
+        if (m) {
+          const [, scheme, user, pass, hostPort] = m;
+          const server: RTCIceServer = { urls: `${scheme}:${hostPort}` };
+          if (user) server.username = user;
+          if (pass) server.credential = pass;
+          return server;
+        }
+      }
+      return { urls: entry };
+    });
+}
 
 export type SipState =
   | 'disabled'
@@ -241,7 +278,7 @@ export class SipPhone {
       const target = cleaned.startsWith('sip:') ? cleaned : `sip:${cleaned}@${this.extractHost()}`;
       this.ua.call(target, {
         mediaConstraints: { audio: true, video: false },
-        pcConfig: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] },
+        pcConfig: { iceServers: parseIceServers(this.config?.iceServers) },
       });
     } catch (err: any) {
       this.errorMsg = err?.message ?? 'Qo\'ng\'iroq xato';
@@ -253,7 +290,7 @@ export class SipPhone {
     if (this.session && this.state === 'incoming') {
       this.session.answer({
         mediaConstraints: { audio: true, video: false },
-        pcConfig: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] },
+        pcConfig: { iceServers: parseIceServers(this.config?.iceServers) },
       });
     }
   }

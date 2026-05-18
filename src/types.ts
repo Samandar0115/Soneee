@@ -234,6 +234,9 @@ export interface SipConfig {
   serverHost: string;
   // WebSocket manzili: ws://192.168.7.10:8088/ws yoki wss://...
   wsUri: string;
+  // Ixtiyoriy STUN/TURN serverlar (LAN ichida ishlatilsa BO'SH qoldiring).
+  // Tashqi tarmoqlardan ulanish kerak bo'lsa, mahalliy STUN/TURN qo'shing.
+  iceServers?: string;
   // Legacy global SIP (agar har bir foydalanuvchi uchun emas, bitta umumiy account)
   sipUri?: string;
   password?: string;
