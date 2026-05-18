@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640">
+  <!-- Background -->
+  <rect width="640" height="640" rx="40" fill="#0540D6"/>
+
+  <!-- Arrow/postal symbol -->
+  <g transform="translate(170,170)">
+    <path d="M0 40 L240 40 L300 90 L240 140 L0 140 Z" fill="#ffffff"/>
+    <g stroke="#0A2A8A" stroke-width="10" stroke-linecap="round" fill="none">
+      <line x1="20" y1="64" x2="270" y2="64"/>
+      <line x1="40" y1="90" x2="270" y2="90"/>
+      <line x1="20" y1="116" x2="270" y2="116"/>
+    </g>
+  </g>
+
+  <!-- iPOST text -->
+  <text x="320" y="430"
+    text-anchor="middle"
+    font-family="Inter, system-ui, -apple-system, sans-serif"
+    font-weight="900"
+    font-size="140"
+    fill="#ffffff"
+    letter-spacing="2">iPOST</text>
+
+  <!-- FAST AND EASY subtitle -->
+  <text x="320" y="490"
+    text-anchor="middle"
+    font-family="Inter, system-ui, -apple-system, sans-serif"
+    font-weight="700"
+    font-size="38"
+    fill="#0A2A8A"
+    letter-spacing="6">FAST AND EASY</text>
+</svg>

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, Navigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Headphones, Camera, ScanFace, KeyRound, Check, X, RotateCcw } from 'lucide-react';
+import { Camera, ScanFace, KeyRound, Check, X, RotateCcw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useApp } from '../context/AppContext';
 import { computeDescriptorBoth, findBestMatchMulti, loadFaceModels } from '../utils/face';
@@ -59,15 +59,15 @@ export default function Login() {
         transition={{ type: 'spring', stiffness: 200, damping: 20 }}
         className="w-full max-w-md card p-7"
       >
-        <div className="flex items-center gap-3 mb-5">
-          <motion.div
-            whileHover={{ rotate: [0, -10, 10, 0], scale: 1.05 }}
-            transition={{ duration: 0.5 }}
-            className="h-12 w-12 rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center text-white shadow-lg shadow-brand-500/30"
-          >
-            <Headphones className="h-6 w-6" />
-          </motion.div>
-          <div>
+        <div className="flex flex-col items-center mb-5">
+          <motion.img
+            src="/ipost-logo.svg"
+            alt="iPOST"
+            whileHover={{ scale: 1.04 }}
+            transition={{ duration: 0.3 }}
+            className="h-28 w-28 rounded-2xl shadow-lg shadow-brand-500/30 mb-3"
+          />
+          <div className="text-center">
             <div className="text-xl font-bold text-slate-900 dark:text-slate-100">iPOST CRM</div>
             <div className="text-xs text-slate-500 dark:text-slate-400">
               Call Center Virtual Control Room

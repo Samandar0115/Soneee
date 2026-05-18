@@ -1,1 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2f66ff"/><stop offset="1" stop-color="#16329c"/></linearGradient></defs><rect width="64" height="64" rx="14" fill="url(#g)"/><path fill="#fff" d="M22 18a6 6 0 016-6h2a4 4 0 014 4v6h-4v6h4a4 4 0 014 4v6h-4v6h6a6 6 0 016 6v2H22V18z" opacity=".95"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" rx="12" fill="#0540D6"/>
+  <!-- iPOST arrow/envelope symbol -->
+  <g fill="#ffffff">
+    <path d="M14 24 L42 24 L50 32 L42 40 L14 40 Z" opacity="0.95"/>
+  </g>
+  <g stroke="#0A2A8A" stroke-width="2" stroke-linecap="round" fill="none">
+    <line x1="18" y1="28" x2="40" y2="28"/>
+    <line x1="22" y1="32" x2="40" y2="32"/>
+    <line x1="18" y1="36" x2="40" y2="36"/>
+  </g>
+</svg>
