@@ -45,7 +45,19 @@ export default function TicketModal({ open, onClose, ticket }: Props) {
     addAttachment,
     removeAttachment,
     addNote,
+    notifyCallback,
   } = useApp();
+
+  // Boshqa operatorga tegishli aktiv ticket ochilsa eslatma
+  const notifiedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!open || !ticket || !currentUser) return;
+    if (notifiedRef.current === ticket.id) return;
+    if (ticket.assigneeId && ticket.assigneeId !== currentUser.id && ticket.status === 'pending') {
+      notifyCallback(ticket);
+      notifiedRef.current = ticket.id;
+    }
+  }, [open, ticket, currentUser, notifyCallback]);
 
   const isEdit = !!ticket;
   const activeCategories = useMemo(() => categories.filter((c) => c.active || c.id === ticket?.categoryId), [categories, ticket]);

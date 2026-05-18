@@ -27,11 +27,49 @@ import {
 import { useApp } from '../context/AppContext';
 import { tFn } from '../i18n';
 import { searchShortcutLabel } from '../utils/platform';
+import NotificationsButton from './NotificationsButton';
+import toast from 'react-hot-toast';
 
 const COLLAPSE_KEY = 'ipost.sidebar.collapsed';
 
 export default function Layout() {
-  const { currentUser, logout, backend, lang, setLang, theme, setTheme } = useApp();
+  const { currentUser, logout, backend, lang, setLang, theme, setTheme, kvConfigured, settings } = useApp();
+
+  // Session timeout — kerakli daqiqalardan keyin avto-logout
+  useEffect(() => {
+    if (!currentUser) return;
+    const limitMin = settings.idleTimeoutMin || 30;
+    if (limitMin <= 0) return;
+    const limitMs = limitMin * 60_000;
+    let lastActivity = Date.now();
+    let warned = false;
+
+    const reset = () => {
+      lastActivity = Date.now();
+      warned = false;
+    };
+    const events = ['mousemove', 'keydown', 'click', 'touchstart', 'scroll'];
+    events.forEach((e) => window.addEventListener(e, reset, { passive: true }));
+
+    const tick = setInterval(() => {
+      const idle = Date.now() - lastActivity;
+      if (idle > limitMs - 60_000 && !warned && limitMin > 1) {
+        warned = true;
+        toast('1 daqiqadan keyin avtomatik chiqasiz...', { icon: '⏳', duration: 5000 });
+      }
+      if (idle > limitMs) {
+        logout();
+        nav('/login');
+        toast('Faollik bo\'lmagani uchun chiqarildi', { icon: '🔒' });
+      }
+    }, 15000);
+
+    return () => {
+      clearInterval(tick);
+      events.forEach((e) => window.removeEventListener(e, reset));
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser, settings.idleTimeoutMin]);
   const t = tFn(lang);
   const nav = useNavigate();
   const location = useLocation();
@@ -123,25 +161,37 @@ export default function Layout() {
           )}
 
           <div className={`mt-5 space-y-2 ${isCompact ? 'px-1' : 'px-3'}`}>
-            <button
-              onClick={triggerSearch}
-              title={t('common.search')}
-              className={`group w-full flex items-center gap-2 rounded-xl text-xs text-slate-200 bg-white/5 hover:bg-orange-400/20 hover:text-orange-200 hover:ring-1 hover:ring-orange-400/40 transition ${
-                isCompact ? 'h-10 justify-center' : 'px-3 py-2'
-              }`}
-            >
-              <Search className="h-3.5 w-3.5 flex-shrink-0" />
-              {!isCompact && (
+            <div className={isCompact ? '' : 'flex items-center gap-1'}>
+              {!isCompact ? (
                 <>
-                  <span className="flex-1 text-left">{t('common.search')}</span>
-                  {searchShortcutLabel() && (
-                    <kbd className="text-[10px] border border-white/20 rounded px-1.5 py-0.5">
-                      {searchShortcutLabel()}
-                    </kbd>
-                  )}
+                  <button
+                    onClick={triggerSearch}
+                    title={t('common.search')}
+                    className="group flex-1 flex items-center gap-2 rounded-xl text-xs text-slate-200 bg-white/5 hover:bg-orange-400/20 hover:text-orange-200 hover:ring-1 hover:ring-orange-400/40 transition px-3 py-2"
+                  >
+                    <Search className="h-3.5 w-3.5 flex-shrink-0" />
+                    <span className="flex-1 text-left">{t('common.search')}</span>
+                    {searchShortcutLabel() && (
+                      <kbd className="text-[10px] border border-white/20 rounded px-1.5 py-0.5">
+                        {searchShortcutLabel()}
+                      </kbd>
+                    )}
+                  </button>
+                  <NotificationsButton />
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={triggerSearch}
+                    title={t('common.search')}
+                    className="group w-full flex items-center justify-center rounded-xl text-xs text-slate-200 bg-white/5 hover:bg-orange-400/20 hover:text-orange-200 transition h-10 mb-2"
+                  >
+                    <Search className="h-3.5 w-3.5" />
+                  </button>
+                  <NotificationsButton compact />
                 </>
               )}
-            </button>
+            </div>
             <div className={`flex items-center gap-1 ${isCompact ? 'flex-col' : ''}`}>
               <button
                 onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
@@ -188,17 +238,24 @@ export default function Layout() {
 
         <div className={`border-t border-white/5 space-y-2 ${isCompact ? 'p-2' : 'px-3 py-3'}`}>
           {!isCompact && (
-            <div className="flex items-center gap-2 text-xs text-slate-300 px-2">
+            <button
+              onClick={() => nav('/settings')}
+              className="w-full flex items-center gap-2 text-xs px-2 py-1 rounded hover:bg-white/5 transition"
+            >
               {backend === 'firebase' ? (
                 <>
-                  <Cloud className="h-3.5 w-3.5 text-emerald-400" /> Firebase real-time
+                  <Cloud className="h-3.5 w-3.5 text-emerald-400" /> <span className="text-slate-300">Firebase real-time</span>
+                </>
+              ) : kvConfigured ? (
+                <>
+                  <Cloud className="h-3.5 w-3.5 text-emerald-400" /> <span className="text-slate-300">Vercel KV ulangan</span>
                 </>
               ) : (
                 <>
-                  <Database className="h-3.5 w-3.5 text-amber-400" /> Mahalliy
+                  <Database className="h-3.5 w-3.5 text-amber-400" /> <span className="text-amber-300">Mahalliy faqat — KV ulanmagan</span>
                 </>
               )}
-            </div>
+            </button>
           )}
           <div
             className={`rounded-xl bg-white/5 flex items-center gap-3 ${
@@ -311,6 +368,7 @@ export default function Layout() {
           >
             <Search className="h-5 w-5" />
           </button>
+          <NotificationsButton />
           <button
             onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
             className="p-2 rounded-lg hover:bg-white/10"

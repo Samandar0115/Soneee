@@ -18,12 +18,14 @@ import {
 } from 'firebase/firestore';
 import type {
   Announcement,
+  AppNotification,
   AppSettings,
   Attachment,
   Branch,
   Category,
   CustomerRating,
   Lang,
+  NotificationType,
   ResponseTemplate,
   Stage,
   TariffSettings,
@@ -61,6 +63,9 @@ interface AppState {
   tariff: TariffSettings;
   settings: AppSettings;
   templates: ResponseTemplate[];
+  notifications: AppNotification[];
+  kvConfigured: boolean;
+  kvReady: boolean;
   lang: Lang;
   theme: 'light' | 'dark';
   setLang: (l: Lang) => void;
@@ -92,6 +97,12 @@ interface AppState {
   saveSettings: (s: AppSettings) => Promise<void>;
   saveTemplate: (t: ResponseTemplate) => Promise<void>;
   deleteTemplate: (id: string) => Promise<void>;
+  pushNotification: (n: Omit<AppNotification, 'id' | 'createdAt'>) => void;
+  markNotificationRead: (id: string) => void;
+  markAllNotificationsRead: () => void;
+  clearNotifications: () => void;
+  notifyCallback: (ticket: Ticket) => void;
+  archiveOldResolved: (days: number) => number;
   exportBackup: () => string;
   importBackup: (json: string) => boolean;
   runTestScenario: () => Promise<Ticket | null>;
@@ -109,6 +120,7 @@ const STORAGE_KEYS = {
   tariff: 'ipost.tariff',
   settings: 'ipost.settings',
   templates: 'ipost.templates',
+  notifications: 'ipost.notifications',
   lang: 'ipost.lang',
   theme: 'ipost.theme',
   session: 'ipost.session',
@@ -139,6 +151,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [tariff, setTariff] = useState<TariffSettings>(seedTariff);
   const [settings, setSettings] = useState<AppSettings>(seedAppSettings);
   const [templates, setTemplates] = useState<ResponseTemplate[]>([]);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [lang, setLangState] = useState<Lang>(() => (localStorage.getItem(STORAGE_KEYS.lang) as Lang) || 'uz');
   const [theme, setThemeState] = useState<'light' | 'dark'>(
     () => (localStorage.getItem(STORAGE_KEYS.theme) as 'light' | 'dark') || 'light'
@@ -266,6 +279,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
     setSettings(loadLocal<AppSettings>(STORAGE_KEYS.settings, seedAppSettings));
     setTemplates(loadLocal<ResponseTemplate[]>(STORAGE_KEYS.templates, seedTemplates));
+    setNotifications(loadLocal<AppNotification[]>(STORAGE_KEYS.notifications, []));
     if (!localStorage.getItem(STORAGE_KEYS.users)) saveLocal(STORAGE_KEYS.users, seedUsers);
     if (!localStorage.getItem(STORAGE_KEYS.stages)) saveLocal(STORAGE_KEYS.stages, seedStages);
     if (!localStorage.getItem(STORAGE_KEYS.categories)) saveLocal(STORAGE_KEYS.categories, seedCategories);
@@ -330,6 +344,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (backend === 'local' && ready) saveLocal(STORAGE_KEYS.templates, templates);
   }, [templates, backend, ready]);
+  useEffect(() => {
+    if (backend === 'local' && ready) saveLocal(STORAGE_KEYS.notifications, notifications);
+  }, [notifications, backend, ready]);
 
   /* ---------------- Session restore ---------------- */
   useEffect(() => {
@@ -372,6 +389,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           if (d.tariff) setTariff(d.tariff);
           if (d.settings) setSettings(d.settings);
           if (Array.isArray(d.templates)) setTemplates(d.templates);
+          if (Array.isArray(d.notifications)) setNotifications(d.notifications);
         }
       } catch {
         // jim — fallback localStorage
@@ -390,7 +408,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (kvSaveTimerRef.current) clearTimeout(kvSaveTimerRef.current);
     kvSaveTimerRef.current = window.setTimeout(() => {
       const payload = {
-        version: 1,
+        version: 2,
         users,
         stages,
         tickets,
@@ -400,6 +418,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         tariff,
         settings,
         templates,
+        notifications,
       };
       saveToKV(payload).catch(() => {});
     }, 3000);
@@ -419,6 +438,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     tariff,
     settings,
     templates,
+    notifications,
   ]);
 
   /* ---------------- Auth ---------------- */
@@ -787,10 +807,83 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [removeDoc]
   );
 
+  const pushNotification = useCallback<AppState['pushNotification']>((n) => {
+    const full: AppNotification = {
+      ...n,
+      id: randomId('ntf'),
+      createdAt: Date.now(),
+    };
+    setNotifications((prev) => [full, ...prev].slice(0, 200));
+  }, []);
+
+  const markNotificationRead = useCallback<AppState['markNotificationRead']>((id) => {
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === id && !n.readAt ? { ...n, readAt: Date.now() } : n))
+    );
+  }, []);
+
+  const markAllNotificationsRead = useCallback<AppState['markAllNotificationsRead']>(() => {
+    const now = Date.now();
+    setNotifications((prev) => prev.map((n) => (n.readAt ? n : { ...n, readAt: now })));
+  }, []);
+
+  const clearNotifications = useCallback<AppState['clearNotifications']>(() => {
+    setNotifications([]);
+  }, []);
+
+  // Mijoz qayta aloqaga chiqdi — boshqa operatorga eslatma
+  const notifyCallback = useCallback<AppState['notifyCallback']>((ticket) => {
+    if (!currentUser) return;
+    if (!ticket.assigneeId) return;
+    if (ticket.assigneeId === currentUser.id) return;
+    if (ticket.status === 'resolved') return;
+
+    // Bir xil ticket uchun oxirgi 10 daqiqada eslatma yuborilgan bo'lsa, qaytarmaymiz
+    const recent = notifications.find(
+      (n) =>
+        n.ticketId === ticket.id &&
+        n.toUserId === ticket.assigneeId &&
+        n.type === 'callback' &&
+        Date.now() - n.createdAt < 10 * 60_000
+    );
+    if (recent) return;
+
+    pushNotification({
+      toUserId: ticket.assigneeId,
+      fromUserId: currentUser.id,
+      fromUserName: currentUser.fullName ?? currentUser.username,
+      ticketId: ticket.id,
+      trackingNumber: ticket.trackingNumber,
+      type: 'callback',
+      title: 'Mijoz qayta aloqaga chiqdi',
+      body: `${ticket.customerName} (${ticket.customerPhone}) — trek ${ticket.trackingNumber}. ${currentUser.fullName ?? currentUser.username} qabul qildi.`,
+    });
+  }, [currentUser, notifications, pushNotification]);
+
+  const archiveOldResolved = useCallback<AppState['archiveOldResolved']>(
+    (days) => {
+      const cutoff = Date.now() - days * 86_400_000;
+      let removed = 0;
+      setTickets((prev) =>
+        prev.filter((t) => {
+          if (t.status !== 'resolved') return true;
+          if (!t.resolvedAt) return true;
+          if (t.resolvedAt < cutoff) {
+            removed++;
+            return false;
+          }
+          return true;
+        })
+      );
+      return removed;
+    },
+    []
+  );
+
   const exportBackup = useCallback<AppState['exportBackup']>(() => {
     return JSON.stringify(
       {
-        version: 1,
+        version: 2,
         exportedAt: new Date().toISOString(),
         users,
         stages,
@@ -801,11 +894,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
         tariff,
         settings,
         templates,
+        notifications,
       },
       null,
       2
     );
-  }, [users, stages, tickets, categories, announcements, branches, tariff, settings, templates]);
+  }, [users, stages, tickets, categories, announcements, branches, tariff, settings, templates, notifications]);
 
   const importBackup = useCallback<AppState['importBackup']>(
     (json) => {
@@ -821,6 +915,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (data.tariff) setTariff(data.tariff);
         if (data.settings) setSettings(data.settings);
         if (Array.isArray(data.templates)) setTemplates(data.templates);
+        if (Array.isArray(data.notifications)) setNotifications(data.notifications);
         return true;
       } catch {
         return false;
@@ -970,6 +1065,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       tariff,
       settings,
       templates,
+      notifications,
+      kvConfigured,
+      kvReady,
       lang,
       theme,
       setLang,
@@ -1001,6 +1099,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       saveSettings,
       saveTemplate,
       deleteTemplate,
+      pushNotification,
+      markNotificationRead,
+      markAllNotificationsRead,
+      clearNotifications,
+      notifyCallback,
+      archiveOldResolved,
       exportBackup,
       importBackup,
       runTestScenario,
@@ -1018,6 +1122,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       tariff,
       settings,
       templates,
+      notifications,
+      kvConfigured,
+      kvReady,
       lang,
       theme,
       setLang,
@@ -1049,6 +1156,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       saveSettings,
       saveTemplate,
       deleteTemplate,
+      pushNotification,
+      markNotificationRead,
+      markAllNotificationsRead,
+      clearNotifications,
+      notifyCallback,
+      archiveOldResolved,
       exportBackup,
       importBackup,
       runTestScenario,

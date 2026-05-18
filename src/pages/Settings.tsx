@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Save, Settings as SettingsIcon, Zap, Clock, Languages, Download, Upload, Archive, Cloud, CloudOff, ShieldCheck, RefreshCw } from 'lucide-react';
+import { Save, Settings as SettingsIcon, Zap, Clock, Languages, Download, Upload, Archive, Cloud, CloudOff, ShieldCheck, RefreshCw, Timer, ScanFace, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import PageHeader from '../components/PageHeader';
 import { useApp } from '../context/AppContext';
@@ -16,11 +16,26 @@ const PRIORITY_LABELS: Record<string, string> = {
 };
 
 export default function SettingsPage() {
-  const { settings, saveSettings, exportBackup, importBackup } = useApp();
+  const { settings, saveSettings, exportBackup, importBackup, archiveOldResolved, tickets } = useApp();
   const [draft, setDraft] = useState<AppSettings>(settings);
   const fileRef = useRef<HTMLInputElement | null>(null);
   const [kv, setKV] = useState<KVStatus | null>(null);
   const [kvBusy, setKvBusy] = useState(false);
+
+  const oldResolvedCount = (() => {
+    const cutoff = Date.now() - (draft.archiveAfterDays || 365) * 86_400_000;
+    return tickets.filter((t) => t.status === 'resolved' && t.resolvedAt && t.resolvedAt < cutoff).length;
+  })();
+
+  function runArchive() {
+    if (oldResolvedCount === 0) {
+      toast('Arxivlash uchun eski ticket yo\'q');
+      return;
+    }
+    if (!confirm(`${oldResolvedCount} ta ${draft.archiveAfterDays} kundan eski hal etilgan ticketlar o'chirilsinmi? (Avval JSON backup yuklab olishni tavsiya etamiz)`)) return;
+    const n = archiveOldResolved(draft.archiveAfterDays || 365);
+    toast.success(`${n} ta arxivlandi`);
+  }
 
   useEffect(() => {
     checkKVStatus().then(setKV);
@@ -194,6 +209,80 @@ export default function SettingsPage() {
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+
+        <div className="card p-6">
+          <div className="flex items-center gap-2 mb-3">
+            <Timer className="h-5 w-5 text-brand-600" />
+            <h3 className="font-bold">Session timeout (faollik)</h3>
+          </div>
+          <p className="text-xs text-slate-500 mb-3">
+            Foydalanuvchi shu daqiqalar davomida hech narsa qilmasa, avtomatik tizimdan chiqariladi. 0 = o'chirilgan.
+          </p>
+          <div className="flex items-center gap-3">
+            <input
+              type="number"
+              min={0}
+              className="input flex-1"
+              value={draft.idleTimeoutMin}
+              onChange={(e) => setDraft({ ...draft, idleTimeoutMin: Number(e.target.value) })}
+            />
+            <span className="text-sm text-slate-500">daqiqa</span>
+          </div>
+        </div>
+
+        <div className="card p-6">
+          <div className="flex items-center gap-2 mb-3">
+            <ScanFace className="h-5 w-5 text-brand-600" />
+            <h3 className="font-bold">Face ID oxshashlik chegarasi</h3>
+          </div>
+          <p className="text-xs text-slate-500 mb-3">
+            Yuz tanish uchun minimal oxshashlik foizi. Kamroq qilsangiz osonroq tanaydi (lekin xato ehtimoli bor). 75%+ tavsiya etiladi.
+          </p>
+          <div className="flex items-center gap-3">
+            <input
+              type="range"
+              min={30}
+              max={90}
+              step={5}
+              className="flex-1"
+              value={draft.faceMatchThreshold ?? 50}
+              onChange={(e) => setDraft({ ...draft, faceMatchThreshold: Number(e.target.value) })}
+            />
+            <div className={`font-bold text-xl w-16 text-right ${
+              (draft.faceMatchThreshold ?? 50) >= 75 ? 'text-emerald-600' :
+              (draft.faceMatchThreshold ?? 50) >= 60 ? 'text-brand-600' : 'text-amber-600'
+            }`}>
+              {draft.faceMatchThreshold ?? 50}%
+            </div>
+          </div>
+        </div>
+
+        <div className="card p-6">
+          <div className="flex items-center gap-2 mb-3">
+            <Trash2 className="h-5 w-5 text-brand-600" />
+            <h3 className="font-bold">Avtomatik arxivlash</h3>
+          </div>
+          <p className="text-xs text-slate-500 mb-3">
+            Hal etilgan ticketlarni X kundan keyin tizimdan o'chirib, hajmni saqlab turish.
+            10,000+ ticketda tezlik uchun zarur.
+          </p>
+          <div className="flex items-center gap-3 mb-3">
+            <input
+              type="number"
+              min={30}
+              className="input flex-1"
+              value={draft.archiveAfterDays}
+              onChange={(e) => setDraft({ ...draft, archiveAfterDays: Number(e.target.value) })}
+            />
+            <span className="text-sm text-slate-500">kundan keyin</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={runArchive} className="btn-danger text-xs">
+              <Trash2 className="h-3.5 w-3.5" /> Hozir arxivlash ({oldResolvedCount} ta)
+            </button>
+            <span className="text-[11px] text-slate-400">JSON backup tavsiya etiladi</span>
           </div>
         </div>
 

@@ -152,7 +152,26 @@ export interface AppSettings {
   autoAssign: 'off' | 'round-robin' | 'least-busy';
   slaMinutes: Record<NonNullable<Ticket['priority']>, number>;
   defaultLang: Lang;
+  idleTimeoutMin: number;
+  archiveAfterDays: number;
+  faceMatchThreshold: number;
   updatedAt: number;
+}
+
+export type NotificationType = 'callback' | 'mention' | 'assigned' | 'sla' | 'system';
+
+export interface AppNotification {
+  id: string;
+  toUserId: string;
+  fromUserId?: string;
+  fromUserName?: string;
+  ticketId?: string;
+  trackingNumber?: string;
+  type: NotificationType;
+  title: string;
+  body?: string;
+  createdAt: number;
+  readAt?: number;
 }
 
 export interface ResponseTemplate {

@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Headphones, Camera, ScanFace, KeyRound, Check, X, RotateCcw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useApp } from '../context/AppContext';
-import { computeDescriptor, findBestMatch, loadFaceModels } from '../utils/face';
+import { computeDescriptorBoth, findBestMatchMulti, loadFaceModels } from '../utils/face';
 import type { User } from '../types';
 
 type Mode = 'face' | 'password';
@@ -198,7 +198,9 @@ function FaceLoginPanel({
   onFallback: () => void;
   attemptsLeft: number;
 }) {
-  const { users } = useApp();
+  const { users, settings } = useApp();
+  const minSim = settings.faceMatchThreshold ?? 50;
+  const [similarity, setSimilarity] = useState(0);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const scanIntervalRef = useRef<number | null>(null);
@@ -268,18 +270,23 @@ function FaceLoginPanel({
     }
   }
 
+  const matchedSimilarityRef = useRef(0);
+
   function startScanning() {
     if (scanIntervalRef.current) clearInterval(scanIntervalRef.current);
     scanIntervalRef.current = window.setInterval(async () => {
       if (!videoRef.current || videoRef.current.readyState !== 4) return;
       try {
-        const desc = await computeDescriptor(videoRef.current);
-        if (!desc) return;
-        // Faqat face descriptor'i bor xodimlar orasidan qidiramiz
+        // Telefon/PC mirror muammosini hal qilish uchun ikkala variantni
+        // hisoblab, eng yaqin mosligini olamiz
+        const { normal, mirrored } = await computeDescriptorBoth(videoRef.current);
+        if (!normal && !mirrored) return;
         const candidates = users.filter((u) => u.faceDescriptor && u.faceDescriptor.length > 0);
         if (candidates.length === 0) return;
-        const match = findBestMatch(candidates, desc, 0.5);
+        const match = findBestMatchMulti(candidates, [normal, mirrored], minSim);
         if (match) {
+          setSimilarity(match.similarity);
+          matchedSimilarityRef.current = match.similarity;
           pauseScanning();
           setMatched(match.user);
           setState('confirm');
@@ -437,6 +444,7 @@ function FaceLoginPanel({
             </motion.div>
             <div className="font-bold mt-2 text-lg">Xush kelibsiz!</div>
             <div className="text-sm mt-1 opacity-90">{matched.fullName ?? matched.username}</div>
+            <div className="text-xs mt-1 opacity-75">Yuz oxshashligi: {similarity}%</div>
           </motion.div>
         )}
       </div>
@@ -455,10 +463,10 @@ function FaceLoginPanel({
                 <img
                   src={matched.photo}
                   alt={matched.username}
-                  className="h-14 w-14 rounded-full object-cover border-2 border-brand-500"
+                  className="h-16 w-16 rounded-full object-cover border-2 border-brand-500"
                 />
               ) : (
-                <div className="h-14 w-14 rounded-full bg-brand-500 text-white flex items-center justify-center text-xl font-bold">
+                <div className="h-16 w-16 rounded-full bg-brand-500 text-white flex items-center justify-center text-xl font-bold">
                   {(matched.fullName ?? matched.username)[0]?.toUpperCase()}
                 </div>
               )}
@@ -471,9 +479,33 @@ function FaceLoginPanel({
                 </div>
                 <div className="text-xs text-slate-500 dark:text-slate-400">{matched.role}</div>
               </div>
+              <div className="text-right">
+                <div className={`text-2xl font-bold ${
+                  similarity >= 75 ? 'text-emerald-600' :
+                  similarity >= 60 ? 'text-brand-600' :
+                  'text-amber-600'
+                }`}>
+                  {similarity}%
+                </div>
+                <div className="text-[10px] text-slate-500 uppercase tracking-wider">oxshashlik</div>
+              </div>
+            </div>
+            <div className="mt-2 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+              <motion.div
+                initial={{ width: 0 }}
+                animate={{ width: `${similarity}%` }}
+                transition={{ duration: 0.6 }}
+                className={`h-full ${
+                  similarity >= 75 ? 'bg-emerald-500' :
+                  similarity >= 60 ? 'bg-brand-500' :
+                  'bg-amber-500'
+                }`}
+              />
             </div>
             <div className="text-sm text-slate-700 dark:text-slate-200 mt-3 text-center">
-              Bu sizmisiz?
+              {similarity >= 75 ? 'Yuz juda yaxshi mos keldi — bu sizmisiz?' :
+               similarity >= 60 ? 'Yuz mos keldi — bu sizmisiz?' :
+               'Oxshashlik past, lekin imkon bor — bu sizmisiz?'}
             </div>
             <div className="grid grid-cols-2 gap-2 mt-3">
               <button onClick={confirmNo} className="btn-ghost">

@@ -15,6 +15,9 @@ export const seedAppSettings: AppSettings = {
   autoAssign: 'least-busy',
   slaMinutes: { low: 1440, normal: 480, high: 120, urgent: 30 },
   defaultLang: 'uz',
+  idleTimeoutMin: 30,
+  archiveAfterDays: 365,
+  faceMatchThreshold: 50,
   updatedAt: Date.now(),
 };
 
