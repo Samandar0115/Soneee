@@ -12,8 +12,10 @@ type Mode = 'face' | 'password';
 export default function Login() {
   const { login, currentUser, users } = useApp();
   const nav = useNavigate();
+  // Face ID'ni har doim ko'rsatamiz — KV'dan keyin yuklanishi mumkin, va
+  // har bir qurilmada kamera/Face ID sinab ko'rilishi mumkin bo'lsin
   const hasFaceUsers = users.some((u) => u.faceDescriptor && u.faceDescriptor.length > 0);
-  const [mode, setMode] = useState<Mode>(hasFaceUsers ? 'face' : 'password');
+  const [mode, setMode] = useState<Mode>('face');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -163,13 +165,27 @@ export default function Login() {
 }
 
 type FaceState =
+  | 'idle'
   | 'loading_models'
   | 'requesting_camera'
   | 'denied'
+  | 'no_camera'
+  | 'insecure'
   | 'failed_models'
   | 'scanning'
   | 'confirm'
   | 'success';
+
+function isCameraSupported() {
+  return !!(navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === 'function');
+}
+function isSecureCtx() {
+  if (typeof window === 'undefined') return false;
+  if (window.isSecureContext) return true;
+  // localhost development
+  if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') return true;
+  return location.protocol === 'https:';
+}
 
 function FaceLoginPanel({
   onSuccess,
@@ -186,27 +202,49 @@ function FaceLoginPanel({
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const scanIntervalRef = useRef<number | null>(null);
-  const [state, setState] = useState<FaceState>('loading_models');
+  const [state, setState] = useState<FaceState>('idle');
   const [matched, setMatched] = useState<User | null>(null);
+  const [errorDetail, setErrorDetail] = useState<string>('');
+
+  // Mobile va ba'zi brauzerlar (iOS Safari) tugma bosilmasa kamera bermaydi
+  const requiresGesture =
+    /iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+    /Mobi|Android/i.test(navigator.userAgent);
 
   useEffect(() => {
-    start();
+    // Avval HTTPS va camera mavjudligini tekshiramiz
+    if (!isSecureCtx()) {
+      setState('insecure');
+      return;
+    }
+    if (!isCameraSupported()) {
+      setState('no_camera');
+      return;
+    }
+    // PC'larda darhol boshlanadi, mobil'da tugma bosilishini kutamiz
+    if (!requiresGesture) {
+      start();
+    } else {
+      setState('idle');
+    }
     return () => stop();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function start() {
+    setErrorDetail('');
     setState('loading_models');
     try {
       await loadFaceModels();
-    } catch {
+    } catch (e: any) {
+      setErrorDetail(e?.message ?? '');
       setState('failed_models');
       return;
     }
     setState('requesting_camera');
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user', width: 480, height: 360 },
+        video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
         audio: false,
       });
       streamRef.current = stream;
@@ -216,8 +254,17 @@ function FaceLoginPanel({
       }
       setState('scanning');
       startScanning();
-    } catch (err) {
-      setState('denied');
+    } catch (err: any) {
+      const name = err?.name ?? '';
+      const msg = err?.message ?? '';
+      setErrorDetail(`${name}${msg ? ': ' + msg : ''}`);
+      if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
+        setState('denied');
+      } else if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
+        setState('no_camera');
+      } else {
+        setState('denied');
+      }
     }
   }
 
@@ -228,7 +275,10 @@ function FaceLoginPanel({
       try {
         const desc = await computeDescriptor(videoRef.current);
         if (!desc) return;
-        const match = findBestMatch(users, desc, 0.5);
+        // Faqat face descriptor'i bor xodimlar orasidan qidiramiz
+        const candidates = users.filter((u) => u.faceDescriptor && u.faceDescriptor.length > 0);
+        if (candidates.length === 0) return;
+        const match = findBestMatch(candidates, desc, 0.5);
         if (match) {
           pauseScanning();
           setMatched(match.user);
@@ -282,6 +332,21 @@ function FaceLoginPanel({
         />
 
         {/* Holatlar */}
+        {state === 'idle' && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900/85 text-white text-center px-6">
+            <Camera className="h-10 w-10 mb-3 opacity-90" />
+            <button
+              onClick={start}
+              className="bg-brand-600 hover:bg-brand-500 px-5 py-2.5 rounded-xl text-sm font-semibold shadow-lg"
+            >
+              Face ID — kamerani yoqish
+            </button>
+            <div className="text-xs mt-3 opacity-80 max-w-xs">
+              Telefon yoki yangi qurilmada kamera ruxsati uchun tugmani bosing
+            </div>
+          </div>
+        )}
+
         {(state === 'loading_models' || state === 'requesting_camera') && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900/80 text-white">
             <Camera className="h-8 w-8 animate-pulse mb-2" />
@@ -292,22 +357,55 @@ function FaceLoginPanel({
         )}
 
         {state === 'denied' && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-rose-900/80 text-white text-center px-6">
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-rose-900/85 text-white text-center px-6">
             <X className="h-10 w-10 mb-2" />
             <div className="text-sm font-semibold">Kamera ruxsati berilmadi</div>
+            <div className="text-xs mt-1 opacity-80 max-w-xs">
+              Brauzer manzil qatori chap tomonidagi 🔒 ikona → Kamera → Ruxsat berish
+            </div>
+            {errorDetail && (
+              <div className="text-[10px] mt-2 opacity-60 font-mono">{errorDetail}</div>
+            )}
+            <button
+              onClick={start}
+              className="mt-3 bg-white text-rose-900 px-4 py-1.5 rounded-lg text-xs font-semibold"
+            >
+              <RotateCcw className="h-3 w-3 inline mr-1" /> Qaytadan urinish
+            </button>
+          </div>
+        )}
+
+        {state === 'no_camera' && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-800/90 text-white text-center px-6">
+            <Camera className="h-10 w-10 mb-2 opacity-60" />
+            <div className="text-sm font-semibold">Bu qurilmada kamera topilmadi</div>
+            <div className="text-xs mt-1 opacity-80">Parol bilan kirishni davom ettiring</div>
+          </div>
+        )}
+
+        {state === 'insecure' && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-amber-900/85 text-white text-center px-6">
+            <X className="h-10 w-10 mb-2" />
+            <div className="text-sm font-semibold">HTTPS talab qilinadi</div>
             <div className="text-xs mt-1 opacity-80">
-              Brauzer sozlamalarida kameraga ruxsat bering yoki parol bilan kiring
+              Kameradan foydalanish uchun sayt HTTPS orqali ochilishi kerak
             </div>
           </div>
         )}
 
         {state === 'failed_models' && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-amber-900/80 text-white text-center px-6">
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-amber-900/85 text-white text-center px-6">
             <X className="h-10 w-10 mb-2" />
             <div className="text-sm font-semibold">Modellarni yuklab bo'lmadi</div>
             <div className="text-xs mt-1 opacity-80">
-              Internetni tekshiring yoki parol bilan kiring
+              Internet aloqasini tekshiring (CDN'dan ~3MB)
             </div>
+            <button
+              onClick={start}
+              className="mt-3 bg-white text-amber-900 px-4 py-1.5 rounded-lg text-xs font-semibold"
+            >
+              <RotateCcw className="h-3 w-3 inline mr-1" /> Qaytadan urinish
+            </button>
           </div>
         )}
 
@@ -317,7 +415,9 @@ function FaceLoginPanel({
               <div className="absolute inset-x-0 top-0 h-0.5 bg-brand-400 animate-scan shadow-[0_0_12px_rgba(47,102,255,0.8)]" />
             </div>
             <div className="absolute bottom-3 left-0 right-0 text-center text-white text-xs font-semibold bg-slate-900/60 mx-6 py-1 rounded-lg">
-              Yuzingizni kameraga yo'naltiring
+              {users.filter((u) => u.faceDescriptor && u.faceDescriptor.length > 0).length === 0
+                ? "Hech bir xodim Face ID ro'yxatdan o'tmagan — parol bilan kiring"
+                : "Yuzingizni kameraga yo'naltiring"}
             </div>
           </div>
         )}
@@ -389,21 +489,18 @@ function FaceLoginPanel({
 
       {/* Pastdagi info matn */}
       {state !== 'confirm' && state !== 'success' && (
-        <div className="flex items-center justify-between text-xs">
+        <div className="flex items-center justify-between text-xs gap-2">
           <span className="text-slate-500 dark:text-slate-300">
             {state === 'scanning' &&
               (attemptsLeft < 2 ? `Qolgan urinish: ${attemptsLeft}` : 'Avtomatik tanish')}
+            {state === 'idle' && 'Yoki parol bilan kiring'}
           </span>
-          {(state === 'denied' || state === 'failed_models') && (
-            <button onClick={onFallback} className="text-brand-700 hover:text-brand-800 font-semibold">
-              <KeyRound className="h-3.5 w-3.5 inline mr-1" /> Parol bilan kirish
-            </button>
-          )}
-          {state === 'scanning' && (
-            <button onClick={onFallback} className="text-slate-500 hover:text-brand-700">
-              Parol bilan kirish
-            </button>
-          )}
+          <button
+            onClick={onFallback}
+            className="text-brand-700 hover:text-brand-800 font-semibold whitespace-nowrap"
+          >
+            <KeyRound className="h-3.5 w-3.5 inline mr-1" /> Parol bilan kirish
+          </button>
         </div>
       )}
 

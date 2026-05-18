@@ -46,7 +46,7 @@ import {
 } from '../api/seed';
 import { handleFirestoreError } from '../utils/errors';
 import { generateTrackingNumber, randomId } from '../utils/format';
-import { loadFromKV } from '../utils/vercelKV';
+import { loadFromKV, saveToKV, checkKVStatus } from '../utils/vercelKV';
 
 interface AppState {
   ready: boolean;
@@ -341,36 +341,85 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [ready, users]);
 
-  /* ---------------- Vercel KV auto-load (faqat local rejimda, faqat birinchi marta) ---------------- */
+  /* ---------------- Vercel KV: auto-load ---------------- */
+  // Har safar ilova ochilganda Vercel KV'dan ma'lumot olib kelamiz (agar
+  // konfiguratsiya qilingan bo'lsa). Bu Face ID descriptor'lar va boshqa
+  // ma'lumotlarni qurilmalararo sinxronlashtirish uchun kerak.
   const kvLoadedRef = useRef(false);
+  const [kvReady, setKvReady] = useState(false);
+  const [kvConfigured, setKvConfigured] = useState(false);
+
   useEffect(() => {
     if (backend !== 'local' || !ready || kvLoadedRef.current) return;
     kvLoadedRef.current = true;
     (async () => {
       try {
+        const status = await checkKVStatus();
+        setKvConfigured(status.configured);
+        if (!status.configured) {
+          setKvReady(true);
+          return;
+        }
         const remote = await loadFromKV();
-        if (!remote || !remote.data) return;
-        const data = remote.data;
-        // Mahalliy ma'lumot bo'sh bo'lsa Vercel'dan tiklab olamiz (yangi qurilma uchun)
-        const noLocal =
-          tickets.length === 0 &&
-          (users.length === 0 || users.every((u) => u.id.startsWith('admin-') || u.id.startsWith('op-')));
-        if (noLocal) {
-          if (Array.isArray(data.users)) setUsers(data.users);
-          if (Array.isArray(data.stages)) setStages(data.stages);
-          if (Array.isArray(data.tickets)) setTickets(data.tickets);
-          if (Array.isArray(data.categories)) setCategories(data.categories);
-          if (Array.isArray(data.announcements)) setAnnouncements(data.announcements);
-          if (Array.isArray(data.branches)) setBranches(data.branches);
-          if (data.tariff) setTariff(data.tariff);
-          if (data.settings) setSettings(data.settings);
-          if (Array.isArray(data.templates)) setTemplates(data.templates);
+        if (remote && remote.data) {
+          const d = remote.data;
+          if (Array.isArray(d.users) && d.users.length > 0) setUsers(d.users);
+          if (Array.isArray(d.stages) && d.stages.length > 0) setStages(d.stages);
+          if (Array.isArray(d.tickets)) setTickets(d.tickets);
+          if (Array.isArray(d.categories) && d.categories.length > 0) setCategories(d.categories);
+          if (Array.isArray(d.announcements)) setAnnouncements(d.announcements);
+          if (Array.isArray(d.branches) && d.branches.length > 0) setBranches(d.branches);
+          if (d.tariff) setTariff(d.tariff);
+          if (d.settings) setSettings(d.settings);
+          if (Array.isArray(d.templates)) setTemplates(d.templates);
         }
       } catch {
-        // jim
+        // jim — fallback localStorage
+      } finally {
+        setKvReady(true);
       }
     })();
-  }, [backend, ready, tickets.length, users]);
+  }, [backend, ready]);
+
+  /* ---------------- Vercel KV: auto-save (debounced) ---------------- */
+  // Ma'lumot o'zgarsa, 3 sekund kechikish bilan KV'ga yuboramiz.
+  // (Bu Face ID'ni boshqa qurilmalarda darhol ishlatish uchun zarur.)
+  const kvSaveTimerRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (backend !== 'local' || !kvReady || !kvConfigured) return;
+    if (kvSaveTimerRef.current) clearTimeout(kvSaveTimerRef.current);
+    kvSaveTimerRef.current = window.setTimeout(() => {
+      const payload = {
+        version: 1,
+        users,
+        stages,
+        tickets,
+        categories,
+        announcements,
+        branches,
+        tariff,
+        settings,
+        templates,
+      };
+      saveToKV(payload).catch(() => {});
+    }, 3000);
+    return () => {
+      if (kvSaveTimerRef.current) clearTimeout(kvSaveTimerRef.current);
+    };
+  }, [
+    backend,
+    kvReady,
+    kvConfigured,
+    users,
+    stages,
+    tickets,
+    categories,
+    announcements,
+    branches,
+    tariff,
+    settings,
+    templates,
+  ]);
 
   /* ---------------- Auth ---------------- */
   const login = useCallback(
