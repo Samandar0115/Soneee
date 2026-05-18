@@ -231,16 +231,23 @@ export interface MisrouteDetails {
   notes?: string;
 }
 
+export type SipMode = 'external' | 'webrtc';
+
 export interface SipConfig {
   enabled: boolean;
+  // Qaysi rejim: 'external' — MicroSIP (callto:) orqali, 'webrtc' — sayt ichida JsSIP
+  // Asterisk'da WS yoqilmagan bo'lsa 'external' tanlanadi (avtomatik MicroSIP'ga uzatadi).
+  mode: SipMode;
+  // Tashqi softphone (MicroSIP) uchun URL sxemasi: 'callto', 'tel', 'sip'
+  externalScheme?: 'callto' | 'tel' | 'sip';
   // SIP-сервер (MicroSIP): masalan 192.168.7.253 yoki 192.168.7.253:5060
   serverHost: string;
   // Домен (MicroSIP): odatda server bilan bir xil, bo'sh qoldirsa serverdan olinadi
   domain?: string;
   // SIP-прокси (MicroSIP): ixtiyoriy proxy server (odatda bo'sh)
   proxy?: string;
-  // WebSocket manzili: ws://192.168.7.253:8088/ws yoki wss://...
-  wsUri: string;
+  // WebSocket manzili (faqat 'webrtc' rejim uchun)
+  wsUri?: string;
   // Ixtiyoriy STUN/TURN serverlar (LAN ichida ishlatilsa BO'SH qoldiring).
   iceServers?: string;
   // Обновить регистрацию (sekund), MicroSIP'dagi 120 dek

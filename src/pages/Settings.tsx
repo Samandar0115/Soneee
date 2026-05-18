@@ -305,20 +305,98 @@ export default function SettingsPage() {
                 setDraft({
                   ...draft,
                   sip: {
+                    ...(draft.sip ?? {
+                      mode: 'external',
+                      externalScheme: 'callto',
+                      serverHost: '',
+                      wsUri: '',
+                    }),
                     enabled: e.target.checked,
-                    serverHost: draft.sip?.serverHost ?? '',
-                    wsUri: draft.sip?.wsUri ?? '',
-                    registrar: draft.sip?.registrar,
-                    sipUri: draft.sip?.sipUri,
-                    password: draft.sip?.password,
-                    displayName: draft.sip?.displayName,
-                  },
+                  } as any,
                 })
               }
               className="h-4 w-4"
             />
             <span className="text-sm font-semibold">SIP yoqilgan</span>
           </label>
+
+          {/* Rejim tanlash */}
+          <div className="mb-4">
+            <label className="label mb-2">Qo'ng'iroq rejimi</label>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() =>
+                  setDraft({
+                    ...draft,
+                    sip: { ...(draft.sip ?? { enabled: true, serverHost: '', wsUri: '' }), mode: 'external' } as any,
+                  })
+                }
+                className={`p-3 rounded-xl border-2 text-left transition ${
+                  (draft.sip?.mode ?? 'external') === 'external'
+                    ? 'border-brand-500 bg-brand-50 dark:bg-brand-900/20'
+                    : 'border-slate-200 dark:border-slate-700 hover:border-slate-300'
+                }`}
+              >
+                <div className="font-bold text-sm">📞 MicroSIP orqali (tavsiya etiladi)</div>
+                <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                  Saytda raqamga bosilganda PC'dagi MicroSIP avtomatik ochilib qo'ng'iroq qiladi.
+                  Hech qanday server o'zgartirishi shart emas.
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setDraft({
+                    ...draft,
+                    sip: { ...(draft.sip ?? { enabled: true, serverHost: '', wsUri: '' }), mode: 'webrtc' } as any,
+                  })
+                }
+                className={`p-3 rounded-xl border-2 text-left transition ${
+                  draft.sip?.mode === 'webrtc'
+                    ? 'border-brand-500 bg-brand-50 dark:bg-brand-900/20'
+                    : 'border-slate-200 dark:border-slate-700 hover:border-slate-300'
+                }`}
+              >
+                <div className="font-bold text-sm">🌐 WebRTC (sayt ichida)</div>
+                <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                  To'g'ridan-to'g'ri brauzerda qo'ng'iroq. Asterisk'da WebSocket (chan_pjsip ws) yoqilgan bo'lishi kerak.
+                </div>
+              </button>
+            </div>
+          </div>
+
+          {/* External rejim uchun maxsus sozlama */}
+          {(draft.sip?.mode ?? 'external') === 'external' && (
+            <div className="mb-4">
+              <label className="label">URL sxemasi (MicroSIP qabul qiladigan)</label>
+              <div className="flex gap-2 mt-1">
+                {(['callto', 'tel', 'sip'] as const).map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() =>
+                      setDraft({
+                        ...draft,
+                        sip: { ...(draft.sip ?? { enabled: true, serverHost: '', wsUri: '', mode: 'external' }), externalScheme: s } as any,
+                      })
+                    }
+                    className={`flex-1 py-2 rounded-xl border-2 font-mono text-sm transition ${
+                      (draft.sip?.externalScheme ?? 'callto') === s
+                        ? 'border-brand-500 bg-brand-50 dark:bg-brand-900/20'
+                        : 'border-slate-200 dark:border-slate-700'
+                    }`}
+                  >
+                    {s}:
+                  </button>
+                ))}
+              </div>
+              <p className="text-[11px] text-slate-400 mt-2">
+                ⓘ MicroSIP odatda <b>callto:</b> ni qabul qiladi. Agar ishlamasa <b>tel:</b> yoki <b>sip:</b> ni sinab ko'ring.
+                Birinchi marta brauzer "Qaysi dasturda ochish?" deb so'rashi mumkin — MicroSIP'ni tanlang va "Doimo shu dastur" ga belgi qo'ying.
+              </p>
+            </div>
+          )}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
               <label className="label">SIP-сервер (Server host)</label>
@@ -336,7 +414,14 @@ export default function SettingsPage() {
                   })
                 }
               />
+              <p className="text-[11px] text-slate-400 mt-1">
+                {(draft.sip?.mode ?? 'external') === 'external'
+                  ? "sip: sxemasi tanlangan bo'lsa kerak. Aks holda bo'sh qoldirish mumkin."
+                  : 'WebRTC rejimi uchun majburiy.'}
+              </p>
             </div>
+            {(draft.sip?.mode ?? 'external') === 'webrtc' && (
+            <>
             <div>
               <label className="label">Домен (Domain)</label>
               <input
@@ -406,7 +491,10 @@ export default function SettingsPage() {
                 }
               />
             </div>
+            </>
+            )}
           </div>
+          {(draft.sip?.mode ?? 'external') === 'webrtc' && (
           <div className="mt-3">
             <label className="label">ICE serverlar (ixtiyoriy — LAN ichida bo'sh qoldiring)</label>
             <input
@@ -417,15 +505,9 @@ export default function SettingsPage() {
                 setDraft({
                   ...draft,
                   sip: {
-                    enabled: draft.sip?.enabled ?? false,
-                    serverHost: draft.sip?.serverHost ?? '',
-                    wsUri: draft.sip?.wsUri ?? '',
+                    ...(draft.sip ?? { enabled: false, wsUri: '', serverHost: '', mode: 'webrtc' }),
                     iceServers: e.target.value,
-                    registrar: draft.sip?.registrar,
-                    sipUri: draft.sip?.sipUri,
-                    password: draft.sip?.password,
-                    displayName: draft.sip?.displayName,
-                  },
+                  } as any,
                 })
               }
             />
@@ -433,6 +515,16 @@ export default function SettingsPage() {
               Vergul yoki probel bilan ajrating. Mahalliy tarmoq (LAN) ichida hech narsa kerak emas.
             </p>
           </div>
+          )}
+          {(draft.sip?.mode ?? 'external') === 'external' ? (
+          <div className="mt-3 p-3 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/40 text-[11px] text-emerald-800 dark:text-emerald-200 space-y-1">
+            <div className="font-bold">✅ MicroSIP rejimi tanlandi — eng oddiy yo'l</div>
+            <div>1. Kompyuteringizda MicroSIP ochiq turishi va o'z hisobiga ulangan bo'lishi kerak.</div>
+            <div>2. Sayt orqali raqamga bosilganda brauzer <code className="font-mono">callto:</code> URL'ni MicroSIP'ga uzatadi.</div>
+            <div>3. Birinchi marta brauzer "Qaysi dasturda ochish?" deb so'rashi mumkin — MicroSIP'ni tanlab "Doimo" ga belgi qo'ying.</div>
+            <div>4. Agar MicroSIP javob bermasa, Sozlamalardan boshqa sxemani (tel: yoki sip:) sinab ko'ring.</div>
+          </div>
+          ) : (
           <div className="mt-3 p-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40 text-[11px] text-amber-800 dark:text-amber-200 space-y-1">
             <div>
               ⓘ Asterisk uchun WebSocket odatda <code className="font-mono">ws://HOST:8088/ws</code> portida turadi
@@ -447,6 +539,7 @@ export default function SettingsPage() {
               Brauzeringiz to'g'ridan-to'g'ri sizning serveringizga ulanadi.
             </div>
           </div>
+          )}
         </div>
 
         <div className="card p-6">
