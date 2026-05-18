@@ -1,8 +1,9 @@
 import { useMemo, useRef, useState } from 'react';
-import { Plus, Trash2, ShieldAlert, Lock, Camera, ScanFace, CheckCircle2 } from 'lucide-react';
+import { Plus, Trash2, ShieldAlert, Lock, Camera, ScanFace, CheckCircle2, Upload } from 'lucide-react';
 import toast from 'react-hot-toast';
 import PageHeader from '../components/PageHeader';
 import Modal from '../components/Modal';
+import CameraCapture from '../components/CameraCapture';
 import { useApp } from '../context/AppContext';
 import type { User } from '../types';
 import { randomId } from '../utils/format';
@@ -13,7 +14,33 @@ export default function UsersPage() {
   const [editing, setEditing] = useState<User | null>(null);
   const [open, setOpen] = useState(false);
   const [scanning, setScanning] = useState(false);
+  const [cameraOpen, setCameraOpen] = useState(false);
   const photoInputRef = useRef<HTMLInputElement | null>(null);
+
+  async function processDataUrl(dataUrl: string) {
+    if (!editing) return;
+    setScanning(true);
+    toast.loading('Yuz aniqlanmoqda...', { id: 'face' });
+    try {
+      await loadFaceModels();
+      const desc = await imageDataUrlToDescriptor(dataUrl);
+      if (!desc) {
+        toast.error('Rasmda yuz topilmadi', { id: 'face' });
+        setScanning(false);
+        return;
+      }
+      setEditing({
+        ...editing,
+        photo: dataUrl,
+        faceDescriptor: Array.from(desc),
+      });
+      toast.success('Yuz qayd etildi', { id: 'face' });
+    } catch (err) {
+      toast.error('Modellar yuklanmadi (internetni tekshiring)', { id: 'face' });
+    } finally {
+      setScanning(false);
+    }
+  }
 
   async function handlePhotoUpload(file: File) {
     if (!editing) return;
@@ -21,32 +48,15 @@ export default function UsersPage() {
       toast.error('Rasm 4 MB dan katta');
       return;
     }
-    setScanning(true);
     const reader = new FileReader();
     reader.onload = async () => {
-      const dataUrl = reader.result as string;
-      toast.loading('Yuz aniqlanmoqda...', { id: 'face' });
-      try {
-        await loadFaceModels();
-        const desc = await imageDataUrlToDescriptor(dataUrl);
-        if (!desc) {
-          toast.error('Rasmda yuz topilmadi', { id: 'face' });
-          setScanning(false);
-          return;
-        }
-        setEditing({
-          ...editing,
-          photo: dataUrl,
-          faceDescriptor: Array.from(desc),
-        });
-        toast.success('Yuz qayd etildi', { id: 'face' });
-      } catch (err) {
-        toast.error('Modellar yuklanmadi (internetni tekshiring)', { id: 'face' });
-      } finally {
-        setScanning(false);
-      }
+      await processDataUrl(reader.result as string);
     };
     reader.readAsDataURL(file);
+  }
+
+  async function handleCameraCapture(dataUrl: string) {
+    await processDataUrl(dataUrl);
   }
 
   const stats = useMemo(() => {
@@ -284,14 +294,24 @@ export default function UsersPage() {
                     </div>
                   )}
                   <div className="flex-1 space-y-1.5">
-                    <button
-                      onClick={() => photoInputRef.current?.click()}
-                      disabled={scanning}
-                      className="btn-ghost w-full text-xs disabled:opacity-50"
-                    >
-                      <Camera className="h-3.5 w-3.5" />
-                      {scanning ? 'Aniqlanmoqda...' : editing.photo ? "Boshqa rasm tanlash" : 'Rasm yuklash'}
-                    </button>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <button
+                        onClick={() => setCameraOpen(true)}
+                        disabled={scanning}
+                        className="btn-primary text-xs disabled:opacity-50"
+                      >
+                        <Camera className="h-3.5 w-3.5" />
+                        {scanning ? '...' : 'Kameradan'}
+                      </button>
+                      <button
+                        onClick={() => photoInputRef.current?.click()}
+                        disabled={scanning}
+                        className="btn-ghost text-xs disabled:opacity-50"
+                      >
+                        <Upload className="h-3.5 w-3.5" />
+                        {scanning ? '...' : 'Fayldan'}
+                      </button>
+                    </div>
                     {editing.faceDescriptor && editing.faceDescriptor.length > 0 && (
                       <div className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400">
                         <CheckCircle2 className="h-3.5 w-3.5" />
@@ -331,6 +351,12 @@ export default function UsersPage() {
           );
         })()}
       </Modal>
+
+      <CameraCapture
+        open={cameraOpen}
+        onClose={() => setCameraOpen(false)}
+        onCapture={handleCameraCapture}
+      />
     </div>
   );
 }
