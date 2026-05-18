@@ -86,7 +86,7 @@ export class SipPhone {
     this.stop();
     this.config = config;
     this.errorMsg = '';
-    if (!config.enabled || !config.wsUri || !config.sipUri) {
+    if (!config.enabled || !config.wsUri || !config.sipUri || !config.password) {
       this.state = 'disabled';
       this.emit();
       return;
@@ -315,8 +315,9 @@ export class SipPhone {
 
   private extractHost(): string {
     if (!this.config) return '';
-    // sip:user@host:port
-    const m = this.config.sipUri.match(/sip:[^@]+@([^;]+)/);
+    if (this.config.serverHost) return this.config.serverHost;
+    // Legacy fallback: sip:user@host:port
+    const m = this.config.sipUri?.match(/sip:[^@]+@([^;]+)/);
     return m ? m[1] : '';
   }
 }

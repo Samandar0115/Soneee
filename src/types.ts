@@ -20,6 +20,8 @@ export interface User {
   createdAt: number;
   photo?: string;
   faceDescriptor?: number[];
+  sipExtension?: string;
+  sipPassword?: string;
 }
 
 export type StageFieldType = 'text' | 'textarea' | 'number' | 'phone' | 'select';
@@ -228,9 +230,13 @@ export interface MisrouteDetails {
 
 export interface SipConfig {
   enabled: boolean;
+  // Mahalliy server uchun: masalan 192.168.7.10 yoki 192.168.7.10:5060
+  serverHost: string;
+  // WebSocket manzili: ws://192.168.7.10:8088/ws yoki wss://...
   wsUri: string;
-  sipUri: string;
-  password: string;
+  // Legacy global SIP (agar har bir foydalanuvchi uchun emas, bitta umumiy account)
+  sipUri?: string;
+  password?: string;
   displayName?: string;
   registrar?: string;
 }

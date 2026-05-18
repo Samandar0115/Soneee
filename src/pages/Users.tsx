@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { Plus, Trash2, ShieldAlert, Lock, Camera, ScanFace, CheckCircle2, Upload } from 'lucide-react';
+import { Plus, Trash2, ShieldAlert, Lock, Camera, ScanFace, CheckCircle2, Upload, Phone } from 'lucide-react';
 import toast from 'react-hot-toast';
 import PageHeader from '../components/PageHeader';
 import Modal from '../components/Modal';
@@ -275,6 +275,37 @@ export default function UsersPage() {
                     value={editing.phone ?? ''}
                     onChange={(e) => setEditing({ ...editing, phone: e.target.value })}
                   />
+                </div>
+              </div>
+
+              <div className="border-t border-slate-200 dark:border-slate-700 pt-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <Phone className="h-4 w-4 text-brand-600" />
+                  <label className="label !mb-0">SIP qo'ng'iroq sozlamalari</label>
+                </div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-2">
+                  Mahalliy SIP serverdagi extension/login va paroli. Server host esa Sozlamalar bo'limida bitta marta kiritiladi.
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="label">SIP Extension / Login</label>
+                    <input
+                      className="input mt-1 font-mono"
+                      placeholder="101"
+                      value={editing.sipExtension ?? ''}
+                      onChange={(e) => setEditing({ ...editing, sipExtension: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label className="label">SIP Parol</label>
+                    <input
+                      type="password"
+                      className="input mt-1 font-mono"
+                      placeholder="•••••••"
+                      value={editing.sipPassword ?? ''}
+                      onChange={(e) => setEditing({ ...editing, sipPassword: e.target.value })}
+                    />
+                  </div>
                 </div>
               </div>
               <div className="border-t border-slate-200 dark:border-slate-700 pt-3">

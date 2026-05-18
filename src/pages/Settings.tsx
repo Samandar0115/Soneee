@@ -290,11 +290,12 @@ export default function SettingsPage() {
         <div className="card p-6 lg:col-span-2">
           <div className="flex items-center gap-2 mb-3">
             <Phone className="h-5 w-5 text-brand-600" />
-            <h3 className="font-bold">Softphone (MicroSIP o'rniga ichki)</h3>
+            <h3 className="font-bold">SIP server (mahalliy)</h3>
           </div>
           <p className="text-xs text-slate-500 mb-3">
-            SIP server orqali to'g'ridan-to'g'ri saytdan qo'ng'iroq qilish. WebRTC asosida, mikrofon ruxsati kerak.
-            Konfiguratsiya o'zgartirilganda avtomatik qayta ulanadi.
+            Asterisk/FreePBX yoki shunga o'xshash mahalliy SIP server manzili (masalan
+            <code className="mx-1 px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 font-mono">192.168.7.10</code>).
+            Har bir operatorning <b>SIP extension va paroli</b> esa Xodimlar bo'limidan kiritiladi.
           </p>
           <label className="flex items-center gap-2 mb-3 cursor-pointer">
             <input
@@ -305,128 +306,75 @@ export default function SettingsPage() {
                   ...draft,
                   sip: {
                     enabled: e.target.checked,
+                    serverHost: draft.sip?.serverHost ?? '',
                     wsUri: draft.sip?.wsUri ?? '',
-                    sipUri: draft.sip?.sipUri ?? '',
-                    password: draft.sip?.password ?? '',
-                    displayName: draft.sip?.displayName,
                     registrar: draft.sip?.registrar,
+                    sipUri: draft.sip?.sipUri,
+                    password: draft.sip?.password,
+                    displayName: draft.sip?.displayName,
                   },
                 })
               }
               className="h-4 w-4"
             />
-            <span className="text-sm font-semibold">Softphone yoqilgan</span>
+            <span className="text-sm font-semibold">SIP yoqilgan</span>
           </label>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label className="label">Server host (IP yoki domen)</label>
+              <input
+                className="input mt-1 font-mono text-xs"
+                placeholder="192.168.7.10  yoki  192.168.7.10:5060"
+                value={draft.sip?.serverHost ?? ''}
+                onChange={(e) =>
+                  setDraft({
+                    ...draft,
+                    sip: {
+                      enabled: draft.sip?.enabled ?? false,
+                      serverHost: e.target.value,
+                      wsUri: draft.sip?.wsUri ?? '',
+                      registrar: draft.sip?.registrar,
+                      sipUri: draft.sip?.sipUri,
+                      password: draft.sip?.password,
+                      displayName: draft.sip?.displayName,
+                    },
+                  })
+                }
+              />
+            </div>
             <div>
               <label className="label">WebSocket URI</label>
               <input
                 className="input mt-1 font-mono text-xs"
-                placeholder="wss://sip.example.com:8089/ws"
+                placeholder="ws://192.168.7.10:8088/ws"
                 value={draft.sip?.wsUri ?? ''}
                 onChange={(e) =>
                   setDraft({
                     ...draft,
                     sip: {
                       enabled: draft.sip?.enabled ?? false,
+                      serverHost: draft.sip?.serverHost ?? '',
                       wsUri: e.target.value,
-                      sipUri: draft.sip?.sipUri ?? '',
-                      password: draft.sip?.password ?? '',
-                      displayName: draft.sip?.displayName,
                       registrar: draft.sip?.registrar,
-                    },
-                  })
-                }
-              />
-            </div>
-            <div>
-              <label className="label">SIP URI (ID)</label>
-              <input
-                className="input mt-1 font-mono text-xs"
-                placeholder="sip:operator@sip.example.com"
-                value={draft.sip?.sipUri ?? ''}
-                onChange={(e) =>
-                  setDraft({
-                    ...draft,
-                    sip: {
-                      enabled: draft.sip?.enabled ?? false,
-                      wsUri: draft.sip?.wsUri ?? '',
-                      sipUri: e.target.value,
-                      password: draft.sip?.password ?? '',
+                      sipUri: draft.sip?.sipUri,
+                      password: draft.sip?.password,
                       displayName: draft.sip?.displayName,
-                      registrar: draft.sip?.registrar,
-                    },
-                  })
-                }
-              />
-            </div>
-            <div>
-              <label className="label">Parol</label>
-              <input
-                type="password"
-                className="input mt-1"
-                value={draft.sip?.password ?? ''}
-                onChange={(e) =>
-                  setDraft({
-                    ...draft,
-                    sip: {
-                      enabled: draft.sip?.enabled ?? false,
-                      wsUri: draft.sip?.wsUri ?? '',
-                      sipUri: draft.sip?.sipUri ?? '',
-                      password: e.target.value,
-                      displayName: draft.sip?.displayName,
-                      registrar: draft.sip?.registrar,
-                    },
-                  })
-                }
-              />
-            </div>
-            <div>
-              <label className="label">Display Name (ixtiyoriy)</label>
-              <input
-                className="input mt-1"
-                placeholder="iPOST Operator"
-                value={draft.sip?.displayName ?? ''}
-                onChange={(e) =>
-                  setDraft({
-                    ...draft,
-                    sip: {
-                      enabled: draft.sip?.enabled ?? false,
-                      wsUri: draft.sip?.wsUri ?? '',
-                      sipUri: draft.sip?.sipUri ?? '',
-                      password: draft.sip?.password ?? '',
-                      displayName: e.target.value,
-                      registrar: draft.sip?.registrar,
-                    },
-                  })
-                }
-              />
-            </div>
-            <div className="md:col-span-2">
-              <label className="label">Registrar (ixtiyoriy)</label>
-              <input
-                className="input mt-1 font-mono text-xs"
-                placeholder="sip:sip.example.com (bo'sh qoldirsa avtomatik)"
-                value={draft.sip?.registrar ?? ''}
-                onChange={(e) =>
-                  setDraft({
-                    ...draft,
-                    sip: {
-                      enabled: draft.sip?.enabled ?? false,
-                      wsUri: draft.sip?.wsUri ?? '',
-                      sipUri: draft.sip?.sipUri ?? '',
-                      password: draft.sip?.password ?? '',
-                      displayName: draft.sip?.displayName,
-                      registrar: e.target.value,
                     },
                   })
                 }
               />
             </div>
           </div>
-          <p className="text-[11px] text-slate-400 mt-3">
-            ⓘ Asterisk/FreePBX yoki boshqa SIP server kerak. WebRTC qo'llab-quvvatlovchi (wss://) bo'lishi shart.
-          </p>
+          <div className="mt-3 p-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40 text-[11px] text-amber-800 dark:text-amber-200 space-y-1">
+            <div>
+              ⓘ Asterisk uchun WebSocket odatda <code className="font-mono">ws://HOST:8088/ws</code> portida turadi
+              (yoki HTTPS bilan <code className="font-mono">wss://HOST:8089/ws</code>).
+            </div>
+            <div>
+              ⚠ Sayt HTTPS'da bo'lsa (Vercel kabi), brauzer <b>wss://</b> talab qiladi. Mahalliy IP uchun
+              odatda LAN ichida ishlatilgan brauzer va SIP server kerak.
+            </div>
+          </div>
         </div>
 
         <div className="card p-6">

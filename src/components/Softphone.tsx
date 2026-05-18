@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Phone,
@@ -12,11 +12,13 @@ import {
   Loader2,
   Pause,
   Play,
+  AlertTriangle,
   Wifi,
   WifiOff,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { sipPhone, type SipState, type SipCallInfo } from '../utils/sip';
+import type { SipConfig } from '../types';
 
 const STATE_LABELS: Record<SipState, string> = {
   disabled: "O'chirilgan",
@@ -32,7 +34,7 @@ const STATE_LABELS: Record<SipState, string> = {
 };
 
 export default function Softphone() {
-  const { settings } = useApp();
+  const { settings, currentUser } = useApp();
   const sip = settings.sip;
   const [state, setState] = useState<SipState>('disconnected');
   const [call, setCall] = useState<SipCallInfo | null>(null);
@@ -44,19 +46,56 @@ export default function Softphone() {
   const [elapsed, setElapsed] = useState(0);
   const elapsedTimer = useRef<number | null>(null);
 
+  // Joriy foydalanuvchi va sozlamalarga qarab amaldagi SIP konfiguratsiyani yig'amiz.
+  // Server host — sozlamalardan, extension/parol — har bir operatorning shaxsiy hisobidan.
+  const effectiveSip: SipConfig | null = useMemo(() => {
+    if (!sip || !sip.enabled || !sip.wsUri) return null;
+    const host = (sip.serverHost || '').trim();
+    if (!host) return null;
+    if (currentUser?.sipExtension && currentUser?.sipPassword) {
+      return {
+        enabled: true,
+        serverHost: host,
+        wsUri: sip.wsUri,
+        sipUri: `sip:${currentUser.sipExtension}@${host}`,
+        password: currentUser.sipPassword,
+        displayName: currentUser.fullName || currentUser.username,
+        registrar: `sip:${host}`,
+      };
+    }
+    // Legacy global hisob (sozlamalarda to'g'ridan-to'g'ri sipUri/password)
+    if (sip.sipUri && sip.password) {
+      return {
+        enabled: true,
+        serverHost: host,
+        wsUri: sip.wsUri,
+        sipUri: sip.sipUri,
+        password: sip.password,
+        displayName: sip.displayName,
+        registrar: sip.registrar || `sip:${host}`,
+      };
+    }
+    return null;
+  }, [sip, currentUser]);
+
+  // Konfiguratsiya o'zgarsa qayta ulash. Aktiv qo'ng'iroq paytida tegmaymiz.
   useEffect(() => {
-    const currentState = sipPhone.getState();
-    const inActiveCall =
-      currentState === 'in_call' ||
-      currentState === 'incoming' ||
-      currentState === 'ringing_out';
+    const cur = sipPhone.getState();
+    const inActiveCall = cur === 'in_call' || cur === 'incoming' || cur === 'ringing_out';
     if (inActiveCall) return;
-    if (sip && sip.enabled && sip.wsUri && sip.sipUri) {
-      sipPhone.start(sip);
+    if (effectiveSip) {
+      sipPhone.start(effectiveSip);
     } else {
       sipPhone.stop();
     }
-  }, [sip?.enabled, sip?.wsUri, sip?.sipUri, sip?.password, sip?.displayName, sip?.registrar]);
+  }, [
+    effectiveSip?.enabled,
+    effectiveSip?.wsUri,
+    effectiveSip?.sipUri,
+    effectiveSip?.password,
+    effectiveSip?.displayName,
+    effectiveSip?.registrar,
+  ]);
 
   useEffect(() => {
     const off = sipPhone.on((s, info, err) => {
@@ -102,23 +141,27 @@ export default function Softphone() {
     return () => window.removeEventListener('ipost:dial', handler);
   }, [state]);
 
-  if (!sip || !sip.enabled) return null;
+  // Telefon tugmasi har doim ko'rinishi kerak — login bo'lmaganda ham, sozlanmagan bo'lsa ham
+  if (!currentUser) return null;
 
   const isInCall = state === 'in_call' || state === 'incoming' || state === 'ringing_out';
   const isRegistered = state === 'registered' || isInCall;
   const isConnecting = state === 'connecting';
+  // "Qo'ng'iroq bilan muammo bor" — server sozlanmagan, ro'yxatdan o'tilmagan yoki xato holatlari
+  const hasProblem =
+    !effectiveSip ||
+    state === 'disabled' ||
+    state === 'disconnected' ||
+    state === 'registration_failed' ||
+    state === 'failed';
 
-  // RANG: aktiv qo'ng'iroq paytida yashil, normal holatda ko'k, xato — qizil
+  // RANG: ichida muammo bo'lsa ham bubble doim KO'K bo'lib turadi (user shartiga ko'ra),
+  // qo'ng'iroq aktiv bo'lganda esa YASHIL bo'lib o'zgaradi
   const bubbleColor = isInCall
     ? 'bg-gradient-to-br from-emerald-500 to-emerald-600 ring-4 ring-emerald-300/40'
-    : state === 'failed' || state === 'registration_failed'
-    ? 'bg-gradient-to-br from-rose-500 to-rose-600'
-    : isConnecting
-    ? 'bg-gradient-to-br from-amber-500 to-amber-600'
-    : isRegistered
-    ? 'bg-gradient-to-br from-sky-500 to-blue-600'
-    : 'bg-gradient-to-br from-slate-500 to-slate-600';
+    : 'bg-gradient-to-br from-sky-500 to-blue-600';
 
+  // Kiruvchi qo'ng'iroq paytida pulsatsiya halqasi
   const pulseRing =
     state === 'incoming' || state === 'ringing_out'
       ? 'after:absolute after:inset-0 after:rounded-full after:ring-4 after:ring-emerald-400/60 after:animate-ping'
@@ -138,7 +181,25 @@ export default function Softphone() {
 
   return (
     <>
-      {/* Floating telefon bubble — ko'k yoki yashil */}
+      <style>{`
+        @keyframes phone-jingle {
+          0%, 100% { transform: rotate(0deg); }
+          10%, 30%, 50%, 70%, 90% { transform: rotate(-14deg); }
+          20%, 40%, 60%, 80% { transform: rotate(14deg); }
+        }
+        .phone-jingle-hover:hover .phone-icon-inner {
+          animation: phone-jingle 0.7s ease-in-out infinite;
+          transform-origin: center;
+        }
+        .phone-jingle-hover:hover {
+          box-shadow:
+            0 0 0 8px rgba(56, 189, 248, 0.18),
+            0 0 0 16px rgba(56, 189, 248, 0.10),
+            0 12px 30px rgba(2, 132, 199, 0.45);
+        }
+      `}</style>
+
+      {/* Floating telefon bubble — har doim o'ng pastda */}
       <AnimatePresence>
         {!open && (
           <motion.button
@@ -146,26 +207,31 @@ export default function Softphone() {
             initial={{ opacity: 0, scale: 0.6 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.6 }}
-            whileHover={{ scale: 1.08 }}
             whileTap={{ scale: 0.92 }}
             onClick={() => setOpen(true)}
-            className={`fixed right-4 bottom-20 md:bottom-4 z-50 h-14 w-14 rounded-full shadow-2xl text-white flex items-center justify-center relative ${bubbleColor} ${pulseRing}`}
-            title={STATE_LABELS[state]}
+            className={`fixed right-4 bottom-20 md:bottom-4 z-50 h-14 w-14 rounded-full shadow-2xl text-white flex items-center justify-center relative phone-jingle-hover transition-shadow ${bubbleColor} ${pulseRing}`}
+            title={hasProblem ? "Qo'ng'iroq bilan muammo bor" : STATE_LABELS[state]}
           >
-            {isConnecting ? (
-              <Loader2 className="h-6 w-6 animate-spin" />
-            ) : state === 'incoming' ? (
-              <PhoneIncoming className="h-7 w-7" />
-            ) : state === 'in_call' ? (
-              <Phone className="h-6 w-6" />
-            ) : (
-              <Phone className="h-6 w-6" />
+            <span className="phone-icon-inner inline-flex">
+              {isConnecting ? (
+                <Loader2 className="h-6 w-6 animate-spin" />
+              ) : state === 'incoming' ? (
+                <PhoneIncoming className="h-7 w-7" />
+              ) : (
+                <Phone className="h-6 w-6" />
+              )}
+            </span>
+            {/* Muammo nuqtasi — qizil belgi */}
+            {hasProblem && (
+              <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-rose-500 border-2 border-white flex items-center justify-center">
+                <span className="h-1.5 w-1.5 rounded-full bg-white" />
+              </span>
             )}
           </motion.button>
         )}
       </AnimatePresence>
 
-      {/* Kengaytirilgan modal — bubble ichidan kattalashib chiqadi */}
+      {/* Kengaytirilgan panel */}
       <AnimatePresence>
         {open && (
           <motion.div
@@ -182,15 +248,13 @@ export default function Softphone() {
                 {isRegistered ? <Wifi className="h-4 w-4" /> : <WifiOff className="h-4 w-4" />}
                 Softphone
               </div>
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() => setOpen(false)}
-                  className="p-1.5 rounded-lg hover:bg-white/20"
-                  title="Minimallashtirish"
-                >
-                  <Minus className="h-4 w-4" />
-                </button>
-              </div>
+              <button
+                onClick={() => setOpen(false)}
+                className="p-1.5 rounded-lg hover:bg-white/20"
+                title="Minimallashtirish"
+              >
+                <Minus className="h-4 w-4" />
+              </button>
             </div>
 
             <div className="p-4">
@@ -198,12 +262,28 @@ export default function Softphone() {
               <div className="flex items-center gap-2 text-xs mb-3 text-white/90">
                 <span className="h-2 w-2 rounded-full bg-white/90" />
                 <span className="font-semibold">{STATE_LABELS[state]}</span>
-                {error && (
-                  <span className="text-rose-100 truncate" title={error}>
-                    · {error}
-                  </span>
-                )}
               </div>
+
+              {/* Muammo bo'lsa ko'rinadigan banner */}
+              {hasProblem && !isInCall && (
+                <div className="mb-3 p-3 rounded-xl bg-rose-500/25 border border-rose-300/40 text-white text-xs flex items-start gap-2">
+                  <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                  <div className="space-y-1">
+                    <div className="font-bold">Hozir sizda qo'ng'iroq bilan muammo bor</div>
+                    <div className="text-white/85">
+                      {!effectiveSip
+                        ? !sip?.enabled
+                          ? 'SIP server yoqilmagan. Administrator Sozlamalardan ulashi kerak.'
+                          : !sip?.serverHost
+                          ? 'Server host kiritilmagan.'
+                          : !currentUser?.sipExtension || !currentUser?.sipPassword
+                          ? "Sizning SIP extension/parolingiz kiritilmagan. Administrator Xodimlar bo'limidan qo'shsin."
+                          : 'Sozlamalar to\'liq emas.'
+                        : error || 'Serverga ulanib bo\'lmadi. Tarmoqni va serverni tekshiring.'}
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {isInCall && call ? (
                 <div>
@@ -232,7 +312,6 @@ export default function Softphone() {
                     )}
                   </div>
 
-                  {/* Aktiv qo'ng'iroq paneli */}
                   {state === 'incoming' ? (
                     <div className="grid grid-cols-3 gap-2">
                       <button
@@ -251,7 +330,6 @@ export default function Softphone() {
                     </div>
                   ) : (
                     <>
-                      {/* DTMF numpad qo'ng'iroq ichida */}
                       <div className="grid grid-cols-3 gap-1.5 mb-3">
                         {['1', '2', '3', '4', '5', '6', '7', '8', '9', '*', '0', '#'].map((d) => (
                           <button
@@ -263,8 +341,6 @@ export default function Softphone() {
                           </button>
                         ))}
                       </div>
-
-                      {/* Boshqaruv tugmalari: mute / hold / hangup */}
                       <div className="grid grid-cols-3 gap-2">
                         <button
                           onClick={() => {
@@ -306,7 +382,6 @@ export default function Softphone() {
                 </div>
               ) : (
                 <>
-                  {/* Dialer */}
                   <div className="flex gap-1 mb-2">
                     <input
                       type="tel"
@@ -344,11 +419,6 @@ export default function Softphone() {
                   >
                     <Phone className="h-5 w-5" /> Qo'ng'iroq qilish
                   </button>
-                  {!isRegistered && (
-                    <div className="text-xs text-amber-100 mt-2 text-center">
-                      SIP ulanishi yo'q — Sozlamalardan tekshiring
-                    </div>
-                  )}
                 </>
               )}
             </div>
