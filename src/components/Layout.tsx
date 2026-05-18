@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { tFn } from '../i18n';
+import { isMobileDevice, searchShortcutLabel } from '../utils/platform';
 
 export default function Layout() {
   const { currentUser, logout, backend, lang, setLang, theme, setTheme } = useApp();
@@ -107,8 +108,12 @@ export default function Layout() {
             className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs text-slate-200 bg-white/5 hover:bg-white/10"
           >
             <Search className="h-3.5 w-3.5" />
-            <span className="flex-1 text-left">{t('search.global')}</span>
-            <kbd className="text-[10px] border border-white/20 rounded px-1.5 py-0.5">⌘K</kbd>
+            <span className="flex-1 text-left">{t('common.search')}</span>
+            {searchShortcutLabel() && (
+              <kbd className="text-[10px] border border-white/20 rounded px-1.5 py-0.5">
+                {searchShortcutLabel()}
+              </kbd>
+            )}
           </button>
           <div className="flex items-center gap-1">
             <button

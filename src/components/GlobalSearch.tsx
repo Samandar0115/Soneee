@@ -4,6 +4,7 @@ import { Search, Phone, User as UserIcon, Ticket as TicketIcon, X } from 'lucide
 import { AnimatePresence, motion } from 'framer-motion';
 import { useApp } from '../context/AppContext';
 import { tFn } from '../i18n';
+import { searchShortcutLabel } from '../utils/platform';
 
 export default function GlobalSearch() {
   const { tickets, currentUser, lang } = useApp();
@@ -15,7 +16,12 @@ export default function GlobalSearch() {
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+      const key = e.key.toLowerCase();
+      // Ctrl/Cmd + K (har ikkala platform)
+      // Ctrl + F (Windows/Linux uchun ham qabul qilamiz, lekin browser'ning Find'i avtomatik blok bo'lmasligi mumkin)
+      if ((e.ctrlKey || e.metaKey) && (key === 'k' || key === 'f')) {
+        // Windows browserlarda Ctrl+F avtomatik browser'ning Find oynasini ochadi
+        // Bizning event tinglovchi browser'dan oldin ishlasa preventDefault qila olamiz
         e.preventDefault();
         setOpen((v) => !v);
       } else if (e.key === 'Escape' && open) {
@@ -25,6 +31,8 @@ export default function GlobalSearch() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [open]);
+
+  const shortcutLabel = searchShortcutLabel();
 
   useEffect(() => {
     if (open) {
@@ -125,7 +133,7 @@ export default function GlobalSearch() {
             </div>
             <div className="px-4 py-2 border-t border-slate-200 dark:border-slate-800 text-[11px] text-slate-400 flex items-center gap-3">
               <UserIcon className="h-3 w-3" /> {currentUser?.role === 'admin' ? 'Hammasi' : "Faqat sizning"}
-              <span className="ml-auto">⌘K / Ctrl+K</span>
+              {shortcutLabel && <span className="ml-auto">{shortcutLabel}</span>}
             </div>
           </motion.div>
         </motion.div>

@@ -18,6 +18,8 @@ export interface User {
   fullName?: string;
   phone?: string;
   createdAt: number;
+  photo?: string;
+  faceDescriptor?: number[];
 }
 
 export type StageFieldType = 'text' | 'textarea' | 'number' | 'phone' | 'select';

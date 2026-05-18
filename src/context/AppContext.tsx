@@ -255,7 +255,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setCategories(loadLocal<Category[]>(STORAGE_KEYS.categories, seedCategories));
     setAnnouncements(loadLocal<Announcement[]>(STORAGE_KEYS.announcements, seedAnnouncements));
     setBranches(loadLocal<Branch[]>(STORAGE_KEYS.branches, seedBranches));
-    setTariff(loadLocal<TariffSettings>(STORAGE_KEYS.tariff, seedTariff));
+    const loadedTariff = loadLocal<TariffSettings>(STORAGE_KEYS.tariff, seedTariff);
+    // Eski default ($6.40) bo'lsa avto-yangilash
+    if (loadedTariff.pricePerM3 === 800 && loadedTariff.kgPerM3 === 125) {
+      setTariff(seedTariff);
+      saveLocal(STORAGE_KEYS.tariff, seedTariff);
+    } else {
+      setTariff(loadedTariff);
+    }
     setSettings(loadLocal<AppSettings>(STORAGE_KEYS.settings, seedAppSettings));
     setTemplates(loadLocal<ResponseTemplate[]>(STORAGE_KEYS.templates, seedTemplates));
     if (!localStorage.getItem(STORAGE_KEYS.users)) saveLocal(STORAGE_KEYS.users, seedUsers);

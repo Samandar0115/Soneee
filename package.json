@@ -10,6 +10,7 @@
     "lint": "tsc -b --noEmit"
   },
   "dependencies": {
+    "face-api.js": "^0.22.2",
     "firebase": "^10.13.2",
     "framer-motion": "^11.11.7",
     "lucide-react": "^0.453.0",

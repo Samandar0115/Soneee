@@ -89,11 +89,11 @@ export const seedBranches: Branch[] = [
 
 export const seedTariff: TariffSettings = {
   id: 'main',
-  pricePerM3: 800,
+  pricePerM3: 750,
   kgPerM3: 125,
   currency: 'USD',
   notes:
-    '1 m³ yuk narxi = 800 USD va u 125 kg ga to‘g‘ri keladi. Mijozdan haqiqiy og‘irlik va o‘lchamlar (uzunlik, eni, balandlik) olinadi. Hajm bo‘yicha va og‘irlik bo‘yicha narx hisoblanadi — qaysi biri katta bo‘lsa, shu summa olinadi.',
+    '1 m³ yuk narxi = 750 USD va u 125 kg ga to‘g‘ri keladi (1 kg = 6 USD). Mijozdan haqiqiy og‘irlik va o‘lchamlar (uzunlik, eni, balandlik) olinadi. Hajm bo‘yicha va og‘irlik bo‘yicha narx hisoblanadi — qaysi biri katta bo‘lsa, shu summa olinadi.',
   updatedAt: Date.now(),
 };
 

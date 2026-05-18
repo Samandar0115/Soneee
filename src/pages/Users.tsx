@@ -1,16 +1,53 @@
-import { useMemo, useState } from 'react';
-import { Plus, Trash2, ShieldAlert, Lock } from 'lucide-react';
+import { useMemo, useRef, useState } from 'react';
+import { Plus, Trash2, ShieldAlert, Lock, Camera, ScanFace, CheckCircle2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import PageHeader from '../components/PageHeader';
 import Modal from '../components/Modal';
 import { useApp } from '../context/AppContext';
 import type { User } from '../types';
 import { randomId } from '../utils/format';
+import { imageDataUrlToDescriptor, loadFaceModels } from '../utils/face';
 
 export default function UsersPage() {
   const { users, tickets, saveUser, deleteUser, currentUser } = useApp();
   const [editing, setEditing] = useState<User | null>(null);
   const [open, setOpen] = useState(false);
+  const [scanning, setScanning] = useState(false);
+  const photoInputRef = useRef<HTMLInputElement | null>(null);
+
+  async function handlePhotoUpload(file: File) {
+    if (!editing) return;
+    if (file.size > 4 * 1024 * 1024) {
+      toast.error('Rasm 4 MB dan katta');
+      return;
+    }
+    setScanning(true);
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const dataUrl = reader.result as string;
+      toast.loading('Yuz aniqlanmoqda...', { id: 'face' });
+      try {
+        await loadFaceModels();
+        const desc = await imageDataUrlToDescriptor(dataUrl);
+        if (!desc) {
+          toast.error('Rasmda yuz topilmadi', { id: 'face' });
+          setScanning(false);
+          return;
+        }
+        setEditing({
+          ...editing,
+          photo: dataUrl,
+          faceDescriptor: Array.from(desc),
+        });
+        toast.success('Yuz qayd etildi', { id: 'face' });
+      } catch (err) {
+        toast.error('Modellar yuklanmadi (internetni tekshiring)', { id: 'face' });
+      } finally {
+        setScanning(false);
+      }
+    };
+    reader.readAsDataURL(file);
+  }
 
   const stats = useMemo(() => {
     const map = new Map<string, { active: number; total: number; resolved: number }>();
@@ -111,10 +148,17 @@ export default function UsersPage() {
                 <tr key={u.id} className="border-b border-slate-100 hover:bg-slate-50">
                   <td className="px-4 py-3 font-semibold text-slate-800 cursor-pointer" onClick={() => startEdit(u)}>
                     <div className="flex items-center gap-2">
-                      <div className="h-8 w-8 rounded-full bg-brand-500 text-white flex items-center justify-center text-xs font-bold">
-                        {(u.fullName ?? u.username)[0]?.toUpperCase()}
-                      </div>
+                      {u.photo ? (
+                        <img src={u.photo} alt={u.username} className="h-8 w-8 rounded-full object-cover" />
+                      ) : (
+                        <div className="h-8 w-8 rounded-full bg-brand-500 text-white flex items-center justify-center text-xs font-bold">
+                          {(u.fullName ?? u.username)[0]?.toUpperCase()}
+                        </div>
+                      )}
                       <span>{u.fullName ?? '—'}</span>
+                      {u.faceDescriptor && u.faceDescriptor.length > 0 && (
+                        <ScanFace className="h-3.5 w-3.5 text-emerald-500" />
+                      )}
                     </div>
                   </td>
                   <td className="px-4 py-3 text-slate-600 cursor-pointer" onClick={() => startEdit(u)}>
@@ -223,6 +267,63 @@ export default function UsersPage() {
                   />
                 </div>
               </div>
+              <div className="border-t border-slate-200 dark:border-slate-700 pt-3">
+                <label className="label flex items-center gap-2 mb-2">
+                  <ScanFace className="h-4 w-4" /> Face ID (xodimning yuzini qayd qilish)
+                </label>
+                <div className="flex items-center gap-3">
+                  {editing.photo ? (
+                    <img
+                      src={editing.photo}
+                      alt="photo"
+                      className="h-20 w-20 rounded-xl object-cover border-2 border-emerald-500"
+                    />
+                  ) : (
+                    <div className="h-20 w-20 rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-700 flex items-center justify-center">
+                      <Camera className="h-8 w-8 text-slate-400" />
+                    </div>
+                  )}
+                  <div className="flex-1 space-y-1.5">
+                    <button
+                      onClick={() => photoInputRef.current?.click()}
+                      disabled={scanning}
+                      className="btn-ghost w-full text-xs disabled:opacity-50"
+                    >
+                      <Camera className="h-3.5 w-3.5" />
+                      {scanning ? 'Aniqlanmoqda...' : editing.photo ? "Boshqa rasm tanlash" : 'Rasm yuklash'}
+                    </button>
+                    {editing.faceDescriptor && editing.faceDescriptor.length > 0 && (
+                      <div className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400">
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        Yuz tanildi — login Face ID orqali mumkin
+                      </div>
+                    )}
+                    {editing.photo && (
+                      <button
+                        onClick={() => setEditing({ ...editing, photo: undefined, faceDescriptor: undefined })}
+                        className="text-xs text-rose-600 hover:underline"
+                      >
+                        Rasmni o'chirish
+                      </button>
+                    )}
+                    <p className="text-[10px] text-slate-400">
+                      Aniq yorug'likdagi, faqat bitta yuz ko'rinadigan rasm yuklang
+                    </p>
+                  </div>
+                  <input
+                    ref={photoInputRef}
+                    type="file"
+                    accept="image/*"
+                    hidden
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) handlePhotoUpload(f);
+                      e.target.value = '';
+                    }}
+                  />
+                </div>
+              </div>
+
               <button onClick={save} className="btn-primary w-full">
                 Saqlash
               </button>
