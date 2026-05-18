@@ -69,6 +69,20 @@ export class SipPhone {
   }
 
   start(config: SipConfig) {
+    // Agar konfiguratsiya bir xil va UA allaqachon ishlayotgan bo'lsa,
+    // hech narsa qilmaymiz — bekorga qayta ulanmasin (qo'ng'iroq paytida muhim).
+    if (
+      this.ua &&
+      this.config &&
+      this.config.enabled === config.enabled &&
+      this.config.wsUri === config.wsUri &&
+      this.config.sipUri === config.sipUri &&
+      this.config.password === config.password &&
+      this.config.displayName === config.displayName &&
+      this.config.registrar === config.registrar
+    ) {
+      return;
+    }
     this.stop();
     this.config = config;
     this.errorMsg = '';
@@ -249,6 +263,26 @@ export class SipPhone {
       try {
         this.session.terminate();
       } catch {}
+    }
+  }
+
+  toggleHold(): boolean {
+    if (!this.session) return false;
+    try {
+      const isHeld = !!this.session.isOnHold?.()?.local;
+      if (isHeld) this.session.unhold();
+      else this.session.hold();
+      return !isHeld;
+    } catch {
+      return false;
+    }
+  }
+
+  isOnHold(): boolean {
+    try {
+      return !!this.session?.isOnHold?.()?.local;
+    } catch {
+      return false;
     }
   }
 
