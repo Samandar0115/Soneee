@@ -137,7 +137,11 @@ export class SipPhone {
         password: config.password,
         display_name: config.displayName,
         register: true,
+        register_expires: config.registerExpiresSec ?? 120,
         registrar_server: config.registrar || undefined,
+        // SIP-прокси (MicroSIP) — outbound proxy
+        outbound_proxy_set: config.proxy && config.proxy.trim() ? config.proxy.trim() : undefined,
+        // Сессионные таймеры (MicroSIP'da odatda o'chirilgan)
         session_timers: false,
       } as any);
 

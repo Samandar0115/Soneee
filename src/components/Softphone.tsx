@@ -52,15 +52,26 @@ export default function Softphone() {
     if (!sip || !sip.enabled || !sip.wsUri) return null;
     const host = (sip.serverHost || '').trim();
     if (!host) return null;
+    // MicroSIP'dagi "Домен" — agar bo'sh bo'lsa, server bilan bir xil
+    const domain = (sip.domain || '').trim() || host;
     if (currentUser?.sipExtension && currentUser?.sipPassword) {
       return {
         enabled: true,
         serverHost: host,
+        domain,
+        proxy: sip.proxy,
         wsUri: sip.wsUri,
         iceServers: sip.iceServers,
-        sipUri: `sip:${currentUser.sipExtension}@${host}`,
+        registerExpiresSec: sip.registerExpiresSec,
+        // sip:LOGIN@DOMAIN — MicroSIP'dagi Логин@Домен
+        sipUri: `sip:${currentUser.sipExtension}@${domain}`,
         password: currentUser.sipPassword,
-        displayName: currentUser.fullName || currentUser.username,
+        // Отображаемое имя — operator alohida sozlagani (raqam yoki ism), bo'lmasa F.I.O.
+        displayName:
+          currentUser.sipDisplayName ||
+          currentUser.fullName ||
+          currentUser.username,
+        // SIP-сервер — qaerga REGISTER yuborish (Домен'dan farq qilishi mumkin)
         registrar: `sip:${host}`,
       };
     }
@@ -69,8 +80,11 @@ export default function Softphone() {
       return {
         enabled: true,
         serverHost: host,
+        domain,
+        proxy: sip.proxy,
         wsUri: sip.wsUri,
         iceServers: sip.iceServers,
+        registerExpiresSec: sip.registerExpiresSec,
         sipUri: sip.sipUri,
         password: sip.password,
         displayName: sip.displayName,

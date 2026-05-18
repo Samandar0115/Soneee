@@ -20,8 +20,11 @@ export interface User {
   createdAt: number;
   photo?: string;
   faceDescriptor?: number[];
-  sipExtension?: string;
-  sipPassword?: string;
+  // SIP — har bir operator uchun alohida ma'lumotlar (MicroSIP konfiguratsiyasidagi
+  // "Имя пользователя/Логин", "Пароль", "Отображаемое имя" mos kelishi uchun)
+  sipExtension?: string;     // Login / Username (masalan: 201, 222, 230)
+  sipPassword?: string;      // Pasvord
+  sipDisplayName?: string;   // Отображаемое имя — qo'ng'iroq qiluvchining ismi/raqami (masalan 781138828)
 }
 
 export type StageFieldType = 'text' | 'textarea' | 'number' | 'phone' | 'select';
@@ -230,13 +233,18 @@ export interface MisrouteDetails {
 
 export interface SipConfig {
   enabled: boolean;
-  // Mahalliy server uchun: masalan 192.168.7.10 yoki 192.168.7.10:5060
+  // SIP-сервер (MicroSIP): masalan 192.168.7.253 yoki 192.168.7.253:5060
   serverHost: string;
-  // WebSocket manzili: ws://192.168.7.10:8088/ws yoki wss://...
+  // Домен (MicroSIP): odatda server bilan bir xil, bo'sh qoldirsa serverdan olinadi
+  domain?: string;
+  // SIP-прокси (MicroSIP): ixtiyoriy proxy server (odatda bo'sh)
+  proxy?: string;
+  // WebSocket manzili: ws://192.168.7.253:8088/ws yoki wss://...
   wsUri: string;
   // Ixtiyoriy STUN/TURN serverlar (LAN ichida ishlatilsa BO'SH qoldiring).
-  // Tashqi tarmoqlardan ulanish kerak bo'lsa, mahalliy STUN/TURN qo'shing.
   iceServers?: string;
+  // Обновить регистрацию (sekund), MicroSIP'dagi 120 dek
+  registerExpiresSec?: number;
   // Legacy global SIP (agar har bir foydalanuvchi uchun emas, bitta umumiy account)
   sipUri?: string;
   password?: string;

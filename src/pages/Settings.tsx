@@ -321,23 +321,52 @@ export default function SettingsPage() {
           </label>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
-              <label className="label">Server host (IP yoki domen)</label>
+              <label className="label">SIP-сервер (Server host)</label>
               <input
                 className="input mt-1 font-mono text-xs"
-                placeholder="192.168.7.10  yoki  192.168.7.10:5060"
+                placeholder="192.168.7.253"
                 value={draft.sip?.serverHost ?? ''}
                 onChange={(e) =>
                   setDraft({
                     ...draft,
                     sip: {
-                      enabled: draft.sip?.enabled ?? false,
+                      ...(draft.sip ?? { enabled: false, wsUri: '' }),
                       serverHost: e.target.value,
-                      wsUri: draft.sip?.wsUri ?? '',
-                      registrar: draft.sip?.registrar,
-                      sipUri: draft.sip?.sipUri,
-                      password: draft.sip?.password,
-                      displayName: draft.sip?.displayName,
-                    },
+                    } as any,
+                  })
+                }
+              />
+            </div>
+            <div>
+              <label className="label">Домен (Domain)</label>
+              <input
+                className="input mt-1 font-mono text-xs"
+                placeholder="192.168.7.253 (bo'sh qoldirsa server bilan bir xil)"
+                value={draft.sip?.domain ?? ''}
+                onChange={(e) =>
+                  setDraft({
+                    ...draft,
+                    sip: {
+                      ...(draft.sip ?? { enabled: false, wsUri: '', serverHost: '' }),
+                      domain: e.target.value,
+                    } as any,
+                  })
+                }
+              />
+            </div>
+            <div>
+              <label className="label">SIP-прокси (ixtiyoriy)</label>
+              <input
+                className="input mt-1 font-mono text-xs"
+                placeholder="bo'sh"
+                value={draft.sip?.proxy ?? ''}
+                onChange={(e) =>
+                  setDraft({
+                    ...draft,
+                    sip: {
+                      ...(draft.sip ?? { enabled: false, wsUri: '', serverHost: '' }),
+                      proxy: e.target.value,
+                    } as any,
                   })
                 }
               />
@@ -346,20 +375,33 @@ export default function SettingsPage() {
               <label className="label">WebSocket URI</label>
               <input
                 className="input mt-1 font-mono text-xs"
-                placeholder="ws://192.168.7.10:8088/ws"
+                placeholder="ws://192.168.7.253:8088/ws"
                 value={draft.sip?.wsUri ?? ''}
                 onChange={(e) =>
                   setDraft({
                     ...draft,
                     sip: {
-                      enabled: draft.sip?.enabled ?? false,
-                      serverHost: draft.sip?.serverHost ?? '',
+                      ...(draft.sip ?? { enabled: false, serverHost: '' }),
                       wsUri: e.target.value,
-                      registrar: draft.sip?.registrar,
-                      sipUri: draft.sip?.sipUri,
-                      password: draft.sip?.password,
-                      displayName: draft.sip?.displayName,
-                    },
+                    } as any,
+                  })
+                }
+              />
+            </div>
+            <div>
+              <label className="label">Обновить регистрацию (sek)</label>
+              <input
+                type="number"
+                className="input mt-1 font-mono text-xs"
+                placeholder="120"
+                value={draft.sip?.registerExpiresSec ?? ''}
+                onChange={(e) =>
+                  setDraft({
+                    ...draft,
+                    sip: {
+                      ...(draft.sip ?? { enabled: false, wsUri: '', serverHost: '' }),
+                      registerExpiresSec: e.target.value ? Number(e.target.value) : undefined,
+                    } as any,
                   })
                 }
               />

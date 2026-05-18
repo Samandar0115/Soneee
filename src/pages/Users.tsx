@@ -284,20 +284,22 @@ export default function UsersPage() {
                   <label className="label !mb-0">SIP qo'ng'iroq sozlamalari</label>
                 </div>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-2">
-                  Mahalliy SIP serverdagi extension/login va paroli. Server host esa Sozlamalar bo'limida bitta marta kiritiladi.
+                  MicroSIP'dagi <b>Логин / Пароль / Отображаемое имя</b>'ning ekvivalenti.
+                  Har bir operatorga 201–230 oralig'idagi raqam beriladi.
+                  Server host va Domen esa <b>Sozlamalar</b>'da bitta marta kiritilgan.
                 </p>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="label">SIP Extension / Login</label>
+                    <label className="label">Логин (Extension)</label>
                     <input
                       className="input mt-1 font-mono"
-                      placeholder="101"
+                      placeholder="201, 202, ..., 230"
                       value={editing.sipExtension ?? ''}
                       onChange={(e) => setEditing({ ...editing, sipExtension: e.target.value })}
                     />
                   </div>
                   <div>
-                    <label className="label">SIP Parol</label>
+                    <label className="label">Пароль</label>
                     <input
                       type="password"
                       className="input mt-1 font-mono"
@@ -305,6 +307,18 @@ export default function UsersPage() {
                       value={editing.sipPassword ?? ''}
                       onChange={(e) => setEditing({ ...editing, sipPassword: e.target.value })}
                     />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="label">Отображаемое имя (Caller ID)</label>
+                    <input
+                      className="input mt-1 font-mono"
+                      placeholder="781138828 yoki F.I.O — qabul qiluvchiga ko'rinadi"
+                      value={editing.sipDisplayName ?? ''}
+                      onChange={(e) => setEditing({ ...editing, sipDisplayName: e.target.value })}
+                    />
+                    <p className="text-[11px] text-slate-400 mt-1">
+                      Bo'sh qoldirsangiz F.I.O ishlatiladi.
+                    </p>
                   </div>
                 </div>
               </div>
