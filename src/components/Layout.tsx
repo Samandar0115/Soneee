@@ -126,7 +126,7 @@ export default function Layout() {
             <button
               onClick={triggerSearch}
               title={t('common.search')}
-              className={`w-full flex items-center gap-2 rounded-xl text-xs text-slate-200 bg-white/5 hover:bg-white/10 ${
+              className={`group w-full flex items-center gap-2 rounded-xl text-xs text-slate-200 bg-white/5 hover:bg-orange-400/20 hover:text-orange-200 hover:ring-1 hover:ring-orange-400/40 transition ${
                 isCompact ? 'h-10 justify-center' : 'px-3 py-2'
               }`}
             >
@@ -146,7 +146,7 @@ export default function Layout() {
               <button
                 onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
                 title={theme === 'dark' ? t('common.theme.light') : t('common.theme.dark')}
-                className={`flex items-center justify-center gap-1.5 rounded-xl text-xs bg-white/5 hover:bg-white/10 text-slate-200 ${
+                className={`flex items-center justify-center gap-1.5 rounded-xl text-xs bg-white/5 hover:bg-orange-400/20 hover:text-orange-200 hover:ring-1 hover:ring-orange-400/40 text-slate-200 transition ${
                   isCompact ? 'w-full h-10' : 'flex-1 px-2 py-1.5'
                 }`}
               >
@@ -177,7 +177,7 @@ export default function Layout() {
                 <button
                   onClick={() => setLang(lang === 'uz' ? 'ru' : 'uz')}
                   title={lang === 'uz' ? 'Ruscha' : "O'zbekcha"}
-                  className="w-full h-10 rounded-xl text-xs font-semibold bg-white/5 hover:bg-white/10 text-slate-200"
+                  className="w-full h-10 rounded-xl text-xs font-semibold bg-white/5 hover:bg-orange-400/20 hover:text-orange-200 hover:ring-1 hover:ring-orange-400/40 text-slate-200 transition"
                 >
                   {lang.toUpperCase()}
                 </button>
@@ -332,8 +332,8 @@ export default function Layout() {
               to={l.to}
               end={l.end}
               className={({ isActive }) =>
-                `flex flex-col items-center justify-center gap-0.5 py-2 px-3 flex-1 rounded-lg text-[10px] font-semibold ${
-                  isActive ? 'text-brand-400' : 'text-slate-400 hover:text-slate-200'
+                `flex flex-col items-center justify-center gap-0.5 py-2 px-3 flex-1 rounded-lg text-[10px] font-semibold transition ${
+                  isActive ? 'text-brand-400 bg-brand-500/10' : 'text-slate-400 active:bg-orange-400/20 active:text-orange-200'
                 }`
               }
             >
@@ -370,17 +370,22 @@ function NavItem({
       end={end}
       title={compact ? label : undefined}
       className={({ isActive }) =>
-        `group flex items-center gap-3 rounded-xl transition-all duration-200 ${
+        `group relative flex items-center gap-3 rounded-xl transition-all duration-200 ${
           compact ? 'justify-center h-11 w-11 mx-auto' : 'px-3 py-2'
         } text-sm ${
           isActive
             ? 'bg-gradient-to-r from-brand-600 to-brand-500 text-white shadow-lg shadow-brand-900/40'
-            : 'text-slate-200 hover:bg-white/10 hover:text-white'
+            : 'text-slate-200 hover:bg-orange-400/20 hover:text-orange-200 hover:ring-1 hover:ring-orange-400/40'
         }`
       }
     >
-      <Icon className="h-4 w-4 transition-transform duration-200 group-hover:scale-110 flex-shrink-0" />
+      <Icon className="h-4 w-4 transition-transform duration-200 group-hover:scale-125 flex-shrink-0" />
       {!compact && <span className="truncate">{label}</span>}
+      {compact && (
+        <span className="pointer-events-none absolute left-full ml-3 px-2 py-1 rounded-lg bg-slate-900 dark:bg-slate-800 text-white text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity shadow-lg border border-orange-400/30 z-50">
+          {label}
+        </span>
+      )}
     </NavLink>
   );
 }
