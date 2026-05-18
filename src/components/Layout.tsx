@@ -28,6 +28,7 @@ import { useApp } from '../context/AppContext';
 import { tFn } from '../i18n';
 import { searchShortcutLabel } from '../utils/platform';
 import NotificationsButton from './NotificationsButton';
+import Softphone from './Softphone';
 import toast from 'react-hot-toast';
 
 const COLLAPSE_KEY = 'ipost.sidebar.collapsed';
@@ -381,6 +382,8 @@ export default function Layout() {
         <main className="flex-1 overflow-y-auto bg-slate-100 dark:bg-[#05070d] transition-colors duration-300">
           <Outlet />
         </main>
+
+        <Softphone />
 
         {/* Mobile bottom nav */}
         <nav className="md:hidden flex items-center justify-around bg-slate-900 dark:bg-[#020409] text-slate-200 border-t border-white/5 px-2 pb-safe">

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Save, Settings as SettingsIcon, Zap, Clock, Languages, Download, Upload, Archive, Cloud, CloudOff, ShieldCheck, RefreshCw, Timer, ScanFace, Trash2 } from 'lucide-react';
+import { Phone } from 'lucide-react';
 import toast from 'react-hot-toast';
 import PageHeader from '../components/PageHeader';
 import { useApp } from '../context/AppContext';
@@ -284,6 +285,148 @@ export default function SettingsPage() {
             </button>
             <span className="text-[11px] text-slate-400">JSON backup tavsiya etiladi</span>
           </div>
+        </div>
+
+        <div className="card p-6 lg:col-span-2">
+          <div className="flex items-center gap-2 mb-3">
+            <Phone className="h-5 w-5 text-brand-600" />
+            <h3 className="font-bold">Softphone (MicroSIP o'rniga ichki)</h3>
+          </div>
+          <p className="text-xs text-slate-500 mb-3">
+            SIP server orqali to'g'ridan-to'g'ri saytdan qo'ng'iroq qilish. WebRTC asosida, mikrofon ruxsati kerak.
+            Konfiguratsiya o'zgartirilganda avtomatik qayta ulanadi.
+          </p>
+          <label className="flex items-center gap-2 mb-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={!!draft.sip?.enabled}
+              onChange={(e) =>
+                setDraft({
+                  ...draft,
+                  sip: {
+                    enabled: e.target.checked,
+                    wsUri: draft.sip?.wsUri ?? '',
+                    sipUri: draft.sip?.sipUri ?? '',
+                    password: draft.sip?.password ?? '',
+                    displayName: draft.sip?.displayName,
+                    registrar: draft.sip?.registrar,
+                  },
+                })
+              }
+              className="h-4 w-4"
+            />
+            <span className="text-sm font-semibold">Softphone yoqilgan</span>
+          </label>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label className="label">WebSocket URI</label>
+              <input
+                className="input mt-1 font-mono text-xs"
+                placeholder="wss://sip.example.com:8089/ws"
+                value={draft.sip?.wsUri ?? ''}
+                onChange={(e) =>
+                  setDraft({
+                    ...draft,
+                    sip: {
+                      enabled: draft.sip?.enabled ?? false,
+                      wsUri: e.target.value,
+                      sipUri: draft.sip?.sipUri ?? '',
+                      password: draft.sip?.password ?? '',
+                      displayName: draft.sip?.displayName,
+                      registrar: draft.sip?.registrar,
+                    },
+                  })
+                }
+              />
+            </div>
+            <div>
+              <label className="label">SIP URI (ID)</label>
+              <input
+                className="input mt-1 font-mono text-xs"
+                placeholder="sip:operator@sip.example.com"
+                value={draft.sip?.sipUri ?? ''}
+                onChange={(e) =>
+                  setDraft({
+                    ...draft,
+                    sip: {
+                      enabled: draft.sip?.enabled ?? false,
+                      wsUri: draft.sip?.wsUri ?? '',
+                      sipUri: e.target.value,
+                      password: draft.sip?.password ?? '',
+                      displayName: draft.sip?.displayName,
+                      registrar: draft.sip?.registrar,
+                    },
+                  })
+                }
+              />
+            </div>
+            <div>
+              <label className="label">Parol</label>
+              <input
+                type="password"
+                className="input mt-1"
+                value={draft.sip?.password ?? ''}
+                onChange={(e) =>
+                  setDraft({
+                    ...draft,
+                    sip: {
+                      enabled: draft.sip?.enabled ?? false,
+                      wsUri: draft.sip?.wsUri ?? '',
+                      sipUri: draft.sip?.sipUri ?? '',
+                      password: e.target.value,
+                      displayName: draft.sip?.displayName,
+                      registrar: draft.sip?.registrar,
+                    },
+                  })
+                }
+              />
+            </div>
+            <div>
+              <label className="label">Display Name (ixtiyoriy)</label>
+              <input
+                className="input mt-1"
+                placeholder="iPOST Operator"
+                value={draft.sip?.displayName ?? ''}
+                onChange={(e) =>
+                  setDraft({
+                    ...draft,
+                    sip: {
+                      enabled: draft.sip?.enabled ?? false,
+                      wsUri: draft.sip?.wsUri ?? '',
+                      sipUri: draft.sip?.sipUri ?? '',
+                      password: draft.sip?.password ?? '',
+                      displayName: e.target.value,
+                      registrar: draft.sip?.registrar,
+                    },
+                  })
+                }
+              />
+            </div>
+            <div className="md:col-span-2">
+              <label className="label">Registrar (ixtiyoriy)</label>
+              <input
+                className="input mt-1 font-mono text-xs"
+                placeholder="sip:sip.example.com (bo'sh qoldirsa avtomatik)"
+                value={draft.sip?.registrar ?? ''}
+                onChange={(e) =>
+                  setDraft({
+                    ...draft,
+                    sip: {
+                      enabled: draft.sip?.enabled ?? false,
+                      wsUri: draft.sip?.wsUri ?? '',
+                      sipUri: draft.sip?.sipUri ?? '',
+                      password: draft.sip?.password ?? '',
+                      displayName: draft.sip?.displayName,
+                      registrar: e.target.value,
+                    },
+                  })
+                }
+              />
+            </div>
+          </div>
+          <p className="text-[11px] text-slate-400 mt-3">
+            ⓘ Asterisk/FreePBX yoki boshqa SIP server kerak. WebRTC qo'llab-quvvatlovchi (wss://) bo'lishi shart.
+          </p>
         </div>
 
         <div className="card p-6">

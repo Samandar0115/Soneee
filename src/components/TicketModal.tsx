@@ -4,6 +4,8 @@ import type { Stage, Ticket } from '../types';
 import Modal from './Modal';
 import CopyButton from './CopyButton';
 import { formatDateTime, randomId, timeAgo } from '../utils/format';
+import { dialNumber } from './Softphone';
+import type { MisrouteDetails, TrackingType } from '../types';
 import {
   CheckCircle2,
   Trash2,
@@ -18,6 +20,9 @@ import {
   Image as ImageIcon,
   Download,
   Clock as ClockIcon,
+  MapPin,
+  PackageX,
+  PackageCheck,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -70,6 +75,14 @@ export default function TicketModal({ open, onClose, ticket }: Props) {
   const [assigneeId, setAssigneeId] = useState(ticket?.assigneeId ?? currentUser?.id ?? '');
   const [details, setDetails] = useState<Record<string, string>>(ticket?.details ?? {});
   const [resolution, setResolution] = useState('');
+  const [misroute, setMisroute] = useState<MisrouteDetails>(ticket?.misroute ?? {});
+
+  const isMisroute = useMemo(() => {
+    if (!categoryId) return false;
+    const cat = categories.find((c) => c.id === categoryId);
+    if (!cat) return false;
+    return cat.id === 'cat-misroute' || /adash|misrout/i.test(cat.name);
+  }, [categoryId, categories]);
   const [customTracking, setCustomTracking] = useState('');
   const [internalNoteDraft, setInternalNoteDraft] = useState('');
   const [publicNoteDraft, setPublicNoteDraft] = useState('');
@@ -109,6 +122,7 @@ export default function TicketModal({ open, onClose, ticket }: Props) {
       setPriority(ticket?.priority ?? 'normal');
       setAssigneeId(ticket?.assigneeId ?? currentUser?.id ?? '');
       setDetails(ticket?.details ?? {});
+      setMisroute(ticket?.misroute ?? {});
       setResolution('');
       setCustomTracking('');
       setInternalNoteDraft('');
@@ -138,6 +152,7 @@ export default function TicketModal({ open, onClose, ticket }: Props) {
           priority,
           assigneeId,
           details,
+          misroute: isMisroute ? misroute : undefined,
         },
         'Murojaat tahrirlandi'
       );
@@ -159,6 +174,7 @@ export default function TicketModal({ open, onClose, ticket }: Props) {
         assigneeId,
         details,
         trackingNumber: customTracking.trim() || undefined,
+        misroute: isMisroute ? misroute : undefined,
       });
       toast.success('Yangi murojaat yaratildi');
     }
@@ -306,7 +322,19 @@ export default function TicketModal({ open, onClose, ticket }: Props) {
             <div>
               <label className="label flex items-center justify-between">
                 <span>Telefon</span>
-                {customerPhone && <CopyButton value={customerPhone} label="Telefon" />}
+                <span className="flex items-center gap-1">
+                  {customerPhone && (
+                    <button
+                      type="button"
+                      onClick={() => dialNumber(customerPhone)}
+                      title="Qo'ng'iroq qilish"
+                      className="p-1 rounded text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition"
+                    >
+                      <Phone className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                  {customerPhone && <CopyButton value={customerPhone} label="Telefon" />}
+                </span>
               </label>
               <input className="input mt-1" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} />
             </div>
@@ -391,6 +419,149 @@ export default function TicketModal({ open, onClose, ticket }: Props) {
                     )}
                   </div>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {isMisroute && (
+            <div className="rounded-xl border-2 border-amber-300 dark:border-amber-700 bg-amber-50/40 dark:bg-amber-900/10 p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <PackageX className="h-5 w-5 text-amber-600" />
+                <h4 className="font-bold text-amber-900 dark:text-amber-200">Yuk adashishi — qo'shimcha ma'lumotlar</h4>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="rounded-xl border border-rose-200 dark:border-rose-800 bg-rose-50/50 dark:bg-rose-900/10 p-3">
+                  <div className="font-semibold text-sm text-rose-700 dark:text-rose-300 mb-2 flex items-center gap-1.5">
+                    <PackageX className="h-4 w-4" /> Borib qolgan (xato) mijoz
+                  </div>
+                  <div className="space-y-2">
+                    <input
+                      className="input text-sm"
+                      placeholder="Ism familiya"
+                      value={misroute.wrongCustomerName ?? ''}
+                      onChange={(e) => setMisroute({ ...misroute, wrongCustomerName: e.target.value })}
+                    />
+                    <div className="flex gap-1">
+                      <input
+                        className="input text-sm flex-1"
+                        placeholder="Telefon"
+                        value={misroute.wrongCustomerPhone ?? ''}
+                        onChange={(e) => setMisroute({ ...misroute, wrongCustomerPhone: e.target.value })}
+                      />
+                      {misroute.wrongCustomerPhone && (
+                        <button
+                          type="button"
+                          onClick={() => dialNumber(misroute.wrongCustomerPhone!)}
+                          className="px-2 rounded text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/30"
+                          title="Qo'ng'iroq"
+                        >
+                          <Phone className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+                    <input
+                      className="input text-sm"
+                      placeholder="Manzil (borib qolgan)"
+                      value={misroute.wrongAddress ?? ''}
+                      onChange={(e) => setMisroute({ ...misroute, wrongAddress: e.target.value })}
+                    />
+                    <input
+                      className="input text-sm"
+                      placeholder="Yetkazib berish turi (kuryer/filial/pochta)"
+                      value={misroute.wrongDeliveryType ?? ''}
+                      onChange={(e) => setMisroute({ ...misroute, wrongDeliveryType: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50/50 dark:bg-emerald-900/10 p-3">
+                  <div className="font-semibold text-sm text-emerald-700 dark:text-emerald-300 mb-2 flex items-center gap-1.5">
+                    <PackageCheck className="h-4 w-4" /> Borishi kerak bo'lgan (asl) mijoz
+                  </div>
+                  <div className="space-y-2">
+                    <input
+                      className="input text-sm"
+                      placeholder="Ism familiya"
+                      value={misroute.correctCustomerName ?? ''}
+                      onChange={(e) => setMisroute({ ...misroute, correctCustomerName: e.target.value })}
+                    />
+                    <div className="flex gap-1">
+                      <input
+                        className="input text-sm flex-1"
+                        placeholder="Telefon"
+                        value={misroute.correctCustomerPhone ?? ''}
+                        onChange={(e) => setMisroute({ ...misroute, correctCustomerPhone: e.target.value })}
+                      />
+                      {misroute.correctCustomerPhone && (
+                        <button
+                          type="button"
+                          onClick={() => dialNumber(misroute.correctCustomerPhone!)}
+                          className="px-2 rounded text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/30"
+                          title="Qo'ng'iroq"
+                        >
+                          <Phone className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+                    <input
+                      className="input text-sm"
+                      placeholder="Manzil (asl yetkazilishi kerak edi)"
+                      value={misroute.correctAddress ?? ''}
+                      onChange={(e) => setMisroute({ ...misroute, correctAddress: e.target.value })}
+                    />
+                    <input
+                      className="input text-sm"
+                      placeholder="Buyurtma kim nomida qilingan?"
+                      value={misroute.orderedBy ?? ''}
+                      onChange={(e) => setMisroute({ ...misroute, orderedBy: e.target.value })}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-3 grid grid-cols-2 gap-3">
+                <div>
+                  <label className="label">Yetkazib berish turi (yuk)</label>
+                  <select
+                    className="input mt-1"
+                    value={misroute.trackingType ?? ''}
+                    onChange={(e) =>
+                      setMisroute({ ...misroute, trackingType: (e.target.value || undefined) as TrackingType })
+                    }
+                  >
+                    <option value="">— Tanlang —</option>
+                    <option value="BTS">BTS</option>
+                    <option value="EMU">EMU</option>
+                    <option value="CHINA-POST">China Post</option>
+                    <option value="YANTONG">Yanwen / YT</option>
+                    <option value="OTHER">Boshqa</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="label flex items-center gap-1">
+                    Pochta ID
+                    {(misroute.trackingType === 'BTS' || misroute.trackingType === 'EMU') && (
+                      <span className="text-rose-500">*</span>
+                    )}
+                  </label>
+                  <input
+                    className="input mt-1 font-mono"
+                    placeholder="BTS/EMU pochta ID raqami"
+                    value={misroute.postalId ?? ''}
+                    onChange={(e) => setMisroute({ ...misroute, postalId: e.target.value })}
+                  />
+                </div>
+                <div className="col-span-2">
+                  <label className="label">Qo'shimcha izoh</label>
+                  <textarea
+                    rows={2}
+                    className="input mt-1"
+                    placeholder="Voqea tafsilotlari, mijozdan olingan ma'lumotlar..."
+                    value={misroute.notes ?? ''}
+                    onChange={(e) => setMisroute({ ...misroute, notes: e.target.value })}
+                  />
+                </div>
               </div>
             </div>
           )}

@@ -75,6 +75,7 @@ export interface Ticket {
   rating?: CustomerRating;
   slaDueAt?: number;
   firstResponseAt?: number;
+  misroute?: MisrouteDetails;
 }
 
 export interface AppDataSnapshot {
@@ -155,6 +156,7 @@ export interface AppSettings {
   idleTimeoutMin: number;
   archiveAfterDays: number;
   faceMatchThreshold: number;
+  sip?: SipConfig;
   updatedAt: number;
 }
 
@@ -206,4 +208,29 @@ export interface CustomerRating {
   score: number;
   feedback?: string;
   ratedAt: number;
+}
+
+export type TrackingType = 'BTS' | 'EMU' | 'CHINA-POST' | 'YANTONG' | 'OTHER';
+
+export interface MisrouteDetails {
+  wrongCustomerName?: string;
+  wrongCustomerPhone?: string;
+  wrongAddress?: string;
+  wrongDeliveryType?: string;
+  correctCustomerName?: string;
+  correctCustomerPhone?: string;
+  correctAddress?: string;
+  trackingType?: TrackingType;
+  postalId?: string;
+  orderedBy?: string;
+  notes?: string;
+}
+
+export interface SipConfig {
+  enabled: boolean;
+  wsUri: string;
+  sipUri: string;
+  password: string;
+  displayName?: string;
+  registrar?: string;
 }
