@@ -79,6 +79,32 @@ def _extract_json(text: str) -> dict:
     return json.loads(match.group(0))
 
 
+SHORT_PROMPT = """Sen ushbu uzunroq video uchun YouTube SHORTS (vertikal, 50-60 soniya) variantini yozasan.
+
+ASOSIY VIDEO MAVZUSI: {topic}
+ASOSIY VIDEO TITLE: {long_title}
+ASOSIY VIDEO QISQA: {long_desc}
+
+Talab:
+- 3-4 sahna, jami ~55 soniya.
+- Birinchi 2 soniyada portlovchi hook.
+- Asosiy fikrning eng "wow" qismini ber.
+- Oxirgi sahna: "To'liq video kanalda" CTA.
+- Tag'lar #shorts ni o'z ichiga olsin.
+
+FAQAT JSON qaytar:
+{{
+  "title": "kuchli, qisqa, ~50 belgi",
+  "description": "shorts uchun qisqa, hashtag bilan",
+  "tags": ["...", "shorts"],
+  "thumbnail_prompt": "vertical, bold...",
+  "scenes": [
+    {{"narration": "...", "visual_query": "...", "duration_sec": 12}}
+  ]
+}}
+"""
+
+
 def write_script(
     topic: str,
     *,
@@ -124,4 +150,43 @@ def write_script(
         ],
     )
     log.info("Skript tayyor: %s (%d sahna)", pkg.title, len(pkg.scenes))
+    return pkg
+
+
+def write_short_from_long(
+    topic: str,
+    long_pkg: ScriptPackage,
+    *,
+    scenes: int = 4,
+    duration_sec: int = 55,
+    model_name: str = "gemini-2.0-flash",
+) -> ScriptPackage:
+    """Long video asosida shorts uchun condensed skript yozadi."""
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        raise RuntimeError("GEMINI_API_KEY yo'q")
+    genai.configure(api_key=api_key)
+    model = genai.GenerativeModel(model_name)
+    prompt = SHORT_PROMPT.format(
+        topic=topic,
+        long_title=long_pkg.title,
+        long_desc=long_pkg.description[:300],
+    )
+    response = model.generate_content(prompt)
+    data = _extract_json(response.text)
+    pkg = ScriptPackage(
+        title=data["title"].strip(),
+        description=data["description"].strip(),
+        tags=[t.strip() for t in data["tags"]],
+        thumbnail_prompt=data["thumbnail_prompt"].strip(),
+        scenes=[
+            Scene(
+                narration=s["narration"].strip(),
+                visual_query=s["visual_query"].strip(),
+                duration_sec=float(s.get("duration_sec", duration_sec / max(1, len(data["scenes"])))),
+            )
+            for s in data["scenes"][:scenes]
+        ],
+    )
+    log.info("Short skript tayyor: %s", pkg.title)
     return pkg

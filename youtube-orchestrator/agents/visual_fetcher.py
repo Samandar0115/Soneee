@@ -73,12 +73,18 @@ def fetch_photo(query: str, out_path: Path, *, orientation: str = "landscape") -
     return out_path
 
 
-def fetch_visual(query: str, out_dir: Path, index: int) -> tuple[Path, str]:
+def fetch_visual(query: str, out_dir: Path, index: int, *, orientation: str = "landscape") -> tuple[Path, str]:
     """Avval video, bo'lmasa rasm. (yo'l, "video"|"image") qaytaradi."""
     video_path = out_dir / f"scene_{index:02d}.mp4"
-    if fetch_video_clip(query, video_path):
+    if fetch_video_clip(query, video_path, orientation=orientation):
         return video_path, "video"
     photo_path = out_dir / f"scene_{index:02d}.jpg"
-    if fetch_photo(query, photo_path):
+    if fetch_photo(query, photo_path, orientation=orientation):
+        return photo_path, "image"
+    # Yon orientatsiyada ham urinib ko'ramiz
+    alt = "portrait" if orientation == "landscape" else "landscape"
+    if fetch_video_clip(query, video_path, orientation=alt):
+        return video_path, "video"
+    if fetch_photo(query, photo_path, orientation=alt):
         return photo_path, "image"
     raise RuntimeError(f"Pexels'da hech narsa topilmadi: {query}")

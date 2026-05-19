@@ -115,6 +115,74 @@ youtube-orchestrator/
 - API kalitlar faqat GitHub Secrets orqali yuklanadi, kodga yozilmaydi.
 - YouTube ToS hurmat qilinadi — bot/sun'iy obuna yo'q, faqat real kontent.
 
+## Monetizatsiya yo'l xaritasi
+
+Kanal ta'limga yo'naltirilgan (audience = o'quvchi), shuning uchun **3 ta** daromad oqimi
+ochiladi. Pipeline ularning hammasiga moslashgan.
+
+### 1. YouTube AdSense (kanal o'zidan keladigan daromad)
+
+**Talablar (YouTube Partner Program — YPP):**
+
+| Shart | Long-form yo'li | Shorts yo'li |
+| --- | --- | --- |
+| Obunachilar | 1000 | 1000 |
+| Tomosha soatlari | 4000 soat (oxirgi 12 oy) | YOKI Shorts 10M ko'rish (90 kun) |
+| Yosh | 18+ | 18+ |
+| Mamlakat | YPP qabul qiladigan ro'yxat | shu |
+
+**Texnik sozlash (siz qilasiz):**
+1. YouTube Studio → Earn → AdSense hisobini ulang (yangi yarating yoki mavjudni bog'lang).
+2. Google AdSense → Payments → Tax info: **W-8BEN** formasini to'ldiring
+   (O'zbekiston rezidenti uchun majburiy, aks holda 24% ushlanma).
+3. Bank rekvizitlari: Payoneer yoki USD karta (Humo USD, Anor USD, Kapitalbank USD ishlaydi).
+4. AdSense PIN: kartochka pochta orqali keladi (~3-4 hafta), AdSense'da kiritasiz.
+5. Reklama joylarini yoqing: Pre-roll, mid-roll (long-form 8+ daq), Overlay, Display.
+   Bu pipeline tomonidan **avtomatik** o'rnatilishi uchun `youtube_uploader.py`'ga
+   `monetizationDetails` qo'shilishi mumkin — keyingi qadamda qo'shaman, agar kanal
+   YPP'da bo'lsa.
+
+**Pipeline'da hozir tayyor:**
+- Har long video 5+ daqiqa (mid-roll uchun) — `config.yaml` `formats.long.target_duration_sec`.
+- Description'ga monetizatsiya-do'stona "advertiser-friendly" matnlar.
+- Mavzular xavfsiz (ta'lim, fan, texnologiya) — demonetizatsiyadan uzoq.
+
+### 2. Kurs/mahsulot sotish (eng katta daromad oqimi)
+
+Auditoriya yig'ilgach, har video tavsifiga avtomatik quyidagilar qo'shiladi:
+- 🎁 **Bepul lid magnet** (PDF/checklist) — emaillarni yig'ish uchun
+- 🎓 **To'liq kurs havolasi** — payme/click bilan to'lov sahifa
+- 💬 **Telegram kanal** — community + qaytarma trafik
+
+`config.yaml`'da `funnel:` bo'limi bor — havolalarni shu yerga qo'ying, hamma yangi
+videolar tavsifida avtomatik chiqadi.
+
+**Tavsiyalar (sotuv funeli):**
+1. **Lid magnet birinchi** — masalan "AI bilan 10 daqiqada matn yozish — bepul PDF" (Notion'da
+   ham ishlaydi, bepul). Email yig'ing → Sender.net (bepul 2500 ta gacha email).
+2. **Mini-kurs** (10–20$) — 4-5 ta video, dripped. Sotish: Payme/Click integratsiyasi
+   bilan oddiy 1 sahifali sayt (Vercel'da bepul).
+3. **Premium kurs** (50-200$) — auditoriya 5000+ bo'lgach.
+
+### 3. Sponsorlik / Affiliate
+
+- 10k obunachiga yetganda — UZ tech brendlari (Beeline, UZUM, Anor) bilan integratsiya.
+- Pipeline har video oxiriga avtomatik affiliate disclaimer qo'shishi mumkin (config'da yoqasiz).
+
+---
+
+## Pipeline'ga keyinroq qo'shilishi mumkin bo'lgan narsalar
+
+Agar xohlasangiz, men keyingi iteratsiyalarda quyidagilarni qo'shaman:
+- **Analytics agent** — har hafta YouTube Studio'dan CTR, retention, top-videolarni o'qib,
+  qaysi mavzular ishlayotganini aniqlaydi va trend agent'ga "shu yo'nalishda ko'proq" deydi.
+- **A/B title agent** — Gemini bilan 5 ta variant, eng yaxshisi tanlanadi.
+- **End-screen + cards avtomatik** — har video oxirida keyingi videoga link.
+- **Multilingual** — bitta skriptdan o'zbek + rus + ingliz versiyalari (3x audience).
+- **Affiliate link injector** — Amazon/AliExpress mahsulotlarini avtomatik kiritish.
+
+---
+
 ## Cheklovlar
 
 - Gemini bepul tier: 1500 so'rov/kun (kuniga ~10 ta video uchun yetadi).

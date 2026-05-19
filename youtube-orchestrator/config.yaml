@@ -1,25 +1,70 @@
 channel:
-  language: uz                    # uz | en | ru
-  default_voice: uz-UZ-MadinaNeural   # edge-tts ovoz nomi
+  name: "Soneee"
+  language: uz
+  default_voice: uz-UZ-MadinaNeural
   fallback_voice: en-US-AriaNeural
-  privacy_status: public          # public | unlisted | private
+  privacy_status: public
+  # Ta'limga yo'naltirilgan shaxsiyat — auditoriya = o'quvchi
+  personality: "ishonchli ustoz ohangida, sodda va do'stona; har video tomoshabinga aniq foyda beradi"
 
-video:
-  resolution: [1920, 1080]        # FullHD
-  fps: 30
-  target_duration_sec: 90         # ~1.5 daqiqalik shortlar uchun
-  scenes: 6                       # skript necha sahnaga bo'linadi
-  background_music: true
-  captions: true                  # subtitr yoqish
+# E'tibor: hammasi TA'LIMGA yo'naltirilgan. Audience = o'quvchi → keyinchalik
+# kurs/mahsulot sotishga oson o'tkaziladi.
+niches:
+  - "Sun'iy intellekt va texnologiyani o'rganish (boshlang'ich darslar, qo'llanmalar)"
+  - "Ingliz tili, dasturlash, raqamli ko'nikmalar — qisqa darsliklar"
+  - "Karyera, mahsuldorlik, o'z-o'zini rivojlantirish (amaliy maslahatlar)"
+  - "Fan va qiziqarli faktlar — ta'limiy tushuntirish bilan"
+
+# Har video tavsifi oxiriga qo'shiladigan funnel havolalar (siz keyin to'ldirasiz)
+funnel:
+  channel_subscribe_cta: "Yangi darslar uchun obuna bo'ling 👉"
+  telegram_url: ""          # masalan: https://t.me/soneee_uz  (mailing list o'rniga)
+  course_url: ""            # kelajakda: https://soneee.uz/kurs
+  freebie_url: ""            # bepul PDF/checklist (lid magnet)
+  freebie_label: "Bepul boshlang'ich darslik PDF"
+
+# Har bir mavzudan ikkita video chiqariladi
+formats:
+  long:
+    enabled: true
+    resolution: [1920, 1080]
+    fps: 30
+    target_duration_sec: 300       # ~5 daqiqa
+    scenes: 10
+    orientation: landscape         # Pexels uchun
+  short:
+    enabled: true
+    resolution: [1080, 1920]       # vertikal
+    fps: 30
+    target_duration_sec: 55
+    scenes: 4
+    orientation: portrait
+    cta_long_link: true            # tavsifda long video linki bo'lsin
 
 script:
-  model: gemini-2.0-flash         # bepul, tez
-  style: "qiziqarli, ta'limiy, do'stona ohangda"
-  hook_seconds: 5                 # birinchi 5 soniya — diqqatni tortuvchi hook
+  model: gemini-2.0-flash
+  # USTOZ ohangida — har video aniq "uchta foyda" beradi va auditoriyani
+  # o'rganishga, kanalga obuna bo'lishga undaydi.
+  style: |
+    Sen tajribali, do'stona ustozsan. Har bir video o'quvchiga aniq narsani
+    o'rgatadi (skill, fakt, qadam). Sodda O'zbek tili. Hech qachon yuzaki
+    bo'lma — misol, raqam, qadam-baqadam tushuntirish ishlat. Oxirida
+    keyingi videoda nima o'rganishini ko'rsat (binge'ga undash).
+  hook_seconds: 5
 
 thumbnail:
+  enabled: true
   width: 1280
   height: 720
+  # Yangi kanallarda hisob tasdiqlanmaguncha thumbnail upload ishlamasligi mumkin
+
+captions: true                     # subtitr yondirish (har ikki formatda)
+
+trend_discoverer:
+  enabled: true
+  refill_when_below: 5             # queue'da N tadan kam mavzu qolsa to'ldir
+  fetch_count: 15
+  model: gemini-2.0-flash
 
 comments:
   reply_enabled: true
