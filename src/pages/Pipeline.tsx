@@ -38,7 +38,7 @@ export default function Pipeline() {
           return (
             <div
               key={stage.id}
-              className="min-w-[300px] w-[300px] flex-shrink-0 bg-slate-200/40 dark:bg-slate-900/50 rounded-2xl p-3 transition-colors"
+              className="min-w-[260px] w-[260px] sm:min-w-[300px] sm:w-[300px] flex-shrink-0 bg-slate-200/40 dark:bg-slate-900/50 rounded-2xl p-3 transition-colors"
               onDragOver={(e) => e.preventDefault()}
               onDrop={() => {
                 if (dragId) {
@@ -107,7 +107,9 @@ export default function Pipeline() {
                   );
                 })}
                 {items.length === 0 && (
-                  <div className="text-center text-xs text-slate-400 py-6">— bo'sh —</div>
+                  <div className="text-center text-xs text-slate-400 dark:text-slate-500 py-8 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-xl">
+                    Bu bosqichda murojaat yo'q
+                  </div>
                 )}
               </div>
             </div>

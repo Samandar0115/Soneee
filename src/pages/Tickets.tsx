@@ -478,8 +478,17 @@ export default function Tickets() {
             })}
             {pageData.length === 0 && (
               <tr>
-                <td colSpan={10} className="px-4 py-10 text-center text-slate-400">
-                  Murojaatlar topilmadi
+                <td colSpan={10} className="px-4 py-12 text-center">
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="text-3xl opacity-40">📭</div>
+                    <div className="text-slate-600 dark:text-slate-300 font-semibold text-sm">
+                      Murojaatlar topilmadi
+                    </div>
+                    <div className="text-slate-400 dark:text-slate-500 text-xs max-w-sm">
+                      Yangi murojaat yaratish uchun yuqoridagi <b>"Yangi"</b> tugmasini bosing yoki
+                      qidiruv/filtrlarni qayta ko'rib chiqing.
+                    </div>
+                  </div>
                 </td>
               </tr>
             )}

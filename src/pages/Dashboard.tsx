@@ -175,7 +175,7 @@ export default function Dashboard() {
           </h3>
           <div className="space-y-2 max-h-64 overflow-y-auto scroll-thin pr-1">
             {urgentList.length === 0 && (
-              <div className="text-sm text-slate-400 text-center py-8">Yo'q — tinch!</div>
+              <div className="text-sm text-slate-400 text-center py-8">Shoshilinch murojaatlar yo'q ✓</div>
             )}
             {urgentList.map((t) => {
               const overdueT = t.slaDueAt && t.slaDueAt < now;
