@@ -1,0 +1,123 @@
+# YouTube Orchestrator — 100% Bepul Avtomatlashtirilgan Pipeline
+
+Bu modul Soneee CRM va `curator-ai` loyihalaridan **mutlaqo mustaqil**. Faqat
+`youtube-orchestrator/` papkasi ichida ishlaydi va sizning asosiy ilovangizga
+hech qanday ta'sir qilmaydi.
+
+## Siz nima qilasiz (eng tepadagi rahbar)
+
+1. `topics/queue.txt` fayliga **mavzu qo'shasiz** (har qatorga bittadan).
+2. Tamom. Qolganini orkestrator qiladi.
+
+Misol:
+```
+Sun'iy intellekt 2026-yilda qanday o'zgaradi
+Eng yaxshi 5 ta bepul VS Code kengaytmasi
+ChatGPT vs Claude — qaysi biri kuchli?
+```
+
+## Pipeline (har bir mavzu uchun)
+
+```
+mavzu → skript (Gemini) → ovoz (edge-tts) → vizual (Pexels) →
+video yig'ish (FFmpeg) → thumbnail (Pollinations) →
+YouTube upload → sharhlarga javob (Gemini)
+```
+
+## Birinchi marta sozlash (faqat 1 marta)
+
+### 1. API kalitlarni oling (hammasi bepul)
+
+| Servis | Nima uchun | Qayerdan |
+| --- | --- | --- |
+| `GEMINI_API_KEY` | Skript yozish, sharhga javob | https://aistudio.google.com/app/apikey |
+| `PEXELS_API_KEY` | Stok video/rasm | https://www.pexels.com/api/ |
+| `YOUTUBE_CLIENT_ID` + `YOUTUBE_CLIENT_SECRET` + `YOUTUBE_REFRESH_TOKEN` | Video upload va sharhlarga javob | Quyidagi 2-bo'limga qarang |
+
+### 2. YouTube OAuth refresh token olish
+
+```bash
+cd youtube-orchestrator
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+python tools/get_youtube_token.py
+```
+
+Bu skript brauzer ochib, sizning YouTube kanalingizga ruxsat so'raydi. Tasdiqlagach,
+terminalda `YOUTUBE_REFRESH_TOKEN` ko'rinadi — uni GitHub Secrets'ga qo'ying.
+
+### 3. GitHub Secrets'ga qo'shing
+
+GitHub repo → Settings → Secrets and variables → Actions → New repository secret:
+
+- `GEMINI_API_KEY`
+- `PEXELS_API_KEY`
+- `YOUTUBE_CLIENT_ID`
+- `YOUTUBE_CLIENT_SECRET`
+- `YOUTUBE_REFRESH_TOKEN`
+
+### 4. GitHub Actions yoqish
+
+Repo → Actions tab → "I understand my workflows, go ahead and enable them".
+
+## Qanday ishlaydi
+
+- **Cron**: har kuni 09:00 UTC (14:00 Toshkent vaqti) ishga tushadi.
+- `topics/queue.txt` dan birinchi mavzuni oladi.
+- To'liq pipeline'ni bajaradi, video YouTube'ga yuklanadi.
+- Mavzuni `topics/done.txt`ga ko'chiradi, commit qiladi.
+- Har 6 soatda yangi sharhlarga javob beradi (alohida workflow).
+
+## Qo'lda ishga tushirish
+
+Workflow'ni darhol ishga tushirish:
+```
+GitHub → Actions → "YouTube Pipeline" → Run workflow
+```
+
+## Lokal sinov
+
+```bash
+cd youtube-orchestrator
+cp .env.example .env  # kalitlarni to'ldiring
+source .venv/bin/activate
+python orchestrator.py --topic "Test mavzu" --dry-run
+```
+
+`--dry-run` YouTube'ga yuklamaydi, faqat `output/` ga video yozadi.
+
+## Tuzilma
+
+```
+youtube-orchestrator/
+├── orchestrator.py            # Bosh dirijyor
+├── agents/
+│   ├── script_writer.py       # Gemini → skript
+│   ├── voice_generator.py     # edge-tts → ovoz
+│   ├── visual_fetcher.py      # Pexels → stok video
+│   ├── video_assembler.py     # FFmpeg → video
+│   ├── thumbnail_maker.py     # Pollinations → thumbnail
+│   ├── youtube_uploader.py    # YouTube API → upload
+│   └── comment_responder.py   # Gemini → sharhga javob
+├── tools/
+│   └── get_youtube_token.py   # OAuth refresh token olish
+├── topics/
+│   ├── queue.txt              # SIZ to'ldirasiz
+│   └── done.txt               # avtomatik
+├── config.yaml                # kanal sozlamalari
+├── .env.example
+└── requirements.txt
+```
+
+## Xavfsizlik
+
+- `.env` va `output/` `.gitignore`'da.
+- API kalitlar faqat GitHub Secrets orqali yuklanadi, kodga yozilmaydi.
+- YouTube ToS hurmat qilinadi — bot/sun'iy obuna yo'q, faqat real kontent.
+
+## Cheklovlar
+
+- Gemini bepul tier: 1500 so'rov/kun (kuniga ~10 ta video uchun yetadi).
+- YouTube Data API: 10,000 birlik/kun (1 upload = 1600 birlik, 6 ta video/kun).
+- GitHub Actions: 2000 daqiqa/oy (bitta video ~10-15 daqiqa, oyiga ~150 video).
+- Edge-TTS: cheksiz bepul, lekin Microsoft serverlariga bog'liq.

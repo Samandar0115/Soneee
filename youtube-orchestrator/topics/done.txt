@@ -1,0 +1,2 @@
+# Tugatilgan mavzular avtomatik shu yerga ko'chiriladi.
+# Format: ISO sana | youtube video ID | mavzu

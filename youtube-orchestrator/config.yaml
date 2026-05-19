@@ -1,0 +1,28 @@
+channel:
+  language: uz                    # uz | en | ru
+  default_voice: uz-UZ-MadinaNeural   # edge-tts ovoz nomi
+  fallback_voice: en-US-AriaNeural
+  privacy_status: public          # public | unlisted | private
+
+video:
+  resolution: [1920, 1080]        # FullHD
+  fps: 30
+  target_duration_sec: 90         # ~1.5 daqiqalik shortlar uchun
+  scenes: 6                       # skript necha sahnaga bo'linadi
+  background_music: true
+  captions: true                  # subtitr yoqish
+
+script:
+  model: gemini-2.0-flash         # bepul, tez
+  style: "qiziqarli, ta'limiy, do'stona ohangda"
+  hook_seconds: 5                 # birinchi 5 soniya — diqqatni tortuvchi hook
+
+thumbnail:
+  width: 1280
+  height: 720
+
+comments:
+  reply_enabled: true
+  max_replies_per_run: 20
+  model: gemini-2.0-flash
+  style: "muloyim, qisqa, do'stona, kanal ovozida"

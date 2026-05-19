@@ -1,0 +1,8 @@
+# Bu yerga har qatorga bitta mavzu yozing.
+# `#` bilan boshlangan qatorlar e'tiborga olinmaydi.
+# Orkestrator yuqoridan pastga qarab oladi.
+#
+# Misol:
+# Sun'iy intellekt 2026-yilda qanday o'zgaradi
+# Eng yaxshi 5 ta bepul VS Code kengaytmasi
+# ChatGPT vs Claude — qaysi biri kuchli?
