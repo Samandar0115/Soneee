@@ -1,8 +1,33 @@
 # Bu yerga har qatorga bitta mavzu yozing.
 # `#` bilan boshlangan qatorlar e'tiborga olinmaydi.
 # Orkestrator yuqoridan pastga qarab oladi.
-#
-# Misol:
-# Sun'iy intellekt 2026-yilda qanday o'zgaradi
-# Eng yaxshi 5 ta bepul VS Code kengaytmasi
-# ChatGPT vs Claude — qaysi biri kuchli?
+# Mavzular tugasa, trend agent avtomatik yangilarini qo'shadi.
+
+# === TA'LIMIY START PACK (20 ta) ===
+# AI / Texnologiya
+ChatGPT'dan eng samarali foydalanish — 7 ta amaliy hiyla
+Sun'iy intellekt nima va u qanday ishlaydi — boshlang'ichlar uchun
+Gemini, ChatGPT va Claude — qaysi biri qaysi ish uchun yaxshi
+AI bilan kuniga 2 soat vaqt tejash — real qadamlar
+Prompt engineering nima va nega bilish kerak
+
+# Dasturlash / Raqamli ko'nikma
+Dasturlashni 0 dan boshlash — qaysi tildan boshlash kerak
+HTML va CSS 10 daqiqada — birinchi web sahifangiz
+Python nima uchun eng oson dasturlash tili
+GitHub nima va u dasturchi uchun nega muhim
+VS Code'da samaradorlikni 3 baravar oshiruvchi 5 ta sozlama
+
+# Ingliz tili / Karyera
+Inglizchani 6 oyda B2 darajasiga olib chiqish strategiyasi
+Inglizcha tinglashni yaxshilash — bepul 5 ta usul
+LinkedIn'da kuchli profil yaratish — ish topishga yo'l
+Remote ish topishning real qadamlari (O'zbekistondan)
+CV yozishning eng katta 5 xatosi
+
+# O'z-o'zini rivojlantirish
+Erta turish odatini 21 kunda shakllantirish
+Pomodoro texnikasi — 4 soatlik ishni 2 soatga jamlash
+Kitob o'qishni odatga aylantirish — sodda tizim
+Vaqtni yo'qotuvchi 5 ta sotsial tarmoq odati
+Maqsad qo'yishning SMART tizimi — amaliy misollar
