@@ -408,40 +408,9 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          {/* External rejim uchun maxsus sozlama */}
-          {(draft.sip?.mode ?? 'external') === 'external' && (
-            <div className="mb-4">
-              <label className="label">URL sxemasi (MicroSIP qabul qiladigan)</label>
-              <div className="flex gap-2 mt-1">
-                {(['callto', 'tel', 'sip'] as const).map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() =>
-                      setDraft({
-                        ...draft,
-                        sip: { ...(draft.sip ?? { enabled: true, serverHost: '', wsUri: '', mode: 'external' }), externalScheme: s } as any,
-                      })
-                    }
-                    className={`flex-1 py-2 rounded-xl border-2 font-mono text-sm transition ${
-                      (draft.sip?.externalScheme ?? 'callto') === s
-                        ? 'border-brand-500 bg-brand-50 dark:bg-brand-900/20'
-                        : 'border-slate-200 dark:border-slate-700'
-                    }`}
-                  >
-                    {s}:
-                  </button>
-                ))}
-              </div>
-              <p className="text-[11px] text-slate-400 mt-2">
-                ⓘ MicroSIP odatda <b>callto:</b> ni qabul qiladi. Agar ishlamasa <b>tel:</b> yoki <b>sip:</b> ni sinab ko'ring.
-                Birinchi marta brauzer "Qaysi dasturda ochish?" deb so'rashi mumkin — MicroSIP'ni tanlang va "Doimo shu dastur" ga belgi qo'ying.
-              </p>
-            </div>
-          )}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
-              <label className="label">SIP-сервер (Server host)</label>
+              <label className="label">SIP-сервер</label>
               <input
                 className="input mt-1 font-mono text-xs"
                 placeholder="192.168.7.253"
@@ -457,18 +426,14 @@ export default function SettingsPage() {
                 }
               />
               <p className="text-[11px] text-slate-400 mt-1">
-                {(draft.sip?.mode ?? 'external') === 'external'
-                  ? "sip: sxemasi tanlangan bo'lsa kerak. Aks holda bo'sh qoldirish mumkin."
-                  : 'WebRTC rejimi uchun majburiy.'}
+                MicroSIP'dagi "SIP-сервер" maydoni bilan bir xil.
               </p>
             </div>
-            {(draft.sip?.mode ?? 'external') === 'webrtc' && (
-            <>
             <div>
-              <label className="label">Домен (Domain)</label>
+              <label className="label">Домен</label>
               <input
                 className="input mt-1 font-mono text-xs"
-                placeholder="192.168.7.253 (bo'sh qoldirsa server bilan bir xil)"
+                placeholder="192.168.7.253"
                 value={draft.sip?.domain ?? ''}
                 onChange={(e) =>
                   setDraft({
@@ -480,7 +445,12 @@ export default function SettingsPage() {
                   })
                 }
               />
+              <p className="text-[11px] text-slate-400 mt-1">
+                MicroSIP'dagi "Домен" — odatda server bilan bir xil. Qo'ng'iroq @{draft.sip?.domain || draft.sip?.serverHost || 'DOMAIN'} ga yuboriladi.
+              </p>
             </div>
+            {(draft.sip?.mode ?? 'external') === 'webrtc' && (
+            <>
             <div>
               <label className="label">SIP-прокси (ixtiyoriy)</label>
               <input

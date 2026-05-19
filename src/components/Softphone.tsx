@@ -20,7 +20,7 @@ import {
 import { useApp } from '../context/AppContext';
 import { sipPhone, type SipState, type SipCallInfo } from '../utils/sip';
 import type { SipConfig } from '../types';
-import { defaultCallScheme, detectOS } from '../utils/platform';
+import { detectOS } from '../utils/platform';
 
 const STATE_LABELS: Record<SipState, string> = {
   disabled: "O'chirilgan",
@@ -36,22 +36,17 @@ const STATE_LABELS: Record<SipState, string> = {
 };
 
 // Tashqi softphone (MicroSIP/Linphone/Telephone) orqali qo'ng'iroq qilish.
-// Sxema tanlanmagan bo'lsa, OS bo'yicha avtomatik: Win→callto, Mac/Linux→sip, mobil→tel
-function launchExternalCall(number: string, schemeOverride?: 'callto' | 'tel' | 'sip', host?: string) {
+// Har doim sip:NUMBER@DOMAIN formatida yuboradi — softphone bu URI'ni to'g'ri tushunadi.
+function launchExternalCall(number: string, host: string) {
   const cleaned = number.replace(/[^\d+*#]/g, '');
   if (!cleaned) return;
-  const scheme = schemeOverride ?? defaultCallScheme();
-  let url: string;
-  if (scheme === 'sip') {
-    // Mac/Linux Linphone va boshqa softphone'lar uchun standart sip: URI
-    url = host ? `sip:${cleaned}@${host}` : `sip:${cleaned}`;
-  } else if (scheme === 'tel') {
-    url = `tel:${cleaned}`;
-  } else {
-    url = `callto:${cleaned}`;
+  const target = (host || '').trim();
+  if (!target) {
+    alert("SIP server (Домен) kiritilmagan. Sozlamalardan kiriting.");
+    return;
   }
-  // Yashirin iframe orqali ochish — yangi tab ochilmasligi uchun.
-  // Mac Safari iframe'da custom URL ochmaydi, shuning uchun location.href fallback.
+  const url = `sip:${cleaned}@${target}`;
+  // macOS/iOS Safari iframe'da custom URL ochmaydi — location.href ishlatamiz
   const os = detectOS();
   if (os === 'mac' || os === 'ios') {
     window.location.href = url;
@@ -187,9 +182,10 @@ export default function Softphone() {
       if (!detail?.number) return;
       setDialer(detail.number);
       if (mode === 'external') {
-        // Darhol MicroSIP'ga uzatamiz va kichik xabar ko'rsatamiz
-        launchExternalCall(detail.number, sip?.externalScheme, sip?.serverHost);
-        setExternalToast(`MicroSIP'ga uzatildi: ${detail.number}`);
+        // Domain bo'sh bo'lsa server host'dan foydalanamiz
+        const dialHost = (sip?.domain || sip?.serverHost || '').trim();
+        launchExternalCall(detail.number, dialHost);
+        setExternalToast(`Softphone'ga uzatildi: ${detail.number}@${dialHost}`);
         setTimeout(() => setExternalToast(null), 2500);
       } else {
         setOpen(true);
@@ -208,8 +204,9 @@ export default function Softphone() {
   if (mode === 'external') {
     function externalDial() {
       if (!dialer.trim()) return;
-      launchExternalCall(dialer.trim(), sip?.externalScheme, sip?.serverHost);
-      setExternalToast(`MicroSIP'ga uzatildi: ${dialer}`);
+      const dialHost = (sip?.domain || sip?.serverHost || '').trim();
+      launchExternalCall(dialer.trim(), dialHost);
+      setExternalToast(`Softphone'ga uzatildi: ${dialer}@${dialHost}`);
       setTimeout(() => setExternalToast(null), 2500);
     }
 
@@ -331,14 +328,13 @@ export default function Softphone() {
                 </div>
                 <button
                   onClick={externalDial}
-                  disabled={!dialer.trim()}
+                  disabled={!dialer.trim() || !(sip?.domain || sip?.serverHost)}
                   className="w-full py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-white font-bold flex items-center justify-center gap-2 disabled:opacity-50 shadow-lg"
                 >
-                  <Phone className="h-5 w-5" /> MicroSIP orqali qo'ng'iroq
+                  <Phone className="h-5 w-5" /> Qo'ng'iroq qilish
                 </button>
-                <p className="text-[10px] text-white/70 mt-2 text-center">
-                  Sxema: <code className="font-mono bg-white/10 px-1 py-0.5 rounded">{(sip?.externalScheme ?? defaultCallScheme())}:</code>
-                  {' · '}{detectOS() === 'mac' ? "Linphone yoki Telephone.app default handler bo'lishi kerak" : "MicroSIP default handler bo'lishi kerak"}
+                <p className="text-[10px] text-white/70 mt-2 text-center font-mono">
+                  sip:{dialer || 'NUMBER'}@{(sip?.domain || sip?.serverHost) || '<domen kiriting>'}
                 </p>
               </div>
             </motion.div>
