@@ -8,6 +8,7 @@ import {
   ChevronRight,
   Headphones,
   KanbanSquare,
+  Phone,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -102,6 +103,7 @@ export default function Layout() {
     { to: '/', label: t('nav.dashboard'), icon: LayoutDashboard, end: true },
     { to: '/pipeline', label: t('nav.pipeline'), icon: KanbanSquare },
     { to: '/tickets', label: t('nav.tickets'), icon: TicketIcon },
+    { to: '/calls', label: "Qo'ng'iroqlar", icon: Phone },
     { to: '/knowledge', label: t('nav.knowledge'), icon: BookOpen },
   ];
   const adminLinks = [

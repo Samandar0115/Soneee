@@ -22,6 +22,7 @@ import type {
   AppSettings,
   Attachment,
   Branch,
+  CallLog,
   Category,
   CustomerRating,
   Lang,
@@ -64,6 +65,7 @@ interface AppState {
   settings: AppSettings;
   templates: ResponseTemplate[];
   notifications: AppNotification[];
+  callLogs: CallLog[];
   kvConfigured: boolean;
   kvReady: boolean;
   lang: Lang;
@@ -103,6 +105,9 @@ interface AppState {
   clearNotifications: () => void;
   notifyCallback: (ticket: Ticket) => void;
   archiveOldResolved: (days: number) => number;
+  startCallLog: (data: Omit<CallLog, 'id' | 'startedAt' | 'outcome'>) => CallLog;
+  updateCallLog: (id: string, patch: Partial<CallLog>) => void;
+  deleteCallLog: (id: string) => void;
   exportBackup: () => string;
   importBackup: (json: string) => boolean;
   runTestScenario: () => Promise<Ticket | null>;
@@ -121,6 +126,7 @@ const STORAGE_KEYS = {
   settings: 'ipost.settings',
   templates: 'ipost.templates',
   notifications: 'ipost.notifications',
+  callLogs: 'ipost.callLogs',
   lang: 'ipost.lang',
   theme: 'ipost.theme',
   session: 'ipost.session',
@@ -152,6 +158,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState<AppSettings>(seedAppSettings);
   const [templates, setTemplates] = useState<ResponseTemplate[]>([]);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [callLogs, setCallLogs] = useState<CallLog[]>([]);
   const [lang, setLangState] = useState<Lang>(() => (localStorage.getItem(STORAGE_KEYS.lang) as Lang) || 'uz');
   const [theme, setThemeState] = useState<'light' | 'dark'>(
     () => (localStorage.getItem(STORAGE_KEYS.theme) as 'light' | 'dark') || 'light'
@@ -280,6 +287,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setSettings(loadLocal<AppSettings>(STORAGE_KEYS.settings, seedAppSettings));
     setTemplates(loadLocal<ResponseTemplate[]>(STORAGE_KEYS.templates, seedTemplates));
     setNotifications(loadLocal<AppNotification[]>(STORAGE_KEYS.notifications, []));
+    setCallLogs(loadLocal<CallLog[]>(STORAGE_KEYS.callLogs, []));
     if (!localStorage.getItem(STORAGE_KEYS.users)) saveLocal(STORAGE_KEYS.users, seedUsers);
     if (!localStorage.getItem(STORAGE_KEYS.stages)) saveLocal(STORAGE_KEYS.stages, seedStages);
     if (!localStorage.getItem(STORAGE_KEYS.categories)) saveLocal(STORAGE_KEYS.categories, seedCategories);
@@ -348,6 +356,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (backend === 'local' && ready) saveLocal(STORAGE_KEYS.notifications, notifications);
   }, [notifications, backend, ready]);
 
+  useEffect(() => {
+    if (backend === 'local' && ready) saveLocal(STORAGE_KEYS.callLogs, callLogs);
+  }, [callLogs, backend, ready]);
+
   /* ---------------- Session restore ---------------- */
   useEffect(() => {
     if (!ready) return;
@@ -390,6 +402,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           if (d.settings) setSettings(d.settings);
           if (Array.isArray(d.templates)) setTemplates(d.templates);
           if (Array.isArray(d.notifications)) setNotifications(d.notifications);
+          if (Array.isArray(d.callLogs)) setCallLogs(d.callLogs);
         }
       } catch {
         // jim — fallback localStorage
@@ -419,6 +432,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         settings,
         templates,
         notifications,
+        callLogs,
       };
       saveToKV(payload).catch(() => {});
     }, 3000);
@@ -435,6 +449,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     categories,
     announcements,
     branches,
+    callLogs,
     tariff,
     settings,
     templates,
@@ -831,6 +846,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setNotifications([]);
   }, []);
 
+  // === Call Logs ===
+  const startCallLog = useCallback<AppState['startCallLog']>((data) => {
+    const log: CallLog = {
+      id: `call-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      startedAt: Date.now(),
+      outcome: 'pending',
+      ...data,
+    };
+    setCallLogs((prev) => [log, ...prev].slice(0, 5000));
+    return log;
+  }, []);
+
+  const updateCallLog = useCallback<AppState['updateCallLog']>((id, patch) => {
+    setCallLogs((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)));
+  }, []);
+
+  const deleteCallLog = useCallback<AppState['deleteCallLog']>((id) => {
+    setCallLogs((prev) => prev.filter((c) => c.id !== id));
+  }, []);
+
   // Mijoz qayta aloqaga chiqdi — boshqa operatorga eslatma
   const notifyCallback = useCallback<AppState['notifyCallback']>((ticket) => {
     if (!currentUser) return;
@@ -916,6 +951,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (data.settings) setSettings(data.settings);
         if (Array.isArray(data.templates)) setTemplates(data.templates);
         if (Array.isArray(data.notifications)) setNotifications(data.notifications);
+        if (Array.isArray(data.callLogs)) setCallLogs(data.callLogs);
         return true;
       } catch {
         return false;
@@ -1105,6 +1141,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       clearNotifications,
       notifyCallback,
       archiveOldResolved,
+      callLogs,
+      startCallLog,
+      updateCallLog,
+      deleteCallLog,
       exportBackup,
       importBackup,
       runTestScenario,
@@ -1162,6 +1202,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       clearNotifications,
       notifyCallback,
       archiveOldResolved,
+      callLogs,
+      startCallLog,
+      updateCallLog,
+      deleteCallLog,
       exportBackup,
       importBackup,
       runTestScenario,

@@ -86,6 +86,28 @@ export interface AppDataSnapshot {
   announcements: Announcement[];
   branches: Branch[];
   tariff: TariffSettings;
+  callLogs?: CallLog[];
+}
+
+export type CallOutcome = 'answered' | 'no_answer' | 'busy' | 'failed' | 'pending';
+export type CallDirection = 'outbound' | 'inbound';
+
+export interface CallLog {
+  id: string;
+  operatorId: string;
+  operatorName?: string;
+  number: string;
+  customerName?: string;
+  ticketId?: string;
+  trackingNumber?: string;
+  direction: CallDirection;
+  startedAt: number;
+  connectedAt?: number;   // "Bog'landi" bosilgan payt
+  endedAt?: number;
+  durationSec?: number;   // jami davomiylik (start → end)
+  talkSec?: number;       // gaplashish davomiyligi (connected → end)
+  outcome: CallOutcome;
+  notes?: string;
 }
 
 export type AnnouncementCategory =

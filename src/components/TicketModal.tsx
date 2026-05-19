@@ -326,7 +326,7 @@ export default function TicketModal({ open, onClose, ticket }: Props) {
                   {customerPhone && (
                     <button
                       type="button"
-                      onClick={() => dialNumber(customerPhone)}
+                      onClick={() => dialNumber(customerPhone, { ticketId: ticket?.id, customerName })}
                       title="Qo'ng'iroq qilish"
                       className="p-1 rounded text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition"
                     >
