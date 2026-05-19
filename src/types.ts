@@ -20,11 +20,6 @@ export interface User {
   createdAt: number;
   photo?: string;
   faceDescriptor?: number[];
-  // SIP — har bir operator uchun alohida ma'lumotlar (MicroSIP konfiguratsiyasidagi
-  // "Имя пользователя/Логин", "Пароль", "Отображаемое имя" mos kelishi uchun)
-  sipExtension?: string;     // Login / Username (masalan: 201, 222, 230)
-  sipPassword?: string;      // Pasvord
-  sipDisplayName?: string;   // Отображаемое имя — qo'ng'iroq qiluvchining ismi/raqami (masalan 781138828)
 }
 
 export type StageFieldType = 'text' | 'textarea' | 'number' | 'phone' | 'select';
@@ -161,7 +156,6 @@ export interface AppSettings {
   idleTimeoutMin: number;
   archiveAfterDays: number;
   faceMatchThreshold: number;
-  sip?: SipConfig;
   updatedAt: number;
 }
 
@@ -231,30 +225,3 @@ export interface MisrouteDetails {
   notes?: string;
 }
 
-export type SipMode = 'external' | 'webrtc';
-
-export interface SipConfig {
-  enabled: boolean;
-  // Qaysi rejim: 'external' — MicroSIP (callto:) orqali, 'webrtc' — sayt ichida JsSIP
-  // Asterisk'da WS yoqilmagan bo'lsa 'external' tanlanadi (avtomatik MicroSIP'ga uzatadi).
-  mode: SipMode;
-  // Tashqi softphone (MicroSIP) uchun URL sxemasi: 'callto', 'tel', 'sip'
-  externalScheme?: 'callto' | 'tel' | 'sip';
-  // SIP-сервер (MicroSIP): masalan 192.168.7.253 yoki 192.168.7.253:5060
-  serverHost: string;
-  // Домен (MicroSIP): odatda server bilan bir xil, bo'sh qoldirsa serverdan olinadi
-  domain?: string;
-  // SIP-прокси (MicroSIP): ixtiyoriy proxy server (odatda bo'sh)
-  proxy?: string;
-  // WebSocket manzili (faqat 'webrtc' rejim uchun)
-  wsUri?: string;
-  // Ixtiyoriy STUN/TURN serverlar (LAN ichida ishlatilsa BO'SH qoldiring).
-  iceServers?: string;
-  // Обновить регистрацию (sekund), MicroSIP'dagi 120 dek
-  registerExpiresSec?: number;
-  // Legacy global SIP (agar har bir foydalanuvchi uchun emas, bitta umumiy account)
-  sipUri?: string;
-  password?: string;
-  displayName?: string;
-  registrar?: string;
-}

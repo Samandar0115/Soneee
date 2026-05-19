@@ -18,14 +18,6 @@ export const seedAppSettings: AppSettings = {
   idleTimeoutMin: 30,
   archiveAfterDays: 365,
   faceMatchThreshold: 50,
-  // MicroSIP bilan ishlash uchun default — external rejim, hech qanday server o'zgartirishi shart emas
-  sip: {
-    enabled: false,
-    mode: 'webrtc',
-    serverHost: '',
-    wsUri: '',
-    registerExpiresSec: 120,
-  },
   updatedAt: Date.now(),
 };
 

@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { Plus, Trash2, ShieldAlert, Lock, Camera, ScanFace, CheckCircle2, Upload, Phone } from 'lucide-react';
+import { Plus, Trash2, ShieldAlert, Lock, Camera, ScanFace, CheckCircle2, Upload } from 'lucide-react';
 import toast from 'react-hot-toast';
 import PageHeader from '../components/PageHeader';
 import Modal from '../components/Modal';
@@ -278,49 +278,6 @@ export default function UsersPage() {
                 </div>
               </div>
 
-              <div className="border-t border-slate-200 dark:border-slate-700 pt-3">
-                <div className="flex items-center gap-2 mb-2">
-                  <Phone className="h-4 w-4 text-brand-600" />
-                  <label className="label !mb-0">SIP qo'ng'iroq sozlamalari</label>
-                </div>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-2">
-                  Operator shaxsiy login/parol va caller ID — qo'ng'iroq qilganda qabul qiluvchiga ko'rinadi.
-                  Server manzili Sozlamalar bo'limida bir marta kiritilgan.
-                </p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="label">Логин (Extension)</label>
-                    <input
-                      className="input mt-1 font-mono"
-                      placeholder="201, 202, ..., 230"
-                      value={editing.sipExtension ?? ''}
-                      onChange={(e) => setEditing({ ...editing, sipExtension: e.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <label className="label">Пароль</label>
-                    <input
-                      type="password"
-                      className="input mt-1 font-mono"
-                      placeholder="•••••••"
-                      value={editing.sipPassword ?? ''}
-                      onChange={(e) => setEditing({ ...editing, sipPassword: e.target.value })}
-                    />
-                  </div>
-                  <div className="col-span-2">
-                    <label className="label">Отображаемое имя (Caller ID)</label>
-                    <input
-                      className="input mt-1 font-mono"
-                      placeholder="781138828 yoki F.I.O — qabul qiluvchiga ko'rinadi"
-                      value={editing.sipDisplayName ?? ''}
-                      onChange={(e) => setEditing({ ...editing, sipDisplayName: e.target.value })}
-                    />
-                    <p className="text-[11px] text-slate-400 mt-1">
-                      Bo'sh qoldirsangiz F.I.O ishlatiladi.
-                    </p>
-                  </div>
-                </div>
-              </div>
               <div className="border-t border-slate-200 dark:border-slate-700 pt-3">
                 <label className="label flex items-center gap-2 mb-2">
                   <ScanFace className="h-4 w-4" /> Face ID (xodimning yuzini qayd qilish)

@@ -26,15 +26,22 @@ export default function TemplatesPage() {
     setOpen(true);
   }
 
+  const [saving, setSaving] = useState(false);
+
   async function save() {
     if (!editing) return;
     if (!editing.title.trim() || !editing.body.trim()) {
       toast.error('Sarlavha va matn majburiy');
       return;
     }
-    await saveTemplate(editing);
-    toast.success('Saqlandi');
-    setOpen(false);
+    setSaving(true);
+    try {
+      await saveTemplate(editing);
+      toast.success('Saqlandi');
+      setOpen(false);
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -177,8 +184,8 @@ export default function TemplatesPage() {
                 </span>
               </label>
             </div>
-            <button onClick={save} className="btn-primary w-full">
-              Saqlash
+            <button onClick={save} disabled={saving} className="btn-primary w-full disabled:opacity-60">
+              {saving ? 'Saqlanmoqda...' : 'Saqlash'}
             </button>
           </div>
         )}

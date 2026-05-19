@@ -231,7 +231,7 @@ export default function Analytics() {
         <h3 className="font-bold mb-3 flex items-center gap-2">
           <Trophy className="h-4 w-4 text-amber-500" /> Operator KPI (oylik kesim)
         </h3>
-        <table className="w-full text-sm min-w-[700px]">
+        <table className="w-full text-sm min-w-[560px] md:min-w-[700px]">
           <thead>
             <tr className="text-left text-xs uppercase tracking-wider text-slate-500 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700">
               <th className="py-2">Operator</th>
