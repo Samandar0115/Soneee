@@ -86,12 +86,15 @@ export default function SettingsPage() {
 
   // Auto-save: draft o'zgarsa, 800ms keyin avtomatik saqlanadi (debounce)
   const autoSaveTimerRef = useRef<number | null>(null);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   useEffect(() => {
-    // Birinchi render'da saqlamaymiz (settings == draft)
     if (draft === settings) return;
+    setSaveStatus('saving');
     if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
-    autoSaveTimerRef.current = window.setTimeout(() => {
-      saveSettings(draft);
+    autoSaveTimerRef.current = window.setTimeout(async () => {
+      await saveSettings(draft);
+      setSaveStatus('saved');
+      setTimeout(() => setSaveStatus((s) => (s === 'saved' ? 'idle' : s)), 1800);
     }, 800);
     return () => {
       if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
@@ -190,9 +193,21 @@ export default function SettingsPage() {
         title="Tizim sozlamalari"
         subtitle="Auto-assignment, SLA va boshqa qoidalar"
         actions={
-          <button className="btn-primary" onClick={save}>
-            <Save className="h-4 w-4" /> Saqlash
-          </button>
+          <div className="flex items-center gap-3">
+            {saveStatus === 'saving' && (
+              <span className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Saqlanmoqda...
+              </span>
+            )}
+            {saveStatus === 'saved' && (
+              <span className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1 font-semibold">
+                <CheckCircle2 className="h-3.5 w-3.5" /> Avtomatik saqlandi
+              </span>
+            )}
+            <button className="btn-primary" onClick={save}>
+              <Save className="h-4 w-4" /> Saqlash
+            </button>
+          </div>
         }
       />
 
@@ -396,7 +411,7 @@ export default function SettingsPage() {
                 }
               />
               <p className="text-[11px] text-slate-400 mt-1">
-                MicroSIP'dagi "SIP-сервер" maydoni
+                PBX server IP yoki domen manzili
               </p>
             </div>
 

@@ -284,9 +284,8 @@ export default function UsersPage() {
                   <label className="label !mb-0">SIP qo'ng'iroq sozlamalari</label>
                 </div>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-2">
-                  MicroSIP'dagi <b>Логин / Пароль / Отображаемое имя</b>'ning ekvivalenti.
-                  Har bir operatorga 201–230 oralig'idagi raqam beriladi.
-                  Server host va Domen esa <b>Sozlamalar</b>'da bitta marta kiritilgan.
+                  Operator shaxsiy login/parol va caller ID — qo'ng'iroq qilganda qabul qiluvchiga ko'rinadi.
+                  Server manzili Sozlamalar bo'limida bir marta kiritilgan.
                 </p>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
