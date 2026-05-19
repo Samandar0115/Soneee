@@ -20,6 +20,7 @@ import {
 import { useApp } from '../context/AppContext';
 import { sipPhone, type SipState, type SipCallInfo } from '../utils/sip';
 import type { SipConfig } from '../types';
+import { defaultCallScheme, detectOS } from '../utils/platform';
 
 const STATE_LABELS: Record<SipState, string> = {
   disabled: "O'chirilgan",
@@ -34,20 +35,28 @@ const STATE_LABELS: Record<SipState, string> = {
   ended: 'Tugadi',
 };
 
-// Tashqi softphone (MicroSIP) orqali qo'ng'iroq qilish. callto: yoki tel: yoki sip:
-// URL'lar Windows'da MicroSIP'ga avtomatik uzatiladi (agar MicroSIP default handler bo'lsa).
-function launchExternalCall(number: string, scheme: 'callto' | 'tel' | 'sip' = 'callto', host?: string) {
+// Tashqi softphone (MicroSIP/Linphone/Telephone) orqali qo'ng'iroq qilish.
+// Sxema tanlanmagan bo'lsa, OS bo'yicha avtomatik: Win→callto, Mac/Linux→sip, mobil→tel
+function launchExternalCall(number: string, schemeOverride?: 'callto' | 'tel' | 'sip', host?: string) {
   const cleaned = number.replace(/[^\d+*#]/g, '');
   if (!cleaned) return;
+  const scheme = schemeOverride ?? defaultCallScheme();
   let url: string;
-  if (scheme === 'sip' && host) {
-    url = `sip:${cleaned}@${host}`;
+  if (scheme === 'sip') {
+    // Mac/Linux Linphone va boshqa softphone'lar uchun standart sip: URI
+    url = host ? `sip:${cleaned}@${host}` : `sip:${cleaned}`;
   } else if (scheme === 'tel') {
     url = `tel:${cleaned}`;
   } else {
     url = `callto:${cleaned}`;
   }
-  // Yashirin iframe orqali ochish — yangi tab ochilmasligi va sahifa "leave?" so'ramasligi uchun
+  // Yashirin iframe orqali ochish — yangi tab ochilmasligi uchun.
+  // Mac Safari iframe'da custom URL ochmaydi, shuning uchun location.href fallback.
+  const os = detectOS();
+  if (os === 'mac' || os === 'ios') {
+    window.location.href = url;
+    return;
+  }
   try {
     const iframe = document.createElement('iframe');
     iframe.style.display = 'none';
@@ -179,7 +188,7 @@ export default function Softphone() {
       setDialer(detail.number);
       if (mode === 'external') {
         // Darhol MicroSIP'ga uzatamiz va kichik xabar ko'rsatamiz
-        launchExternalCall(detail.number, sip?.externalScheme || 'callto', sip?.serverHost);
+        launchExternalCall(detail.number, sip?.externalScheme, sip?.serverHost);
         setExternalToast(`MicroSIP'ga uzatildi: ${detail.number}`);
         setTimeout(() => setExternalToast(null), 2500);
       } else {
@@ -199,7 +208,7 @@ export default function Softphone() {
   if (mode === 'external') {
     function externalDial() {
       if (!dialer.trim()) return;
-      launchExternalCall(dialer.trim(), sip?.externalScheme || 'callto', sip?.serverHost);
+      launchExternalCall(dialer.trim(), sip?.externalScheme, sip?.serverHost);
       setExternalToast(`MicroSIP'ga uzatildi: ${dialer}`);
       setTimeout(() => setExternalToast(null), 2500);
     }
@@ -328,8 +337,8 @@ export default function Softphone() {
                   <Phone className="h-5 w-5" /> MicroSIP orqali qo'ng'iroq
                 </button>
                 <p className="text-[10px] text-white/70 mt-2 text-center">
-                  Sxema: <code className="font-mono bg-white/10 px-1 py-0.5 rounded">{sip?.externalScheme || 'callto'}:</code>
-                  {' · '}MicroSIP default handler bo'lishi kerak
+                  Sxema: <code className="font-mono bg-white/10 px-1 py-0.5 rounded">{(sip?.externalScheme ?? defaultCallScheme())}:</code>
+                  {' · '}{detectOS() === 'mac' ? "Linphone yoki Telephone.app default handler bo'lishi kerak" : "MicroSIP default handler bo'lishi kerak"}
                 </p>
               </div>
             </motion.div>

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Save, Settings as SettingsIcon, Zap, Clock, Languages, Download, Upload, Archive, Cloud, CloudOff, ShieldCheck, RefreshCw, Timer, ScanFace, Trash2 } from 'lucide-react';
-import { Phone } from 'lucide-react';
+import { Phone, Wifi, Loader2, CheckCircle2, XCircle, ExternalLink } from 'lucide-react';
+import { detectOS } from '../utils/platform';
 import toast from 'react-hot-toast';
 import PageHeader from '../components/PageHeader';
 import { useApp } from '../context/AppContext';
@@ -22,6 +23,47 @@ export default function SettingsPage() {
   const fileRef = useRef<HTMLInputElement | null>(null);
   const [kv, setKV] = useState<KVStatus | null>(null);
   const [kvBusy, setKvBusy] = useState(false);
+  const [wsTest, setWsTest] = useState<'idle' | 'testing' | 'ok' | 'fail'>('idle');
+  const [wsTestMsg, setWsTestMsg] = useState('');
+  const os = detectOS();
+
+  // SIP server WebSocket'iga ulanib ko'rish — Asterisk'da WS yoqilganini tekshiradi
+  async function testWebSocket() {
+    const uri = draft.sip?.wsUri?.trim();
+    if (!uri) {
+      setWsTest('fail');
+      setWsTestMsg('WebSocket URI kiritilmagan');
+      return;
+    }
+    setWsTest('testing');
+    setWsTestMsg('Ulanmoqda...');
+    try {
+      const ws = new WebSocket(uri, ['sip']);
+      const timer = setTimeout(() => {
+        setWsTest('fail');
+        setWsTestMsg("Vaqt tugadi — server javob bermadi (10s). Asterisk'da WS yoqilmagan yoki port to'sib qo'yilgan.");
+        try { ws.close(); } catch {}
+      }, 10000);
+      ws.onopen = () => {
+        clearTimeout(timer);
+        setWsTest('ok');
+        setWsTestMsg('Muvaffaqiyatli ulandi! WebSocket ishlayapti, WebRTC rejimi mumkin.');
+        try { ws.close(); } catch {}
+      };
+      ws.onerror = () => {
+        clearTimeout(timer);
+        setWsTest('fail');
+        setWsTestMsg(
+          uri.startsWith('ws://') && window.location.protocol === 'https:'
+            ? "Aralash kontent xatosi: sayt HTTPS'da, lekin server ws://. Asterisk'da wss:// yoqing yoki saytni HTTP'da oching."
+            : "Ulanish xatosi. Server manzili va portni tekshiring (Asterisk'da chan_pjsip + WS yoqilgan bo'lishi kerak)."
+        );
+      };
+    } catch (err: any) {
+      setWsTest('fail');
+      setWsTestMsg(err?.message ?? "Noma'lum xato");
+    }
+  }
 
   const oldResolvedCount = (() => {
     const cutoff = Date.now() - (draft.archiveAfterDays || 365) * 86_400_000;
@@ -517,12 +559,70 @@ export default function SettingsPage() {
           </div>
           )}
           {(draft.sip?.mode ?? 'external') === 'external' ? (
-          <div className="mt-3 p-3 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/40 text-[11px] text-emerald-800 dark:text-emerald-200 space-y-1">
-            <div className="font-bold">✅ MicroSIP rejimi tanlandi — eng oddiy yo'l</div>
-            <div>1. Kompyuteringizda MicroSIP ochiq turishi va o'z hisobiga ulangan bo'lishi kerak.</div>
-            <div>2. Sayt orqali raqamga bosilganda brauzer <code className="font-mono">callto:</code> URL'ni MicroSIP'ga uzatadi.</div>
-            <div>3. Birinchi marta brauzer "Qaysi dasturda ochish?" deb so'rashi mumkin — MicroSIP'ni tanlab "Doimo" ga belgi qo'ying.</div>
-            <div>4. Agar MicroSIP javob bermasa, Sozlamalardan boshqa sxemani (tel: yoki sip:) sinab ko'ring.</div>
+          <div className="mt-3 p-3 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/40 text-[11px] text-emerald-800 dark:text-emerald-200 space-y-2">
+            <div className="font-bold text-sm">
+              ✅ Tashqi softphone rejimi
+              {' · '}
+              <span className="text-emerald-700 dark:text-emerald-300">
+                Aniqlandi: {os === 'mac' ? '🍎 macOS' : os === 'windows' ? '🪟 Windows' : os === 'linux' ? '🐧 Linux' : os === 'ios' ? '📱 iOS' : os === 'android' ? '🤖 Android' : 'noma\'lum OS'}
+              </span>
+            </div>
+            {os === 'mac' && (
+              <div className="space-y-1.5">
+                <div className="font-semibold">Mac M1/M2 uchun sozlash:</div>
+                <ol className="list-decimal list-inside space-y-1 ml-1">
+                  <li>
+                    <b>Linphone</b>'ni o'rnating (bepul, Apple Silicon native):{' '}
+                    <a href="https://www.linphone.org/technical-corner/linphone/downloads" target="_blank" rel="noreferrer" className="underline font-mono">
+                      linphone.org/downloads
+                    </a>
+                    {' '}— yoki App Store'dan <b>Telephone</b>
+                  </li>
+                  <li>
+                    Linphone'da hisob qo'shing: <code className="font-mono">Settings → Accounts → +</code>
+                    <ul className="list-disc list-inside ml-4 mt-1 text-[10px]">
+                      <li>Username: 222 (yoki o'zingiznikini)</li>
+                      <li>SIP Domain: 192.168.7.253</li>
+                      <li>Password: ******</li>
+                      <li>Transport: UDP (yoki TCP)</li>
+                    </ul>
+                  </li>
+                  <li>
+                    macOS'da default SIP handler qiling: ushbu URL'ga bosing —{' '}
+                    <code className="font-mono">sip:test@example.com</code>
+                    {' '}— brauzer Linphone tanlashni so'raydi → "Doimo" ni belgilang
+                  </li>
+                  <li>
+                    Sxema sifatida quyida <code className="font-mono">sip:</code> ni tanlang (mac'da callto: ishlamaydi)
+                  </li>
+                </ol>
+              </div>
+            )}
+            {os === 'windows' && (
+              <div className="space-y-1">
+                <div className="font-semibold">Windows uchun:</div>
+                <ol className="list-decimal list-inside space-y-0.5 ml-1">
+                  <li>MicroSIP'ni o'rnating va sizning Asterisk hisobiga ulang (allaqachon ishlayotgan bo'lsa kerak)</li>
+                  <li>Birinchi qo'ng'iroqda brauzer "qaysi dasturda ochish?" so'raydi — MicroSIP'ni tanlang, "Doimo" belgilang</li>
+                  <li>Sxema: <code className="font-mono">callto:</code> (default)</li>
+                </ol>
+              </div>
+            )}
+            {os === 'linux' && (
+              <div>
+                <b>Linux:</b> Linphone yoki Ekiga o'rnating, <code className="font-mono">sip:</code> sxemasini ishlating.
+              </div>
+            )}
+            {(os === 'ios' || os === 'android') && (
+              <div>
+                <b>Mobil OS:</b> Linphone (Android/iOS) yoki Acrobits Groundwire o'rnating, <code className="font-mono">tel:</code> yoki <code className="font-mono">sip:</code> sxemasini ishlating.
+              </div>
+            )}
+            <div className="pt-1.5 border-t border-emerald-200 dark:border-emerald-800/40">
+              <b>📌 Eslatma:</b> Brauzer xavfsizlik sababli to'g'ridan-to'g'ri UDP/TCP SIP'ga
+              ulana olmaydi. Tashqi softphone (MicroSIP/Linphone) shu sababdan kerak.
+              Agar Asterisk'da WebSocket yoqilsa — WebRTC rejimi to'g'ridan-to'g'ri ishlaydi.
+            </div>
           </div>
           ) : (
           <div className="mt-3 p-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40 text-[11px] text-amber-800 dark:text-amber-200 space-y-1">
@@ -537,6 +637,39 @@ export default function SettingsPage() {
             <div className="font-semibold pt-1">
               🔒 Telefon kodlari sayt ichiga to'liq bundle qilingan — tashqi telefon servisi YO'Q.
               Brauzeringiz to'g'ridan-to'g'ri sizning serveringizga ulanadi.
+            </div>
+
+            {/* WebSocket test tugmasi */}
+            <div className="pt-2 border-t border-amber-200 dark:border-amber-800/40">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={testWebSocket}
+                  disabled={wsTest === 'testing' || !draft.sip?.wsUri}
+                  className="btn-primary text-xs disabled:opacity-50"
+                >
+                  {wsTest === 'testing' ? (
+                    <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Tekshirilmoqda...</>
+                  ) : (
+                    <><Wifi className="h-3.5 w-3.5" /> WebSocket'ni sinab ko'rish</>
+                  )}
+                </button>
+                {wsTest === 'ok' && (
+                  <span className="flex items-center gap-1 text-emerald-700 dark:text-emerald-300 text-xs">
+                    <CheckCircle2 className="h-3.5 w-3.5" /> Ulandi
+                  </span>
+                )}
+                {wsTest === 'fail' && (
+                  <span className="flex items-center gap-1 text-rose-700 dark:text-rose-300 text-xs">
+                    <XCircle className="h-3.5 w-3.5" /> Xato
+                  </span>
+                )}
+              </div>
+              {wsTestMsg && wsTest !== 'idle' && (
+                <p className={`text-[11px] mt-1.5 ${wsTest === 'ok' ? 'text-emerald-700 dark:text-emerald-300' : wsTest === 'fail' ? 'text-rose-700 dark:text-rose-300' : 'text-amber-700 dark:text-amber-300'}`}>
+                  {wsTestMsg}
+                </p>
+              )}
             </div>
           </div>
           )}

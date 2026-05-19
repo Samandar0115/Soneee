@@ -22,7 +22,7 @@ export const seedAppSettings: AppSettings = {
   sip: {
     enabled: true,
     mode: 'external',
-    externalScheme: 'callto',
+    // externalScheme bo'sh — OS bo'yicha avtomatik (Win→callto, Mac→sip, mobil→tel)
     serverHost: '',
     wsUri: '',
   },
