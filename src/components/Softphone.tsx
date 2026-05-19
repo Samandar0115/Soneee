@@ -35,18 +35,12 @@ const STATE_LABELS: Record<SipState, string> = {
   ended: 'Tugadi',
 };
 
-// Tashqi softphone (MicroSIP/Linphone/Telephone) orqali qo'ng'iroq qilish.
-// Har doim sip:NUMBER@DOMAIN formatida yuboradi — softphone bu URI'ni to'g'ri tushunadi.
+// OS softphone'iga sip:NUMBER@DOMAIN orqali uzatish (fallback yo'l).
+// Sayt to'g'ridan-to'g'ri WebRTC'da ulansa bu ishlatilmaydi.
 function launchExternalCall(number: string, host: string) {
   const cleaned = number.replace(/[^\d+*#]/g, '');
-  if (!cleaned) return;
-  const target = (host || '').trim();
-  if (!target) {
-    alert("SIP server (Домен) kiritilmagan. Sozlamalardan kiriting.");
-    return;
-  }
-  const url = `sip:${cleaned}@${target}`;
-  // macOS/iOS Safari iframe'da custom URL ochmaydi — location.href ishlatamiz
+  if (!cleaned || !host) return;
+  const url = `sip:${cleaned}@${host.trim()}`;
   const os = detectOS();
   if (os === 'mac' || os === 'ios') {
     window.location.href = url;
@@ -58,9 +52,7 @@ function launchExternalCall(number: string, host: string) {
     iframe.src = url;
     document.body.appendChild(iframe);
     setTimeout(() => {
-      try {
-        document.body.removeChild(iframe);
-      } catch {}
+      try { document.body.removeChild(iframe); } catch {}
     }, 1500);
   } catch {
     window.location.href = url;
@@ -70,7 +62,6 @@ function launchExternalCall(number: string, host: string) {
 export default function Softphone() {
   const { settings, currentUser } = useApp();
   const sip = settings.sip;
-  const mode = sip?.mode ?? 'external';
   const [state, setState] = useState<SipState>('disconnected');
   const [call, setCall] = useState<SipCallInfo | null>(null);
   const [error, setError] = useState('');
@@ -79,12 +70,11 @@ export default function Softphone() {
   const [muted, setMuted] = useState(false);
   const [held, setHeld] = useState(false);
   const [elapsed, setElapsed] = useState(0);
-  const [externalToast, setExternalToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
   const elapsedTimer = useRef<number | null>(null);
 
-  // WebRTC rejimida JsSIP uchun konfiguratsiyani yig'amiz. External rejimda kerak emas.
+  // Foydalanuvchi va sozlamalardan amaldagi SIP konfiguratsiyani yig'amiz
   const effectiveSip: SipConfig | null = useMemo(() => {
-    if (mode !== 'webrtc') return null;
     if (!sip || !sip.enabled || !sip.wsUri) return null;
     const host = (sip.serverHost || '').trim();
     if (!host) return null;
@@ -98,7 +88,7 @@ export default function Softphone() {
         proxy: sip.proxy,
         wsUri: sip.wsUri,
         iceServers: sip.iceServers,
-        registerExpiresSec: sip.registerExpiresSec,
+        registerExpiresSec: sip.registerExpiresSec ?? 120,
         sipUri: `sip:${currentUser.sipExtension}@${domain}`,
         password: currentUser.sipPassword,
         displayName:
@@ -106,37 +96,20 @@ export default function Softphone() {
         registrar: `sip:${host}`,
       };
     }
-    if (sip.sipUri && sip.password) {
-      return {
-        enabled: true,
-        mode: 'webrtc',
-        serverHost: host,
-        domain,
-        proxy: sip.proxy,
-        wsUri: sip.wsUri,
-        iceServers: sip.iceServers,
-        registerExpiresSec: sip.registerExpiresSec,
-        sipUri: sip.sipUri,
-        password: sip.password,
-        displayName: sip.displayName,
-        registrar: sip.registrar || `sip:${host}`,
-      };
-    }
     return null;
-  }, [sip, currentUser, mode]);
+  }, [sip, currentUser]);
 
-  // WebRTC rejim: JsSIP'ni boshqaramiz. External rejim: SIP'ni o'chiramiz.
+  // WebRTC'ni boshqarish — aktiv qo'ng'iroq paytida tegmaymiz
   useEffect(() => {
     const cur = sipPhone.getState();
     const inActiveCall = cur === 'in_call' || cur === 'incoming' || cur === 'ringing_out';
     if (inActiveCall) return;
-    if (mode === 'webrtc' && effectiveSip) {
+    if (effectiveSip) {
       sipPhone.start(effectiveSip);
     } else {
       sipPhone.stop();
     }
   }, [
-    mode,
     effectiveSip?.enabled,
     effectiveSip?.wsUri,
     effectiveSip?.sipUri,
@@ -146,7 +119,6 @@ export default function Softphone() {
   ]);
 
   useEffect(() => {
-    if (mode !== 'webrtc') return;
     const off = sipPhone.on((s, info, err) => {
       setState(s);
       setCall(info ?? null);
@@ -158,7 +130,7 @@ export default function Softphone() {
       }
     });
     return off;
-  }, [mode]);
+  }, []);
 
   useEffect(() => {
     if (state === 'in_call' && call?.startedAt) {
@@ -175,176 +147,21 @@ export default function Softphone() {
     };
   }, [state, call?.startedAt]);
 
-  // Global "ipost:dial" hodisa — istalgan joydan qo'ng'iroq
+  // Global "ipost:dial" hodisa
   useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail as { number?: string };
       if (!detail?.number) return;
       setDialer(detail.number);
-      if (mode === 'external') {
-        // Domain bo'sh bo'lsa server host'dan foydalanamiz
-        const dialHost = (sip?.domain || sip?.serverHost || '').trim();
-        launchExternalCall(detail.number, dialHost);
-        setExternalToast(`Softphone'ga uzatildi: ${detail.number}@${dialHost}`);
-        setTimeout(() => setExternalToast(null), 2500);
-      } else {
-        setOpen(true);
-        if (state === 'registered') {
-          sipPhone.dial(detail.number);
-        }
-      }
+      smartDial(detail.number);
     };
     window.addEventListener('ipost:dial', handler);
     return () => window.removeEventListener('ipost:dial', handler);
-  }, [state, mode, sip?.externalScheme, sip?.serverHost]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state, sip?.domain, sip?.serverHost]);
 
   if (!currentUser) return null;
 
-  // === EXTERNAL (MicroSIP) REJIMI ===
-  if (mode === 'external') {
-    function externalDial() {
-      if (!dialer.trim()) return;
-      const dialHost = (sip?.domain || sip?.serverHost || '').trim();
-      launchExternalCall(dialer.trim(), dialHost);
-      setExternalToast(`Softphone'ga uzatildi: ${dialer}@${dialHost}`);
-      setTimeout(() => setExternalToast(null), 2500);
-    }
-
-    return (
-      <>
-        <style>{`
-          @keyframes phone-jingle {
-            0%, 100% { transform: rotate(0deg); }
-            10%, 30%, 50%, 70%, 90% { transform: rotate(-14deg); }
-            20%, 40%, 60%, 80% { transform: rotate(14deg); }
-          }
-          .phone-jingle-hover:hover .phone-icon-inner {
-            animation: phone-jingle 0.7s ease-in-out infinite;
-            transform-origin: center;
-          }
-          .phone-jingle-hover:hover {
-            box-shadow:
-              0 0 0 8px rgba(56, 189, 248, 0.18),
-              0 0 0 16px rgba(56, 189, 248, 0.10),
-              0 12px 30px rgba(2, 132, 199, 0.45);
-          }
-        `}</style>
-
-        {/* Toast — MicroSIP'ga uzatilganda chiqadi */}
-        <AnimatePresence>
-          {externalToast && (
-            <motion.div
-              initial={{ opacity: 0, y: 20, scale: 0.9 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 20, scale: 0.9 }}
-              className="fixed right-4 bottom-40 md:bottom-24 z-[60] px-4 py-2.5 bg-sky-600 text-white rounded-2xl shadow-2xl text-sm font-semibold flex items-center gap-2"
-            >
-              <ExternalLink className="h-4 w-4" />
-              {externalToast}
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        <AnimatePresence>
-          {!open && (
-            <motion.button
-              layoutId="softphone-bubble"
-              initial={{ opacity: 0, scale: 0.6 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.6 }}
-              whileTap={{ scale: 0.92 }}
-              onClick={() => setOpen(true)}
-              className="fixed right-4 bottom-20 md:bottom-4 z-50 h-14 w-14 rounded-full shadow-2xl text-white flex items-center justify-center relative phone-jingle-hover transition-shadow bg-gradient-to-br from-sky-500 to-blue-600"
-              title="MicroSIP orqali qo'ng'iroq"
-            >
-              <span className="phone-icon-inner inline-flex">
-                <Phone className="h-6 w-6" />
-              </span>
-            </motion.button>
-          )}
-        </AnimatePresence>
-
-        <AnimatePresence>
-          {open && (
-            <motion.div
-              layoutId="softphone-bubble"
-              initial={{ borderRadius: 9999 }}
-              animate={{ borderRadius: 24 }}
-              exit={{ borderRadius: 9999 }}
-              transition={{ type: 'spring', stiffness: 260, damping: 26 }}
-              className="fixed right-4 bottom-20 md:bottom-4 z-50 w-80 max-w-[calc(100vw-2rem)] shadow-2xl overflow-hidden text-white bg-gradient-to-br from-sky-500 to-blue-600"
-            >
-              <div className="flex items-center justify-between px-4 py-3 border-b border-white/15">
-                <div className="flex items-center gap-2 text-sm font-bold">
-                  <ExternalLink className="h-4 w-4" />
-                  MicroSIP qo'ng'iroq
-                </div>
-                <button
-                  onClick={() => setOpen(false)}
-                  className="p-1.5 rounded-lg hover:bg-white/20"
-                  title="Minimallashtirish"
-                >
-                  <Minus className="h-4 w-4" />
-                </button>
-              </div>
-
-              <div className="p-4">
-                <div className="mb-3 p-3 rounded-xl bg-white/10 border border-white/20 text-[11px] text-white/95">
-                  <div className="font-bold mb-1">Qanday ishlaydi?</div>
-                  <div className="text-white/85">
-                    Raqamga bosing — kompyuteringizda <b>MicroSIP</b> avtomatik ochilib qo'ng'iroq qiladi.
-                    Sayt va MicroSIP birga ishlaydi.
-                  </div>
-                </div>
-
-                <div className="flex gap-1 mb-2">
-                  <input
-                    type="tel"
-                    className="flex-1 text-center font-mono text-lg bg-white/15 placeholder-white/60 text-white rounded-xl px-3 py-2 outline-none focus:bg-white/25"
-                    placeholder="Raqam kiriting..."
-                    value={dialer}
-                    onChange={(e) => setDialer(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && externalDial()}
-                  />
-                  <button
-                    onClick={() => setDialer(dialer.slice(0, -1))}
-                    className="px-3 rounded-xl bg-white/15 hover:bg-white/25 text-white"
-                    title="O'chirish"
-                    disabled={!dialer}
-                  >
-                    <Delete className="h-4 w-4" />
-                  </button>
-                </div>
-                <div className="grid grid-cols-3 gap-1.5 mb-3">
-                  {['1', '2', '3', '4', '5', '6', '7', '8', '9', '*', '0', '#'].map((d) => (
-                    <button
-                      key={d}
-                      onClick={() => setDialer((v) => v + d)}
-                      className="py-2.5 rounded-xl bg-white/15 hover:bg-white/25 font-bold text-white"
-                    >
-                      {d}
-                    </button>
-                  ))}
-                </div>
-                <button
-                  onClick={externalDial}
-                  disabled={!dialer.trim() || !(sip?.domain || sip?.serverHost)}
-                  className="w-full py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-white font-bold flex items-center justify-center gap-2 disabled:opacity-50 shadow-lg"
-                >
-                  <Phone className="h-5 w-5" /> Qo'ng'iroq qilish
-                </button>
-                <p className="text-[10px] text-white/70 mt-2 text-center font-mono">
-                  sip:{dialer || 'NUMBER'}@{(sip?.domain || sip?.serverHost) || '<domen kiriting>'}
-                </p>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </>
-    );
-  }
-
-  // === WEBRTC (ICHKI) REJIMI ===
   const isInCall = state === 'in_call' || state === 'incoming' || state === 'ringing_out';
   const isRegistered = state === 'registered' || isInCall;
   const isConnecting = state === 'connecting';
@@ -371,9 +188,32 @@ export default function Softphone() {
     return `${mm}:${ss}`;
   }
 
+  // SMART DIAL: sayt ichida WebRTC ulangan bo'lsa unda, aks holda OS sip: orqali
+  function smartDial(num: string) {
+    const cleaned = num.trim();
+    if (!cleaned) return;
+    if (isRegistered) {
+      sipPhone.dial(cleaned);
+    } else {
+      // Fallback — OS softphone'iga uzatish
+      const host = (sip?.domain || sip?.serverHost || '').trim();
+      if (!host) {
+        showToast("SIP server kiritilmagan — Sozlamalardan to'ldiring");
+        return;
+      }
+      launchExternalCall(cleaned, host);
+      showToast(`Tashqi softphone'ga uzatildi: ${cleaned}@${host}`);
+    }
+  }
+
+  function showToast(msg: string) {
+    setToast(msg);
+    setTimeout(() => setToast(null), 2800);
+  }
+
   function dial() {
     if (!dialer.trim()) return;
-    sipPhone.dial(dialer.trim());
+    smartDial(dialer.trim());
   }
 
   return (
@@ -396,6 +236,21 @@ export default function Softphone() {
         }
       `}</style>
 
+      {/* Toast — fallback bo'lganda chiqadi */}
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: 20, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.9 }}
+            className="fixed right-4 bottom-40 md:bottom-24 z-[60] px-4 py-2.5 bg-sky-600 text-white rounded-2xl shadow-2xl text-sm font-semibold flex items-center gap-2 max-w-xs"
+          >
+            <ExternalLink className="h-4 w-4 flex-shrink-0" />
+            <span className="break-all">{toast}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <AnimatePresence>
         {!open && (
           <motion.button
@@ -406,7 +261,7 @@ export default function Softphone() {
             whileTap={{ scale: 0.92 }}
             onClick={() => setOpen(true)}
             className={`fixed right-4 bottom-20 md:bottom-4 z-50 h-14 w-14 rounded-full shadow-2xl text-white flex items-center justify-center relative phone-jingle-hover transition-shadow ${bubbleColor} ${pulseRing}`}
-            title={hasProblem ? "Qo'ng'iroq bilan muammo bor" : STATE_LABELS[state]}
+            title={hasProblem ? "Qo'ng'iroq tayyor (tashqi softphone fallback)" : STATE_LABELS[state]}
           >
             <span className="phone-icon-inner inline-flex">
               {isConnecting ? (
@@ -418,7 +273,10 @@ export default function Softphone() {
               )}
             </span>
             {hasProblem && (
-              <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-rose-500 border-2 border-white flex items-center justify-center">
+              <span
+                className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-amber-400 border-2 border-white flex items-center justify-center"
+                title="Sayt ichidagi ulanish yo'q — fallback rejim"
+              >
                 <span className="h-1.5 w-1.5 rounded-full bg-white" />
               </span>
             )}
@@ -439,7 +297,7 @@ export default function Softphone() {
             <div className="flex items-center justify-between px-4 py-3 border-b border-white/15 backdrop-blur-sm">
               <div className="flex items-center gap-2 text-sm font-bold">
                 {isRegistered ? <Wifi className="h-4 w-4" /> : <WifiOff className="h-4 w-4" />}
-                Softphone (WebRTC)
+                Telefon
               </div>
               <button
                 onClick={() => setOpen(false)}
@@ -452,25 +310,27 @@ export default function Softphone() {
 
             <div className="p-4">
               <div className="flex items-center gap-2 text-xs mb-3 text-white/90">
-                <span className="h-2 w-2 rounded-full bg-white/90" />
-                <span className="font-semibold">{STATE_LABELS[state]}</span>
+                <span className={`h-2 w-2 rounded-full ${isRegistered ? 'bg-emerald-300' : 'bg-amber-300'}`} />
+                <span className="font-semibold">
+                  {isRegistered ? 'Server bilan ulangan' : hasProblem ? 'Fallback rejim (tashqi softphone)' : STATE_LABELS[state]}
+                </span>
               </div>
 
               {hasProblem && !isInCall && (
-                <div className="mb-3 p-3 rounded-xl bg-rose-500/25 border border-rose-300/40 text-white text-xs flex items-start gap-2">
-                  <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                <div className="mb-3 p-3 rounded-xl bg-white/10 border border-white/20 text-white text-[11px] flex items-start gap-2">
+                  <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5 text-amber-200" />
                   <div className="space-y-1">
-                    <div className="font-bold">Hozir sizda qo'ng'iroq bilan muammo bor</div>
+                    <div className="font-bold">Sayt ichidagi ulanish faol emas</div>
                     <div className="text-white/85">
-                      {!effectiveSip
-                        ? !sip?.enabled
-                          ? 'SIP server yoqilmagan.'
-                          : !sip?.serverHost
-                          ? 'Server host kiritilmagan.'
-                          : !currentUser?.sipExtension || !currentUser?.sipPassword
-                          ? "Sizning SIP extension/parolingiz kiritilmagan."
-                          : "Sozlamalar to'liq emas."
-                        : error || "Serverga ulanib bo'lmadi."}
+                      {!sip?.enabled
+                        ? 'SIP Sozlamalardan yoqilmagan.'
+                        : !sip?.serverHost
+                        ? 'SIP server kiritilmagan.'
+                        : !sip?.wsUri
+                        ? 'WebSocket URI kiritilmagan (Sozlamalardan yoqing).'
+                        : !currentUser?.sipExtension || !currentUser?.sipPassword
+                        ? "Sizning Login/Parolingiz Xodimlar bo'limidan kiritilmagan."
+                        : error || 'Serverga ulanib bo\'lmadi. Raqamga bossangiz OS softphone\'iga uzatiladi.'}
                     </div>
                   </div>
                 </div>
@@ -573,7 +433,6 @@ export default function Softphone() {
                       value={dialer}
                       onChange={(e) => setDialer(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && dial()}
-                      disabled={!isRegistered}
                     />
                     <button
                       onClick={() => setDialer(dialer.slice(0, -1))}
@@ -596,11 +455,16 @@ export default function Softphone() {
                   </div>
                   <button
                     onClick={dial}
-                    disabled={!isRegistered || !dialer.trim()}
+                    disabled={!dialer.trim()}
                     className="w-full py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-white font-bold flex items-center justify-center gap-2 disabled:opacity-50 shadow-lg"
                   >
                     <Phone className="h-5 w-5" /> Qo'ng'iroq qilish
                   </button>
+                  {hasProblem && dialer && (sip?.domain || sip?.serverHost) && (
+                    <p className="text-[10px] text-white/70 mt-2 text-center font-mono">
+                      sip:{dialer}@{sip?.domain || sip?.serverHost}
+                    </p>
+                  )}
                 </>
               )}
             </div>
@@ -611,8 +475,7 @@ export default function Softphone() {
   );
 }
 
-// Boshqa komponentlardan qo'ng'iroq qilish uchun helper.
-// Softphone komponenti hodisani tutib oladi va mode ('external' yoki 'webrtc')'ga qarab harakat qiladi.
+// Boshqa komponentlardan qo'ng'iroq qilish uchun helper
 export function dialNumber(number: string) {
   window.dispatchEvent(new CustomEvent('ipost:dial', { detail: { number } }));
 }

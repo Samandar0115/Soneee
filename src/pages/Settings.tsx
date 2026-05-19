@@ -84,6 +84,21 @@ export default function SettingsPage() {
     checkKVStatus().then(setKV);
   }, []);
 
+  // Auto-save: draft o'zgarsa, 800ms keyin avtomatik saqlanadi (debounce)
+  const autoSaveTimerRef = useRef<number | null>(null);
+  useEffect(() => {
+    // Birinchi render'da saqlamaymiz (settings == draft)
+    if (draft === settings) return;
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    autoSaveTimerRef.current = window.setTimeout(() => {
+      saveSettings(draft);
+    }, 800);
+    return () => {
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft]);
+
   async function refreshKV() {
     resetKVStatus();
     const s = await checkKVStatus();
@@ -332,14 +347,19 @@ export default function SettingsPage() {
         <div className="card p-6 lg:col-span-2">
           <div className="flex items-center gap-2 mb-3">
             <Phone className="h-5 w-5 text-brand-600" />
-            <h3 className="font-bold">SIP server (mahalliy)</h3>
+            <h3 className="font-bold">SIP telefon liniyasi</h3>
+            {draft.sip?.enabled && (
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 font-semibold">
+                Avtomatik saqlanadi
+              </span>
+            )}
           </div>
-          <p className="text-xs text-slate-500 mb-3">
-            Asterisk/FreePBX yoki shunga o'xshash mahalliy SIP server manzili (masalan
-            <code className="mx-1 px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 font-mono">192.168.7.10</code>).
-            Har bir operatorning <b>SIP extension va paroli</b> esa Xodimlar bo'limidan kiritiladi.
+          <p className="text-xs text-slate-500 mb-4">
+            Mahalliy PBX server (Asterisk) ma'lumotlari — bu yerda <b>bir marta</b> kiritiladi. Har bir hodimning
+            shaxsiy Login va paroli esa <b>Xodimlar</b> bo'limidan. Yozayotganingiz darhol saqlanadi.
           </p>
-          <label className="flex items-center gap-2 mb-3 cursor-pointer">
+
+          <label className="flex items-center gap-2 mb-4 cursor-pointer select-none">
             <input
               type="checkbox"
               checked={!!draft.sip?.enabled}
@@ -347,127 +367,60 @@ export default function SettingsPage() {
                 setDraft({
                   ...draft,
                   sip: {
-                    ...(draft.sip ?? {
-                      mode: 'external',
-                      externalScheme: 'callto',
-                      serverHost: '',
-                      wsUri: '',
-                    }),
+                    ...(draft.sip ?? { mode: 'webrtc', serverHost: '', wsUri: '' }),
                     enabled: e.target.checked,
+                    mode: draft.sip?.mode ?? 'webrtc',
                   } as any,
                 })
               }
               className="h-4 w-4"
             />
-            <span className="text-sm font-semibold">SIP yoqilgan</span>
+            <span className="text-sm font-semibold">SIP telefon liniyasi yoqilgan</span>
           </label>
 
-          {/* Rejim tanlash */}
-          <div className="mb-4">
-            <label className="label mb-2">Qo'ng'iroq rejimi</label>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() =>
-                  setDraft({
-                    ...draft,
-                    sip: { ...(draft.sip ?? { enabled: true, serverHost: '', wsUri: '' }), mode: 'external' } as any,
-                  })
-                }
-                className={`p-3 rounded-xl border-2 text-left transition ${
-                  (draft.sip?.mode ?? 'external') === 'external'
-                    ? 'border-brand-500 bg-brand-50 dark:bg-brand-900/20'
-                    : 'border-slate-200 dark:border-slate-700 hover:border-slate-300'
-                }`}
-              >
-                <div className="font-bold text-sm">📞 MicroSIP orqali (tavsiya etiladi)</div>
-                <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-                  Saytda raqamga bosilganda PC'dagi MicroSIP avtomatik ochilib qo'ng'iroq qiladi.
-                  Hech qanday server o'zgartirishi shart emas.
-                </div>
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  setDraft({
-                    ...draft,
-                    sip: { ...(draft.sip ?? { enabled: true, serverHost: '', wsUri: '' }), mode: 'webrtc' } as any,
-                  })
-                }
-                className={`p-3 rounded-xl border-2 text-left transition ${
-                  draft.sip?.mode === 'webrtc'
-                    ? 'border-brand-500 bg-brand-50 dark:bg-brand-900/20'
-                    : 'border-slate-200 dark:border-slate-700 hover:border-slate-300'
-                }`}
-              >
-                <div className="font-bold text-sm">🌐 WebRTC (sayt ichida)</div>
-                <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-                  To'g'ridan-to'g'ri brauzerda qo'ng'iroq. Asterisk'da WebSocket (chan_pjsip ws) yoqilgan bo'lishi kerak.
-                </div>
-              </button>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="label">SIP-сервер</label>
               <input
-                className="input mt-1 font-mono text-xs"
+                className="input mt-1 font-mono"
                 placeholder="192.168.7.253"
                 value={draft.sip?.serverHost ?? ''}
                 onChange={(e) =>
                   setDraft({
                     ...draft,
                     sip: {
-                      ...(draft.sip ?? { enabled: false, wsUri: '' }),
+                      ...(draft.sip ?? { enabled: false, mode: 'webrtc', wsUri: '' }),
                       serverHost: e.target.value,
                     } as any,
                   })
                 }
               />
               <p className="text-[11px] text-slate-400 mt-1">
-                MicroSIP'dagi "SIP-сервер" maydoni bilan bir xil.
+                MicroSIP'dagi "SIP-сервер" maydoni
               </p>
             </div>
+
             <div>
               <label className="label">Домен</label>
               <input
-                className="input mt-1 font-mono text-xs"
+                className="input mt-1 font-mono"
                 placeholder="192.168.7.253"
                 value={draft.sip?.domain ?? ''}
                 onChange={(e) =>
                   setDraft({
                     ...draft,
                     sip: {
-                      ...(draft.sip ?? { enabled: false, wsUri: '', serverHost: '' }),
+                      ...(draft.sip ?? { enabled: false, mode: 'webrtc', wsUri: '', serverHost: '' }),
                       domain: e.target.value,
                     } as any,
                   })
                 }
               />
               <p className="text-[11px] text-slate-400 mt-1">
-                MicroSIP'dagi "Домен" — odatda server bilan bir xil. Qo'ng'iroq @{draft.sip?.domain || draft.sip?.serverHost || 'DOMAIN'} ga yuboriladi.
+                Odatda server bilan bir xil. Qo'ng'iroq <code className="font-mono">@{draft.sip?.domain || draft.sip?.serverHost || '...'}</code> ga ketadi
               </p>
             </div>
-            {(draft.sip?.mode ?? 'external') === 'webrtc' && (
-            <>
-            <div>
-              <label className="label">SIP-прокси (ixtiyoriy)</label>
-              <input
-                className="input mt-1 font-mono text-xs"
-                placeholder="bo'sh"
-                value={draft.sip?.proxy ?? ''}
-                onChange={(e) =>
-                  setDraft({
-                    ...draft,
-                    sip: {
-                      ...(draft.sip ?? { enabled: false, wsUri: '', serverHost: '' }),
-                      proxy: e.target.value,
-                    } as any,
-                  })
-                }
-              />
-            </div>
+
             <div>
               <label className="label">WebSocket URI</label>
               <input
@@ -478,172 +431,93 @@ export default function SettingsPage() {
                   setDraft({
                     ...draft,
                     sip: {
-                      ...(draft.sip ?? { enabled: false, serverHost: '' }),
+                      ...(draft.sip ?? { enabled: false, mode: 'webrtc', serverHost: '' }),
                       wsUri: e.target.value,
                     } as any,
                   })
                 }
               />
+              <p className="text-[11px] text-slate-400 mt-1">
+                Sayt ichida qo'ng'iroq qilish uchun (Asterisk WebSocket)
+              </p>
             </div>
+
             <div>
               <label className="label">Обновить регистрацию (sek)</label>
               <input
                 type="number"
-                className="input mt-1 font-mono text-xs"
+                className="input mt-1 font-mono"
                 placeholder="120"
                 value={draft.sip?.registerExpiresSec ?? ''}
                 onChange={(e) =>
                   setDraft({
                     ...draft,
                     sip: {
-                      ...(draft.sip ?? { enabled: false, wsUri: '', serverHost: '' }),
+                      ...(draft.sip ?? { enabled: false, mode: 'webrtc', wsUri: '', serverHost: '' }),
                       registerExpiresSec: e.target.value ? Number(e.target.value) : undefined,
                     } as any,
                   })
                 }
               />
-            </div>
-            </>
-            )}
-          </div>
-          {(draft.sip?.mode ?? 'external') === 'webrtc' && (
-          <div className="mt-3">
-            <label className="label">ICE serverlar (ixtiyoriy — LAN ichida bo'sh qoldiring)</label>
-            <input
-              className="input mt-1 font-mono text-xs"
-              placeholder="stun:stun.l.google.com:19302   yoki   turn:user:pass@turn.example.com:3478"
-              value={draft.sip?.iceServers ?? ''}
-              onChange={(e) =>
-                setDraft({
-                  ...draft,
-                  sip: {
-                    ...(draft.sip ?? { enabled: false, wsUri: '', serverHost: '', mode: 'webrtc' }),
-                    iceServers: e.target.value,
-                  } as any,
-                })
-              }
-            />
-            <p className="text-[11px] text-slate-400 mt-1">
-              Vergul yoki probel bilan ajrating. Mahalliy tarmoq (LAN) ichida hech narsa kerak emas.
-            </p>
-          </div>
-          )}
-          {(draft.sip?.mode ?? 'external') === 'external' ? (
-          <div className="mt-3 p-3 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/40 text-[11px] text-emerald-800 dark:text-emerald-200 space-y-2">
-            <div className="font-bold text-sm">
-              ✅ Tashqi softphone rejimi
-              {' · '}
-              <span className="text-emerald-700 dark:text-emerald-300">
-                Aniqlandi: {os === 'mac' ? '🍎 macOS' : os === 'windows' ? '🪟 Windows' : os === 'linux' ? '🐧 Linux' : os === 'ios' ? '📱 iOS' : os === 'android' ? '🤖 Android' : 'noma\'lum OS'}
-              </span>
-            </div>
-            {os === 'mac' && (
-              <div className="space-y-1.5">
-                <div className="font-semibold">Mac M1/M2 uchun sozlash:</div>
-                <ol className="list-decimal list-inside space-y-1 ml-1">
-                  <li>
-                    <b>Linphone</b>'ni o'rnating (bepul, Apple Silicon native):{' '}
-                    <a href="https://www.linphone.org/technical-corner/linphone/downloads" target="_blank" rel="noreferrer" className="underline font-mono">
-                      linphone.org/downloads
-                    </a>
-                    {' '}— yoki App Store'dan <b>Telephone</b>
-                  </li>
-                  <li>
-                    Linphone'da hisob qo'shing: <code className="font-mono">Settings → Accounts → +</code>
-                    <ul className="list-disc list-inside ml-4 mt-1 text-[10px]">
-                      <li>Username: 222 (yoki o'zingiznikini)</li>
-                      <li>SIP Domain: 192.168.7.253</li>
-                      <li>Password: ******</li>
-                      <li>Transport: UDP (yoki TCP)</li>
-                    </ul>
-                  </li>
-                  <li>
-                    macOS'da default SIP handler qiling: ushbu URL'ga bosing —{' '}
-                    <code className="font-mono">sip:test@example.com</code>
-                    {' '}— brauzer Linphone tanlashni so'raydi → "Doimo" ni belgilang
-                  </li>
-                  <li>
-                    Sxema sifatida quyida <code className="font-mono">sip:</code> ni tanlang (mac'da callto: ishlamaydi)
-                  </li>
-                </ol>
-              </div>
-            )}
-            {os === 'windows' && (
-              <div className="space-y-1">
-                <div className="font-semibold">Windows uchun:</div>
-                <ol className="list-decimal list-inside space-y-0.5 ml-1">
-                  <li>MicroSIP'ni o'rnating va sizning Asterisk hisobiga ulang (allaqachon ishlayotgan bo'lsa kerak)</li>
-                  <li>Birinchi qo'ng'iroqda brauzer "qaysi dasturda ochish?" so'raydi — MicroSIP'ni tanlang, "Doimo" belgilang</li>
-                  <li>Sxema: <code className="font-mono">callto:</code> (default)</li>
-                </ol>
-              </div>
-            )}
-            {os === 'linux' && (
-              <div>
-                <b>Linux:</b> Linphone yoki Ekiga o'rnating, <code className="font-mono">sip:</code> sxemasini ishlating.
-              </div>
-            )}
-            {(os === 'ios' || os === 'android') && (
-              <div>
-                <b>Mobil OS:</b> Linphone (Android/iOS) yoki Acrobits Groundwire o'rnating, <code className="font-mono">tel:</code> yoki <code className="font-mono">sip:</code> sxemasini ishlating.
-              </div>
-            )}
-            <div className="pt-1.5 border-t border-emerald-200 dark:border-emerald-800/40">
-              <b>📌 Eslatma:</b> Brauzer xavfsizlik sababli to'g'ridan-to'g'ri UDP/TCP SIP'ga
-              ulana olmaydi. Tashqi softphone (MicroSIP/Linphone) shu sababdan kerak.
-              Agar Asterisk'da WebSocket yoqilsa — WebRTC rejimi to'g'ridan-to'g'ri ishlaydi.
+              <p className="text-[11px] text-slate-400 mt-1">
+                Standart: 120
+              </p>
             </div>
           </div>
-          ) : (
-          <div className="mt-3 p-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40 text-[11px] text-amber-800 dark:text-amber-200 space-y-1">
-            <div>
-              ⓘ Asterisk uchun WebSocket odatda <code className="font-mono">ws://HOST:8088/ws</code> portida turadi
-              (yoki HTTPS bilan <code className="font-mono">wss://HOST:8089/ws</code>).
-            </div>
-            <div>
-              ⚠ Sayt HTTPS'da bo'lsa (Vercel kabi), brauzer <b>wss://</b> talab qiladi. Mahalliy IP uchun
-              odatda LAN ichida ishlatilgan brauzer va SIP server kerak.
-            </div>
-            <div className="font-semibold pt-1">
-              🔒 Telefon kodlari sayt ichiga to'liq bundle qilingan — tashqi telefon servisi YO'Q.
-              Brauzeringiz to'g'ridan-to'g'ri sizning serveringizga ulanadi.
-            </div>
 
-            {/* WebSocket test tugmasi */}
-            <div className="pt-2 border-t border-amber-200 dark:border-amber-800/40">
+          {/* Ulanishni sinab ko'rish */}
+          <div className="mt-4 p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
+            <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={testWebSocket}
-                  disabled={wsTest === 'testing' || !draft.sip?.wsUri}
-                  className="btn-primary text-xs disabled:opacity-50"
-                >
-                  {wsTest === 'testing' ? (
-                    <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Tekshirilmoqda...</>
-                  ) : (
-                    <><Wifi className="h-3.5 w-3.5" /> WebSocket'ni sinab ko'rish</>
-                  )}
-                </button>
-                {wsTest === 'ok' && (
-                  <span className="flex items-center gap-1 text-emerald-700 dark:text-emerald-300 text-xs">
-                    <CheckCircle2 className="h-3.5 w-3.5" /> Ulandi
-                  </span>
-                )}
-                {wsTest === 'fail' && (
-                  <span className="flex items-center gap-1 text-rose-700 dark:text-rose-300 text-xs">
-                    <XCircle className="h-3.5 w-3.5" /> Xato
-                  </span>
-                )}
+                <Wifi className="h-4 w-4 text-brand-600" />
+                <span className="text-sm font-semibold">Server bilan ulanishni tekshirish</span>
               </div>
-              {wsTestMsg && wsTest !== 'idle' && (
-                <p className={`text-[11px] mt-1.5 ${wsTest === 'ok' ? 'text-emerald-700 dark:text-emerald-300' : wsTest === 'fail' ? 'text-rose-700 dark:text-rose-300' : 'text-amber-700 dark:text-amber-300'}`}>
-                  {wsTestMsg}
-                </p>
-              )}
+              <button
+                type="button"
+                onClick={testWebSocket}
+                disabled={wsTest === 'testing' || !draft.sip?.wsUri}
+                className="btn-primary text-xs disabled:opacity-50"
+              >
+                {wsTest === 'testing' ? (
+                  <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Tekshirilmoqda...</>
+                ) : (
+                  <>Sinab ko'rish</>
+                )}
+              </button>
             </div>
+            {wsTest === 'idle' && (
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                WebSocket URI'ni kiritib tekshirib ko'ring. Muvaffaqiyatli ulansa — sayt ichidan to'g'ridan-to'g'ri qo'ng'iroq qilinadi.
+              </p>
+            )}
+            {wsTest === 'ok' && (
+              <div className="flex items-start gap-2 p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800/40">
+                <CheckCircle2 className="h-4 w-4 text-emerald-600 flex-shrink-0 mt-0.5" />
+                <div className="text-xs text-emerald-800 dark:text-emerald-200">
+                  <div className="font-bold">Ulanish muvaffaqiyatli</div>
+                  <div>{wsTestMsg}</div>
+                </div>
+              </div>
+            )}
+            {wsTest === 'fail' && (
+              <div className="flex items-start gap-2 p-2.5 rounded-xl bg-rose-50 dark:bg-rose-900/30 border border-rose-200 dark:border-rose-800/40">
+                <XCircle className="h-4 w-4 text-rose-600 flex-shrink-0 mt-0.5" />
+                <div className="text-xs text-rose-800 dark:text-rose-200">
+                  <div className="font-bold">Ulanib bo'lmadi</div>
+                  <div>{wsTestMsg}</div>
+                </div>
+              </div>
+            )}
           </div>
-          )}
+
+          {/* Diagnostika info */}
+          <div className="mt-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 text-[11px] text-slate-600 dark:text-slate-400 space-y-1">
+            <div className="font-semibold text-slate-700 dark:text-slate-300">Aniqlanish: {detectOS() === 'mac' ? '🍎 macOS' : detectOS() === 'windows' ? '🪟 Windows' : detectOS() === 'linux' ? '🐧 Linux' : detectOS() === 'ios' ? '📱 iOS' : detectOS() === 'android' ? '🤖 Android' : 'noma\'lum OS'}</div>
+            <div>Birinchi navbatda <b>sayt ichidagi softphone</b> ishlatiladi. Server bilan ulanib bo'lmasa, raqamga bosilganda <code className="font-mono">sip:NUMBER@{draft.sip?.domain || draft.sip?.serverHost || 'DOMAIN'}</code> URL'i ochiladi va OS'dagi default softphone qabul qiladi.</div>
+            <div>Hozir Asterisk WebSocket'i hech qanday tekshirilmagan — yuqoridagi tugmani bosib tekshiring.</div>
+          </div>
         </div>
+
 
         <div className="card p-6">
           <div className="flex items-center gap-2 mb-3">
