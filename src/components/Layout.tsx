@@ -9,6 +9,7 @@ import {
   Headphones,
   KanbanSquare,
   Package,
+  Warehouse,
   Phone,
   LayoutDashboard,
   LogOut,
@@ -105,7 +106,8 @@ export default function Layout() {
     { to: '/pipeline', label: t('nav.pipeline'), icon: KanbanSquare },
     { to: '/tickets', label: t('nav.tickets'), icon: TicketIcon },
     { to: '/calls', label: "Qo'ng'iroqlar", icon: Phone },
-    { to: '/cargo', label: 'Yuklar', icon: Package },
+    { to: '/cargo', label: 'Vozvrat yuklar', icon: Package },
+    { to: '/warehouse', label: 'Sklad navbati', icon: Warehouse },
     { to: '/knowledge', label: t('nav.knowledge'), icon: BookOpen },
   ];
   const adminLinks = [

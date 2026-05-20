@@ -5,7 +5,7 @@ import Modal from './Modal';
 import CopyButton from './CopyButton';
 import { formatDateTime, randomId, timeAgo } from '../utils/format';
 import { dialNumber } from './Softphone';
-import type { MisrouteDetails, TrackingType } from '../types';
+import type { MisrouteDetails, TrackingType, WarehouseTrack } from '../types';
 import {
   CheckCircle2,
   Trash2,
@@ -23,6 +23,9 @@ import {
   MapPin,
   PackageX,
   PackageCheck,
+  Warehouse,
+  Plus,
+  DollarSign,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -76,6 +79,9 @@ export default function TicketModal({ open, onClose, ticket }: Props) {
   const [details, setDetails] = useState<Record<string, string>>(ticket?.details ?? {});
   const [resolution, setResolution] = useState('');
   const [misroute, setMisroute] = useState<MisrouteDetails>(ticket?.misroute ?? {});
+  const [warehouseTracks, setWarehouseTracks] = useState<WarehouseTrack[]>(ticket?.warehouseTracks ?? []);
+  const [whTrackDraft, setWhTrackDraft] = useState('');
+  const [whAmountDraft, setWhAmountDraft] = useState('');
 
   const isMisroute = useMemo(() => {
     if (!categoryId) return false;
@@ -123,6 +129,9 @@ export default function TicketModal({ open, onClose, ticket }: Props) {
       setAssigneeId(ticket?.assigneeId ?? currentUser?.id ?? '');
       setDetails(ticket?.details ?? {});
       setMisroute(ticket?.misroute ?? {});
+      setWarehouseTracks(ticket?.warehouseTracks ?? []);
+      setWhTrackDraft('');
+      setWhAmountDraft('');
       setResolution('');
       setCustomTracking('');
       setInternalNoteDraft('');
@@ -152,7 +161,8 @@ export default function TicketModal({ open, onClose, ticket }: Props) {
           priority,
           assigneeId,
           details,
-          misroute: isMisroute ? misroute : undefined,
+          misroute: Object.values(misroute).some((v) => v) ? misroute : undefined,
+          warehouseTracks: warehouseTracks.length ? warehouseTracks : undefined,
         },
         'Murojaat tahrirlandi'
       );
@@ -174,7 +184,8 @@ export default function TicketModal({ open, onClose, ticket }: Props) {
         assigneeId,
         details,
         trackingNumber: customTracking.trim() || undefined,
-        misroute: isMisroute ? misroute : undefined,
+        misroute: Object.values(misroute).some((v) => v) ? misroute : undefined,
+        warehouseTracks: warehouseTracks.length ? warehouseTracks : undefined,
       });
       toast.success('Yangi murojaat yaratildi');
     }
@@ -533,8 +544,10 @@ export default function TicketModal({ open, onClose, ticket }: Props) {
                     <option value="">— Tanlang —</option>
                     <option value="BTS">BTS</option>
                     <option value="EMU">EMU</option>
-                    <option value="CHINA-POST">China Post</option>
-                    <option value="YANTONG">Yanwen / YT</option>
+                    <option value="DOSTAVKA">Dostavka</option>
+                    <option value="IPOST-FILIAL">IPOST filial</option>
+                    <option value="MIJOZ-UYIDAN">Mijoz uyidan</option>
+                    <option value="MIJOZ-UYIGA">Mijoz uyiga</option>
                     <option value="OTHER">Boshqa</option>
                   </select>
                 </div>
@@ -565,6 +578,169 @@ export default function TicketModal({ open, onClose, ticket }: Props) {
               </div>
             </div>
           )}
+
+          {/* Omborga jo'natiladigan treklar */}
+          <div className="rounded-xl border-2 border-violet-300 dark:border-violet-700 bg-violet-50/40 dark:bg-violet-900/10 p-4">
+            <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
+              <div className="flex items-center gap-2">
+                <Warehouse className="h-5 w-5 text-violet-600" />
+                <h4 className="font-bold text-violet-900 dark:text-violet-200">Omborga jo'natiladigan treklar</h4>
+              </div>
+              <div className="text-[11px] text-violet-700 dark:text-violet-300">
+                {warehouseTracks.length > 0 && (
+                  <>
+                    {warehouseTracks.filter((w) => w.paid).length}/{warehouseTracks.length} to'langan
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Mavjud treklar */}
+            {warehouseTracks.length > 0 && (
+              <div className="space-y-1.5 mb-3">
+                {warehouseTracks.map((wt) => (
+                  <div
+                    key={wt.id}
+                    className={`flex items-center gap-2 p-2 rounded-lg border ${
+                      wt.releasedAt
+                        ? 'bg-emerald-50 dark:bg-emerald-900/10 border-emerald-200 dark:border-emerald-800'
+                        : wt.paid
+                        ? 'bg-sky-50 dark:bg-sky-900/10 border-sky-200 dark:border-sky-800'
+                        : 'bg-amber-50 dark:bg-amber-900/10 border-amber-200 dark:border-amber-800'
+                    }`}
+                  >
+                    <span className="font-mono font-semibold text-sm text-brand-700 dark:text-brand-400 flex-1 truncate">
+                      {wt.trackingNumber}
+                    </span>
+                    {wt.amount ? (
+                      <span className="text-xs text-slate-600 dark:text-slate-300 whitespace-nowrap">
+                        {wt.amount.toLocaleString('uz-UZ')} so'm
+                      </span>
+                    ) : null}
+                    {wt.releasedAt ? (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-200 text-emerald-800 dark:bg-emerald-800 dark:text-emerald-100">
+                        ✓ Chiqarildi
+                      </span>
+                    ) : wt.paid ? (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-sky-200 text-sky-800 dark:bg-sky-800 dark:text-sky-100">
+                        ✓ To'lov bor — omborga
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-200 text-amber-800 dark:bg-amber-800 dark:text-amber-100">
+                        To'lov yo'q
+                      </span>
+                    )}
+                    {!wt.releasedAt && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setWarehouseTracks((arr) =>
+                            arr.map((x) =>
+                              x.id === wt.id
+                                ? x.paid
+                                  ? { ...x, paid: false, paidAt: undefined, paidBy: undefined, paidByName: undefined }
+                                  : {
+                                      ...x,
+                                      paid: true,
+                                      paidAt: Date.now(),
+                                      paidBy: currentUser?.id,
+                                      paidByName: currentUser?.fullName || currentUser?.username,
+                                    }
+                                : x
+                            )
+                          );
+                        }}
+                        className={`px-2 py-1 rounded text-[10px] font-semibold ${
+                          wt.paid
+                            ? 'bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-900/40 dark:text-amber-200'
+                            : 'bg-sky-600 text-white hover:bg-sky-700'
+                        }`}
+                        title={wt.paid ? "To'lovni bekor qilish" : "To'lov qilindi deb belgilash"}
+                      >
+                        {wt.paid ? 'Bekor' : "To'lov qilindi"}
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setWarehouseTracks((arr) => arr.filter((x) => x.id !== wt.id))}
+                      className="p-1 rounded text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/30"
+                      title="O'chirish"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Yangi trek qo'shish */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <input
+                className="input text-sm flex-1 min-w-[180px] font-mono"
+                placeholder="Trek raqami"
+                value={whTrackDraft}
+                onChange={(e) => setWhTrackDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (!whTrackDraft.trim() || !currentUser) return;
+                    setWarehouseTracks((arr) => [
+                      ...arr,
+                      {
+                        id: randomId('wh'),
+                        trackingNumber: whTrackDraft.trim(),
+                        amount: whAmountDraft ? Number(whAmountDraft) : undefined,
+                        paid: false,
+                        addedAt: Date.now(),
+                        addedBy: currentUser.id,
+                      },
+                    ]);
+                    setWhTrackDraft('');
+                    setWhAmountDraft('');
+                  }
+                }}
+              />
+              <div className="relative">
+                <DollarSign className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                <input
+                  className="input text-sm w-32 pl-7"
+                  type="number"
+                  placeholder="Summa"
+                  value={whAmountDraft}
+                  onChange={(e) => setWhAmountDraft(e.target.value)}
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!whTrackDraft.trim() || !currentUser) {
+                    toast.error('Trek raqamini kiriting');
+                    return;
+                  }
+                  setWarehouseTracks((arr) => [
+                    ...arr,
+                    {
+                      id: randomId('wh'),
+                      trackingNumber: whTrackDraft.trim(),
+                      amount: whAmountDraft ? Number(whAmountDraft) : undefined,
+                      paid: false,
+                      addedAt: Date.now(),
+                      addedBy: currentUser.id,
+                    },
+                  ]);
+                  setWhTrackDraft('');
+                  setWhAmountDraft('');
+                }}
+                className="btn-primary text-xs"
+              >
+                <Plus className="h-3.5 w-3.5" /> Qo'shish
+              </button>
+            </div>
+
+            <div className="mt-2 text-[11px] text-violet-700 dark:text-violet-300">
+              To'lov qilingan treklar avtomatik ravishda <b>Sklad navbati</b> sahifasida ko'rinadi va ombor hodimi chiqarishi mumkin.
+            </div>
+          </div>
 
           {isEdit && ticket && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">

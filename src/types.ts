@@ -76,6 +76,23 @@ export interface Ticket {
   slaDueAt?: number;
   firstResponseAt?: number;
   misroute?: MisrouteDetails;
+  warehouseTracks?: WarehouseTrack[];
+}
+
+export interface WarehouseTrack {
+  id: string;
+  trackingNumber: string;
+  amount?: number;            // to'lov summasi (so'm)
+  paid: boolean;
+  paidAt?: number;
+  paidBy?: string;
+  paidByName?: string;
+  releasedAt?: number;        // ombor mahsulotni chiqarib bergan vaqt
+  releasedBy?: string;
+  releasedByName?: string;
+  notes?: string;
+  addedAt: number;
+  addedBy: string;
 }
 
 export interface AppDataSnapshot {
@@ -253,7 +270,14 @@ export interface CustomerRating {
   ratedAt: number;
 }
 
-export type TrackingType = 'BTS' | 'EMU' | 'CHINA-POST' | 'YANTONG' | 'OTHER';
+export type TrackingType =
+  | 'BTS'
+  | 'EMU'
+  | 'DOSTAVKA'
+  | 'IPOST-FILIAL'
+  | 'MIJOZ-UYIDAN'
+  | 'MIJOZ-UYIGA'
+  | 'OTHER';
 
 export interface MisrouteDetails {
   wrongCustomerName?: string;
