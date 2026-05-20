@@ -14,14 +14,14 @@ import {
   YAxis,
 } from 'recharts';
 import { motion } from 'framer-motion';
-import { Activity, Clock, MessageCircle, Star, TrendingUp, Trophy } from 'lucide-react';
+import { Activity, Clock, MessageCircle, Star, TrendingUp, Trophy, Phone, PhoneCall, PhoneMissed, Headphones } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
 import { useApp } from '../context/AppContext';
 
 const DAY = 86_400_000;
 
 export default function Analytics() {
-  const { tickets, users, categories } = useApp();
+  const { tickets, users, categories, callLogs } = useApp();
 
   const channelMix = useMemo(() => {
     const map = new Map<string, number>();
@@ -109,6 +109,77 @@ export default function Analytics() {
     const max = hourly.reduce((m, h) => (h.count > m.count ? h : m), hourly[0]);
     return max?.hour ?? '—';
   }, [hourly]);
+
+  // === QO'NG'IROQLAR ANALITIKASI (admin uchun, hammasi) ===
+  const callsLast30 = useMemo(() => {
+    const cutoff = Date.now() - 30 * DAY;
+    return callLogs.filter((c) => c.startedAt >= cutoff);
+  }, [callLogs]);
+
+  const callStats = useMemo(() => {
+    const total = callsLast30.length;
+    const answered = callsLast30.filter((c) => c.outcome === 'answered').length;
+    const noAnswer = callsLast30.filter((c) => c.outcome === 'no_answer').length;
+    const busy = callsLast30.filter((c) => c.outcome === 'busy').length;
+    const failed = callsLast30.filter((c) => c.outcome === 'failed').length;
+    const totalTalk = callsLast30.reduce((s, c) => s + (c.talkSec || 0), 0);
+    const avgTalk = answered ? Math.round(totalTalk / answered) : 0;
+    const successRate = total ? Math.round((answered / total) * 100) : 0;
+    return { total, answered, noAnswer, busy, failed, totalTalk, avgTalk, successRate };
+  }, [callsLast30]);
+
+  // Operator bo'yicha taqsimot
+  const callsByOperator = useMemo(() => {
+    const map = new Map<string, { name: string; total: number; answered: number; talkSec: number }>();
+    callsLast30.forEach((c) => {
+      const u = users.find((x) => x.id === c.operatorId);
+      const name = u?.fullName ?? c.operatorName ?? 'Noma\'lum';
+      const cur = map.get(c.operatorId) ?? { name, total: 0, answered: 0, talkSec: 0 };
+      cur.total += 1;
+      if (c.outcome === 'answered') {
+        cur.answered += 1;
+        cur.talkSec += c.talkSec || 0;
+      }
+      map.set(c.operatorId, cur);
+    });
+    return Array.from(map.values())
+      .map((o) => ({
+        ...o,
+        successRate: o.total ? Math.round((o.answered / o.total) * 100) : 0,
+        avgTalk: o.answered ? Math.round(o.talkSec / o.answered) : 0,
+      }))
+      .sort((a, b) => b.total - a.total);
+  }, [callsLast30, users]);
+
+  // Kunlik chart (oxirgi 30 kun)
+  const callsDaily = useMemo(() => {
+    const arr: { day: string; bogllangan: number; javobsiz: number }[] = [];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date(today.getTime() - i * DAY);
+      const dayKey = `${d.getDate()}.${d.getMonth() + 1}`;
+      const dayStart = d.getTime();
+      const dayEnd = dayStart + DAY;
+      const dayItems = callsLast30.filter((c) => c.startedAt >= dayStart && c.startedAt < dayEnd);
+      arr.push({
+        day: dayKey,
+        bogllangan: dayItems.filter((c) => c.outcome === 'answered').length,
+        javobsiz: dayItems.filter((c) => c.outcome !== 'answered').length,
+      });
+    }
+    return arr;
+  }, [callsLast30]);
+
+  // Outcome pie chart
+  const callOutcomePie = useMemo(() => {
+    return [
+      { name: "Bog'landi", value: callStats.answered, color: '#10b981' },
+      { name: "Javob yo'q", value: callStats.noAnswer, color: '#64748b' },
+      { name: 'Band', value: callStats.busy, color: '#f59e0b' },
+      { name: 'Bekor', value: callStats.failed, color: '#e11d48' },
+    ].filter((x) => x.value > 0);
+  }, [callStats]);
 
   const avgRatingAll = useMemo(() => {
     const rated = tickets.filter((t) => t.rating?.score);
@@ -290,6 +361,197 @@ export default function Analytics() {
           </tbody>
         </table>
       </motion.div>
+
+      {/* ====== QO'NG'IROQLAR ANALITIKASI (admin uchun, oxirgi 30 kun) ====== */}
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.5 }}
+        className="card p-5 mt-4"
+      >
+        <h3 className="font-bold mb-4 flex items-center gap-2 text-slate-800 dark:text-slate-100">
+          <Phone className="h-4 w-4 text-brand-600" /> Qo'ng'iroqlar analitikasi (oxirgi 30 kun)
+        </h3>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+          <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60">
+            <div className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400 mb-1">
+              <PhoneCall className="h-3.5 w-3.5" /> Jami qo'ng'iroq
+            </div>
+            <div className="text-2xl font-bold text-slate-800 dark:text-slate-100">{callStats.total}</div>
+          </div>
+          <div className="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-900/30">
+            <div className="text-xs text-emerald-700 dark:text-emerald-300 mb-1">Bog'landi</div>
+            <div className="text-2xl font-bold text-emerald-700 dark:text-emerald-300">{callStats.answered}</div>
+            <div className="text-[11px] text-emerald-600 dark:text-emerald-400">{callStats.successRate}% muvaffaqiyat</div>
+          </div>
+          <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60">
+            <div className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400 mb-1">
+              <PhoneMissed className="h-3.5 w-3.5" /> Javob yo'q
+            </div>
+            <div className="text-2xl font-bold text-slate-700 dark:text-slate-200">{callStats.noAnswer}</div>
+          </div>
+          <div className="p-4 rounded-2xl bg-sky-50 dark:bg-sky-900/30">
+            <div className="flex items-center gap-1 text-xs text-sky-700 dark:text-sky-300 mb-1">
+              <Headphones className="h-3.5 w-3.5" /> O'rt. gaplashish
+            </div>
+            <div className="text-2xl font-bold text-sky-700 dark:text-sky-300">
+              {Math.floor(callStats.avgTalk / 60)}:{(callStats.avgTalk % 60).toString().padStart(2, '0')}
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {/* Daily line chart */}
+          <div>
+            <div className="text-xs text-slate-500 dark:text-slate-400 mb-1.5 font-semibold">Kunlik dinamika</div>
+            <div style={{ width: '100%', height: 220 }}>
+              <ResponsiveContainer>
+                <LineChart data={callsDaily}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <XAxis dataKey="day" tick={{ fontSize: 10 }} />
+                  <YAxis tick={{ fontSize: 10 }} />
+                  <Tooltip />
+                  <Line type="monotone" dataKey="bogllangan" stroke="#10b981" strokeWidth={2} name="Bog'landi" />
+                  <Line type="monotone" dataKey="javobsiz" stroke="#94a3b8" strokeWidth={2} name="Bog'lanmadi" />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Outcome pie */}
+          <div>
+            <div className="text-xs text-slate-500 dark:text-slate-400 mb-1.5 font-semibold">Natijalar taqsimoti</div>
+            <div style={{ width: '100%', height: 220 }}>
+              <ResponsiveContainer>
+                <PieChart>
+                  <Tooltip />
+                  <Pie
+                    data={callOutcomePie}
+                    dataKey="value"
+                    nameKey="name"
+                    innerRadius={50}
+                    outerRadius={85}
+                    label={(e: any) => `${e.name}: ${e.value}`}
+                  >
+                    {callOutcomePie.map((c, i) => (
+                      <Cell key={i} fill={c.color} />
+                    ))}
+                  </Pie>
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+
+        {/* Operator KPI jadval */}
+        <div className="mt-5">
+          <div className="text-xs text-slate-500 dark:text-slate-400 mb-2 font-semibold">Operatorlar bo'yicha</div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[560px]">
+              <thead>
+                <tr className="text-left text-xs uppercase tracking-wider text-slate-500 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700">
+                  <th className="py-2 font-semibold">#</th>
+                  <th className="py-2 font-semibold">Operator</th>
+                  <th className="py-2 text-right font-semibold">Jami</th>
+                  <th className="py-2 text-right font-semibold">Bog'landi</th>
+                  <th className="py-2 text-right font-semibold">Muvaffaqiyat %</th>
+                  <th className="py-2 text-right font-semibold">O'rt. gaplashish</th>
+                </tr>
+              </thead>
+              <tbody>
+                {callsByOperator.map((o, i) => (
+                  <tr key={o.name} className="border-b border-slate-100 dark:border-slate-800">
+                    <td className="py-2 text-slate-500">{i + 1}</td>
+                    <td className="py-2 font-medium text-slate-800 dark:text-slate-100">{o.name}</td>
+                    <td className="py-2 text-right">{o.total}</td>
+                    <td className="py-2 text-right text-emerald-600 dark:text-emerald-400 font-semibold">{o.answered}</td>
+                    <td className="py-2 text-right">
+                      <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold ${
+                        o.successRate >= 70 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' :
+                        o.successRate >= 50 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' :
+                        'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300'
+                      }`}>
+                        {o.successRate}%
+                      </span>
+                    </td>
+                    <td className="py-2 text-right text-sky-600 dark:text-sky-400 font-mono">
+                      {Math.floor(o.avgTalk / 60)}:{(o.avgTalk % 60).toString().padStart(2, '0')}
+                    </td>
+                  </tr>
+                ))}
+                {callsByOperator.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="py-8 text-center text-slate-400">
+                      Oxirgi 30 kunda qo'ng'iroqlar yo'q
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </motion.div>
+
+      {/* ====== YUK ADASHISHI BO'YICHA KUNLIK ====== */}
+      {(() => {
+        const misrouteTickets = tickets.filter((t) => t.misroute || (categories.find((c) => c.id === t.categoryId)?.id === 'cat-misroute'));
+        const last7Days = (() => {
+          const arr: { day: string; count: number }[] = [];
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          for (let i = 6; i >= 0; i--) {
+            const d = new Date(today.getTime() - i * DAY);
+            const start = d.getTime();
+            const end = start + DAY;
+            arr.push({
+              day: `${d.getDate()}.${d.getMonth() + 1}`,
+              count: misrouteTickets.filter((t) => t.createdAt >= start && t.createdAt < end).length,
+            });
+          }
+          return arr;
+        })();
+        const totalLast7 = last7Days.reduce((s, d) => s + d.count, 0);
+        return (
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.6 }}
+            className="card p-5 mt-4"
+          >
+            <h3 className="font-bold mb-3 flex items-center gap-2 text-slate-800 dark:text-slate-100">
+              📦 Yuk adashishi (oxirgi 7 kun)
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+              <div className="p-4 rounded-2xl bg-rose-50 dark:bg-rose-900/30">
+                <div className="text-xs text-rose-700 dark:text-rose-300 mb-1">Jami adashish (7 kun)</div>
+                <div className="text-2xl font-bold text-rose-700 dark:text-rose-300">{totalLast7}</div>
+              </div>
+              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60">
+                <div className="text-xs text-slate-500 dark:text-slate-400 mb-1">O'rtacha kunlik</div>
+                <div className="text-2xl font-bold text-slate-800 dark:text-slate-100">{Math.round(totalLast7 / 7)}</div>
+              </div>
+              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60">
+                <div className="text-xs text-slate-500 dark:text-slate-400 mb-1">Hal etilgan</div>
+                <div className="text-2xl font-bold text-emerald-700 dark:text-emerald-300">
+                  {misrouteTickets.filter((t) => t.status === 'resolved').length}
+                </div>
+              </div>
+            </div>
+            <div style={{ width: '100%', height: 180 }}>
+              <ResponsiveContainer>
+                <BarChart data={last7Days}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <XAxis dataKey="day" tick={{ fontSize: 10 }} />
+                  <YAxis tick={{ fontSize: 10 }} />
+                  <Tooltip />
+                  <Bar dataKey="count" fill="#e11d48" radius={[6, 6, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </motion.div>
+        );
+      })()}
     </div>
   );
 }

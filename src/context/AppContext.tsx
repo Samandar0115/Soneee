@@ -23,6 +23,7 @@ import type {
   Attachment,
   Branch,
   CallLog,
+  CargoShipment,
   Category,
   CustomerRating,
   Lang,
@@ -66,6 +67,7 @@ interface AppState {
   templates: ResponseTemplate[];
   notifications: AppNotification[];
   callLogs: CallLog[];
+  cargoShipments: CargoShipment[];
   kvConfigured: boolean;
   kvReady: boolean;
   lang: Lang;
@@ -108,6 +110,9 @@ interface AppState {
   startCallLog: (data: Omit<CallLog, 'id' | 'startedAt' | 'outcome'>) => CallLog;
   updateCallLog: (id: string, patch: Partial<CallLog>) => void;
   deleteCallLog: (id: string) => void;
+  importCargoShipments: (shipments: CargoShipment[]) => void;
+  deleteCargoShipment: (id: string) => void;
+  clearCargoShipments: () => void;
   exportBackup: () => string;
   importBackup: (json: string) => boolean;
   runTestScenario: () => Promise<Ticket | null>;
@@ -127,6 +132,7 @@ const STORAGE_KEYS = {
   templates: 'ipost.templates',
   notifications: 'ipost.notifications',
   callLogs: 'ipost.callLogs',
+  cargoShipments: 'ipost.cargoShipments',
   lang: 'ipost.lang',
   theme: 'ipost.theme',
   session: 'ipost.session',
@@ -159,6 +165,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [templates, setTemplates] = useState<ResponseTemplate[]>([]);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [callLogs, setCallLogs] = useState<CallLog[]>([]);
+  const [cargoShipments, setCargoShipments] = useState<CargoShipment[]>([]);
   const [lang, setLangState] = useState<Lang>(() => (localStorage.getItem(STORAGE_KEYS.lang) as Lang) || 'uz');
   const [theme, setThemeState] = useState<'light' | 'dark'>(
     () => (localStorage.getItem(STORAGE_KEYS.theme) as 'light' | 'dark') || 'light'
@@ -288,6 +295,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setTemplates(loadLocal<ResponseTemplate[]>(STORAGE_KEYS.templates, seedTemplates));
     setNotifications(loadLocal<AppNotification[]>(STORAGE_KEYS.notifications, []));
     setCallLogs(loadLocal<CallLog[]>(STORAGE_KEYS.callLogs, []));
+    setCargoShipments(loadLocal<CargoShipment[]>(STORAGE_KEYS.cargoShipments, []));
     if (!localStorage.getItem(STORAGE_KEYS.users)) saveLocal(STORAGE_KEYS.users, seedUsers);
     if (!localStorage.getItem(STORAGE_KEYS.stages)) saveLocal(STORAGE_KEYS.stages, seedStages);
     if (!localStorage.getItem(STORAGE_KEYS.categories)) saveLocal(STORAGE_KEYS.categories, seedCategories);
@@ -360,6 +368,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (backend === 'local' && ready) saveLocal(STORAGE_KEYS.callLogs, callLogs);
   }, [callLogs, backend, ready]);
 
+  useEffect(() => {
+    if (backend === 'local' && ready) saveLocal(STORAGE_KEYS.cargoShipments, cargoShipments);
+  }, [cargoShipments, backend, ready]);
+
   /* ---------------- Session restore ---------------- */
   useEffect(() => {
     if (!ready) return;
@@ -403,6 +415,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           if (Array.isArray(d.templates)) setTemplates(d.templates);
           if (Array.isArray(d.notifications)) setNotifications(d.notifications);
           if (Array.isArray(d.callLogs)) setCallLogs(d.callLogs);
+          if (Array.isArray(d.cargoShipments)) setCargoShipments(d.cargoShipments);
         }
       } catch {
         // jim — fallback localStorage
@@ -413,8 +426,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [backend, ready]);
 
   /* ---------------- Vercel KV: auto-save (debounced) ---------------- */
-  // Ma'lumot o'zgarsa, 3 sekund kechikish bilan KV'ga yuboramiz.
-  // (Bu Face ID'ni boshqa qurilmalarda darhol ishlatish uchun zarur.)
+  // Ma'lumot o'zgarsa, 1 sekund kechikish bilan KV'ga yuboramiz.
   const kvSaveTimerRef = useRef<number | null>(null);
   useEffect(() => {
     if (backend !== 'local' || !kvReady || !kvConfigured) return;
@@ -433,9 +445,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         templates,
         notifications,
         callLogs,
+        cargoShipments,
       };
       saveToKV(payload).catch(() => {});
-    }, 3000);
+    }, 1000);
     return () => {
       if (kvSaveTimerRef.current) clearTimeout(kvSaveTimerRef.current);
     };
@@ -450,11 +463,49 @@ export function AppProvider({ children }: { children: ReactNode }) {
     announcements,
     branches,
     callLogs,
+    cargoShipments,
     tariff,
     settings,
     templates,
     notifications,
   ]);
+
+  /* ---------------- Vercel KV: avto-polling (boshqa qurilmadan o'zgarishlarni olish) ---------------- */
+  const lastKvUpdateRef = useRef<number>(0);
+  const lastLocalChangeRef = useRef<number>(0);
+
+  // Mahalliy o'zgarishlarni belgilab boramiz — polling paytida nima yangiroqligini taqqoslash uchun
+  useEffect(() => {
+    lastLocalChangeRef.current = Date.now();
+  }, [users, stages, tickets, categories, announcements, branches, tariff, settings, templates, callLogs, cargoShipments]);
+
+  useEffect(() => {
+    if (backend !== 'local' || !kvReady || !kvConfigured) return;
+    const pollInterval = window.setInterval(async () => {
+      try {
+        const remote = await loadFromKV();
+        if (!remote || !remote.data || !remote.updatedAt) return;
+        // Faqat KV remote yangiroq bo'lsa va mahalliy o'zgartirish 3 sekunddan oshiq vaqt oldin bo'lgan bo'lsa
+        if (remote.updatedAt <= lastKvUpdateRef.current) return;
+        if (Date.now() - lastLocalChangeRef.current < 3000) return;
+        lastKvUpdateRef.current = remote.updatedAt;
+        const d = remote.data;
+        if (Array.isArray(d.users) && d.users.length > 0) setUsers(d.users);
+        if (Array.isArray(d.stages) && d.stages.length > 0) setStages(d.stages);
+        if (Array.isArray(d.tickets)) setTickets(d.tickets);
+        if (Array.isArray(d.categories) && d.categories.length > 0) setCategories(d.categories);
+        if (Array.isArray(d.announcements)) setAnnouncements(d.announcements);
+        if (Array.isArray(d.branches) && d.branches.length > 0) setBranches(d.branches);
+        if (d.tariff) setTariff(d.tariff);
+        if (d.settings) setSettings(d.settings);
+        if (Array.isArray(d.templates)) setTemplates(d.templates);
+        if (Array.isArray(d.notifications)) setNotifications(d.notifications);
+        if (Array.isArray(d.callLogs)) setCallLogs(d.callLogs);
+        if (Array.isArray(d.cargoShipments)) setCargoShipments(d.cargoShipments);
+      } catch {}
+    }, 10000);
+    return () => clearInterval(pollInterval);
+  }, [backend, kvReady, kvConfigured]);
 
   /* ---------------- Auth ---------------- */
   const login = useCallback(
@@ -866,6 +917,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setCallLogs((prev) => prev.filter((c) => c.id !== id));
   }, []);
 
+  // === Cargo Shipments (admin yuklaydi Excel'dan) ===
+  const importCargoShipments = useCallback<AppState['importCargoShipments']>((shipments) => {
+    setCargoShipments((prev) => {
+      // Trek raqami bo'yicha duplicate'larni yangilash (admin qayta yuklashi mumkin)
+      const map = new Map<string, CargoShipment>();
+      prev.forEach((s) => map.set(s.trackingNumber, s));
+      shipments.forEach((s) => map.set(s.trackingNumber, s));
+      return Array.from(map.values()).slice(0, 50000);
+    });
+  }, []);
+
+  const deleteCargoShipment = useCallback<AppState['deleteCargoShipment']>((id) => {
+    setCargoShipments((prev) => prev.filter((c) => c.id !== id));
+  }, []);
+
+  const clearCargoShipments = useCallback<AppState['clearCargoShipments']>(() => {
+    setCargoShipments([]);
+  }, []);
+
   // Mijoz qayta aloqaga chiqdi — boshqa operatorga eslatma
   const notifyCallback = useCallback<AppState['notifyCallback']>((ticket) => {
     if (!currentUser) return;
@@ -1145,6 +1215,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       startCallLog,
       updateCallLog,
       deleteCallLog,
+      cargoShipments,
+      importCargoShipments,
+      deleteCargoShipment,
+      clearCargoShipments,
       exportBackup,
       importBackup,
       runTestScenario,
@@ -1206,6 +1280,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       startCallLog,
       updateCallLog,
       deleteCallLog,
+      cargoShipments,
+      importCargoShipments,
+      deleteCargoShipment,
+      clearCargoShipments,
       exportBackup,
       importBackup,
       runTestScenario,

@@ -87,6 +87,28 @@ export interface AppDataSnapshot {
   branches: Branch[];
   tariff: TariffSettings;
   callLogs?: CallLog[];
+  cargoShipments?: CargoShipment[];
+}
+
+export type CargoStatus = 'pending' | 'delivered' | 'returned' | 'in_transit';
+export type CargoType = 'BTS' | 'EMU' | 'CHINA-POST' | 'YANTONG' | 'OTHER';
+
+export interface CargoShipment {
+  id: string;
+  trackingNumber: string;
+  type: CargoType;
+  branchId?: string;          // qaysi filialga yetib bordi
+  branchName?: string;
+  arrivedAt?: number;          // filialga yetib borgan sana
+  deliveredAt?: number;        // mijozga topshirilgan sana
+  returnedAt?: number;         // BTS/EMU vozvrat sanasi
+  status: CargoStatus;
+  customerName?: string;
+  customerPhone?: string;
+  weightKg?: number;
+  notes?: string;
+  importedAt: number;          // tizimga qachon yuklandi
+  importedBy: string;
 }
 
 export type CallOutcome = 'answered' | 'no_answer' | 'busy' | 'failed' | 'pending';

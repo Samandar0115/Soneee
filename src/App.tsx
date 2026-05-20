@@ -13,6 +13,7 @@ import SettingsPage from './pages/Settings';
 import Analytics from './pages/Analytics';
 import TemplatesPage from './pages/Templates';
 import CallLogsPage from './pages/CallLogs';
+import CargoPage from './pages/Cargo';
 import Track from './pages/Track';
 import GlobalSearch from './components/GlobalSearch';
 import KeyboardShortcuts from './components/KeyboardShortcuts';
@@ -56,6 +57,7 @@ export default function App() {
         <Route path="pipeline" element={<Pipeline />} />
         <Route path="tickets" element={<Tickets />} />
         <Route path="calls" element={<CallLogsPage />} />
+        <Route path="cargo" element={<CargoPage />} />
         <Route path="knowledge" element={<Knowledge />} />
         <Route
           path="users"
