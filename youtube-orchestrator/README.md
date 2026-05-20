@@ -4,6 +4,14 @@ Bu modul Soneee CRM va `curator-ai` loyihalaridan **mutlaqo mustaqil**. Faqat
 `youtube-orchestrator/` papkasi ichida ishlaydi va sizning asosiy ilovangizga
 hech qanday ta'sir qilmaydi.
 
+## ⚡ Yangilik: faqat YouTube OAuth kerak
+
+Gemini va Pexels API kalitlari endi **MAJBURIY EMAS**. Pipeline avtomat ravishda
+**Pollinations.ai** (bepul, kalitsiz) ishlatadi. Sizga **faqat YouTube OAuth**
+sozlash kerak — 5-7 daqiqalik ish.
+
+To'liq qadamlar: [`SETUP_QADAMMA_QADAM.md`](./SETUP_QADAMMA_QADAM.md)
+
 ## Siz nima qilasiz (eng tepadagi rahbar)
 
 1. `topics/queue.txt` fayliga **mavzu qo'shasiz** (har qatorga bittadan).

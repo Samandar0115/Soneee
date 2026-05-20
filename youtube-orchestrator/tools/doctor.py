@@ -60,16 +60,31 @@ def main() -> int:
                 if k.strip() and v.strip() and k.strip() not in os.environ:
                     os.environ[k.strip()] = v.strip()
 
-    required = ["GEMINI_API_KEY", "PEXELS_API_KEY",
-                "YOUTUBE_CLIENT_ID", "YOUTUBE_CLIENT_SECRET", "YOUTUBE_REFRESH_TOKEN"]
-    optional = ["YOUTUBE_DATA_API_KEY"]
+    required = ["YOUTUBE_CLIENT_ID", "YOUTUBE_CLIENT_SECRET", "YOUTUBE_REFRESH_TOKEN"]
+    optional = {
+        "GEMINI_API_KEY": "(ixtiyoriy, bo'lmasa Pollinations.ai bepul ishlatiladi)",
+        "PEXELS_API_KEY": "(ixtiyoriy, bo'lmasa Pollinations.ai rasm generatsiya qiladi)",
+        "YOUTUBE_DATA_API_KEY": "(ixtiyoriy, trend agent sifati uchun)",
+    }
 
     for key in required:
-        all_ok &= check(key, bool(os.environ.get(key)), f"{key} secret kerak")
-    for key in optional:
-        check(key, bool(os.environ.get(key)), "(ixtiyoriy, trend agent uchun)")
+        all_ok &= check(key, bool(os.environ.get(key)), f"{key} MAJBURIY — YouTube'ga yuklash uchun")
+    for key, hint in optional.items():
+        check(key, bool(os.environ.get(key)), hint)
 
-    print("\n5. API ishlashini tekshirish (kalitlar mavjud bo'lganda):")
+    print("\n5. API ishlashini tekshirish:")
+    # Pollinations doim mavjud
+    try:
+        import requests
+        r = requests.post(
+            "https://text.pollinations.ai/openai",
+            json={"model": "openai", "messages": [{"role": "user", "content": "Reply OK"}], "private": True},
+            timeout=30,
+        )
+        check("Pollinations.ai text (bepul fallback)", r.status_code == 200)
+    except Exception as exc:
+        check("Pollinations.ai", False, f"Xato: {exc}")
+
     if os.environ.get("GEMINI_API_KEY"):
         try:
             import google.generativeai as genai

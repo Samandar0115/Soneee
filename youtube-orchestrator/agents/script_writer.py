@@ -1,13 +1,10 @@
-"""Skript yozuvchi agent — Gemini API orqali strukturalangan skript ishlab chiqaradi."""
+"""Skript yozuvchi agent — universal LLM client orqali skript ishlab chiqaradi."""
 from __future__ import annotations
 
-import json
 import logging
-import os
-import re
 from dataclasses import dataclass, asdict
 
-import google.generativeai as genai
+from .llm_client import complete, extract_json
 
 log = logging.getLogger(__name__)
 
@@ -48,12 +45,12 @@ SAHNALAR SONI: {scenes}
 Quyidagi qoidalarga qat'iy amal qil:
 1. Birinchi {hook} soniyada kuchli hook (savol, statistika, qarama-qarshilik) bo'lsin.
 2. Har bir sahna: 1-3 ta jumla, ovoz chiqarib o'qiganda ~{per_scene} soniya.
-3. Har sahna uchun ingliz tilida 2-4 so'zli `visual_query` ber (Pexels'da qidirish uchun).
+3. Har sahna uchun ingliz tilida 2-4 so'zli `visual_query` ber (rasm/video qidirish uchun).
 4. So'nggi sahna — CTA (like/subscribe/comment).
 5. Title 60 belgidan oshmasin, click-worthy bo'lsin.
 6. Description 200-400 belgi, kalit so'zlar bilan.
 7. 8-12 ta tag.
-8. Thumbnail prompt — ingliz tilida, vizual, dramatik (Pollinations'ga uzatiladi).
+8. Thumbnail prompt — ingliz tilida, vizual, dramatik (rasm generatsiya uchun).
 
 FAQAT JSON qaytar, boshqa matn yo'q. Format:
 {{
@@ -62,22 +59,10 @@ FAQAT JSON qaytar, boshqa matn yo'q. Format:
   "tags": ["...", "..."],
   "thumbnail_prompt": "cinematic, bold, ...",
   "scenes": [
-    {{"narration": "...", "visual_query": "...", "duration_sec": 12}},
-    ...
+    {{"narration": "...", "visual_query": "...", "duration_sec": 12}}
   ]
 }}
 """
-
-
-def _extract_json(text: str) -> dict:
-    text = text.strip()
-    if text.startswith("```"):
-        text = re.sub(r"^```(?:json)?", "", text).rstrip("`").strip()
-    match = re.search(r"\{.*\}", text, re.DOTALL)
-    if not match:
-        raise ValueError(f"JSON topilmadi:\n{text[:500]}")
-    return json.loads(match.group(0))
-
 
 SHORT_PROMPT = """Sen ushbu uzunroq video uchun YouTube SHORTS (vertikal, 50-60 soniya) variantini yozasan.
 
@@ -105,6 +90,26 @@ FAQAT JSON qaytar:
 """
 
 
+def _pkg_from_data(data: dict, default_dur: float, max_scenes: int | None = None) -> ScriptPackage:
+    scenes_raw = data["scenes"]
+    if max_scenes:
+        scenes_raw = scenes_raw[:max_scenes]
+    return ScriptPackage(
+        title=data["title"].strip(),
+        description=data["description"].strip(),
+        tags=[t.strip() for t in data["tags"]],
+        thumbnail_prompt=data["thumbnail_prompt"].strip(),
+        scenes=[
+            Scene(
+                narration=s["narration"].strip(),
+                visual_query=s["visual_query"].strip(),
+                duration_sec=float(s.get("duration_sec", default_dur)),
+            )
+            for s in scenes_raw
+        ],
+    )
+
+
 def write_script(
     topic: str,
     *,
@@ -115,40 +120,14 @@ def write_script(
     hook_seconds: int = 5,
     model_name: str = "gemini-2.0-flash",
 ) -> ScriptPackage:
-    api_key = os.environ.get("GEMINI_API_KEY")
-    if not api_key:
-        raise RuntimeError("GEMINI_API_KEY .env yoki secrets'da yo'q")
-    genai.configure(api_key=api_key)
-    model = genai.GenerativeModel(model_name)
-
     prompt = PROMPT_TEMPLATE.format(
-        topic=topic,
-        language=language,
-        style=style,
-        duration=duration_sec,
-        scenes=scenes,
-        hook=hook_seconds,
-        per_scene=max(5, duration_sec // scenes),
+        topic=topic, language=language, style=style, duration=duration_sec,
+        scenes=scenes, hook=hook_seconds, per_scene=max(5, duration_sec // scenes),
     )
-
     log.info("Skript so'ralmoqda: %s", topic)
-    response = model.generate_content(prompt)
-    data = _extract_json(response.text)
-
-    pkg = ScriptPackage(
-        title=data["title"].strip(),
-        description=data["description"].strip(),
-        tags=[t.strip() for t in data["tags"]],
-        thumbnail_prompt=data["thumbnail_prompt"].strip(),
-        scenes=[
-            Scene(
-                narration=s["narration"].strip(),
-                visual_query=s["visual_query"].strip(),
-                duration_sec=float(s.get("duration_sec", duration_sec / scenes)),
-            )
-            for s in data["scenes"]
-        ],
-    )
+    raw = complete(prompt, gemini_model=model_name)
+    data = extract_json(raw)
+    pkg = _pkg_from_data(data, duration_sec / max(1, scenes))
     log.info("Skript tayyor: %s (%d sahna)", pkg.title, len(pkg.scenes))
     return pkg
 
@@ -161,32 +140,11 @@ def write_short_from_long(
     duration_sec: int = 55,
     model_name: str = "gemini-2.0-flash",
 ) -> ScriptPackage:
-    """Long video asosida shorts uchun condensed skript yozadi."""
-    api_key = os.environ.get("GEMINI_API_KEY")
-    if not api_key:
-        raise RuntimeError("GEMINI_API_KEY yo'q")
-    genai.configure(api_key=api_key)
-    model = genai.GenerativeModel(model_name)
     prompt = SHORT_PROMPT.format(
-        topic=topic,
-        long_title=long_pkg.title,
-        long_desc=long_pkg.description[:300],
+        topic=topic, long_title=long_pkg.title, long_desc=long_pkg.description[:300],
     )
-    response = model.generate_content(prompt)
-    data = _extract_json(response.text)
-    pkg = ScriptPackage(
-        title=data["title"].strip(),
-        description=data["description"].strip(),
-        tags=[t.strip() for t in data["tags"]],
-        thumbnail_prompt=data["thumbnail_prompt"].strip(),
-        scenes=[
-            Scene(
-                narration=s["narration"].strip(),
-                visual_query=s["visual_query"].strip(),
-                duration_sec=float(s.get("duration_sec", duration_sec / max(1, len(data["scenes"])))),
-            )
-            for s in data["scenes"][:scenes]
-        ],
-    )
+    raw = complete(prompt, gemini_model=model_name)
+    data = extract_json(raw)
+    pkg = _pkg_from_data(data, duration_sec / max(1, scenes), max_scenes=scenes)
     log.info("Short skript tayyor: %s", pkg.title)
     return pkg

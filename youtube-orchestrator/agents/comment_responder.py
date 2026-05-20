@@ -1,4 +1,4 @@
-"""Sharhlarga javob beruvchi agent — yangi sharhlarni oladi, Gemini orqali javob yozadi."""
+"""Sharhlarga javob beruvchi agent — yangi sharhlarni oladi, LLM orqali javob yozadi."""
 from __future__ import annotations
 
 import json
@@ -6,9 +6,10 @@ import logging
 import os
 from pathlib import Path
 
-import google.generativeai as genai
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
+
+from .llm_client import complete
 
 log = logging.getLogger(__name__)
 
@@ -57,11 +58,9 @@ def _save_replied(replied: set[str]) -> None:
     STATE_PATH.write_text(json.dumps(sorted(replied)))
 
 
-def _gemini_reply(comment_text: str, video_title: str, style: str, model_name: str) -> str | None:
-    genai.configure(api_key=os.environ["GEMINI_API_KEY"])
-    model = genai.GenerativeModel(model_name)
+def _generate_reply(comment_text: str, video_title: str, style: str, model_name: str) -> str | None:
     prompt = REPLY_PROMPT.format(title=video_title, comment=comment_text, style=style)
-    out = model.generate_content(prompt).text.strip()
+    out = complete(prompt, gemini_model=model_name).strip()
     if not out or out.lower().startswith("skip"):
         return None
     return out
@@ -106,7 +105,7 @@ def respond_to_comments(
                 continue
             text = top["snippet"]["textDisplay"]
             try:
-                reply = _gemini_reply(text, video_title, style, model_name)
+                reply = _generate_reply(text, video_title, style, model_name)
             except Exception as exc:
                 log.warning("Gemini xato berdi: %s", exc)
                 continue
