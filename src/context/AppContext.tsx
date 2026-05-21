@@ -677,10 +677,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
         updatedAt: now,
         assigneeId,
         details: data.details ?? {},
-        attachments: [],
-        internalNotes: [],
-        publicComments: [],
+        attachments: data.attachments ?? [],
+        internalNotes: data.internalNotes ?? [],
+        publicComments: data.publicComments ?? [],
         slaDueAt,
+        misroute: data.misroute,
+        warehouseTracks: data.warehouseTracks,
         history: [
           {
             id: randomId('h'),
