@@ -153,6 +153,7 @@ const STORAGE_KEYS = {
   callLogs: 'ipost.callLogs',
   cargoShipments: 'ipost.cargoShipments',
   leads: 'ipost.leads',
+  userPhotos: 'ipost.userPhotos',
   lang: 'ipost.lang',
   theme: 'ipost.theme',
   session: 'ipost.session',
@@ -170,6 +171,35 @@ function loadLocal<T>(key: string, fallback: T): T {
 
 function saveLocal<T>(key: string, value: T) {
   localStorage.setItem(key, JSON.stringify(value));
+}
+
+// Foydalanuvchi rasmlari faqat shu kompyuterda saqlanadi — KV'ga yuborilmaydi.
+// Bu Vercel KV'da joy egallashni 90%+ kamaytiradi (har bir rasm ~10-40 KB,
+// 20 xodimda ~800 KB). Login/parol/role/faceDescriptor esa KV'da bo'ladi —
+// shu sababli istalgan PC'dan kirish va Face ID baribir ishlaydi.
+function stripUserPhotos(users: User[]): User[] {
+  return users.map((u) => {
+    if (!u.photo) return u;
+    const { photo: _, ...rest } = u;
+    return rest as User;
+  });
+}
+
+function loadLocalUserPhotos(): Record<string, string> {
+  return loadLocal<Record<string, string>>('ipost.userPhotos', {});
+}
+
+function saveLocalUserPhotos(users: User[]) {
+  const map: Record<string, string> = {};
+  users.forEach((u) => {
+    if (u.photo) map[u.id] = u.photo;
+  });
+  saveLocal('ipost.userPhotos', map);
+}
+
+function hydrateUserPhotos(users: User[]): User[] {
+  const photos = loadLocalUserPhotos();
+  return users.map((u) => (u.photo || !photos[u.id] ? u : { ...u, photo: photos[u.id] }));
 }
 
 export function AppProvider({ children }: { children: ReactNode }) {
@@ -356,7 +386,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   /* ---------------- Persist local mode ---------------- */
   useEffect(() => {
-    if (backend === 'local' && ready) saveLocal(STORAGE_KEYS.users, users);
+    if (backend === 'local' && ready) {
+      saveLocal(STORAGE_KEYS.users, users);
+      // Rasmlarni alohida lokal mapga ham saqlaymiz — KV'dan kelganda hydrate qilamiz
+      saveLocalUserPhotos(users);
+    }
   }, [users, backend, ready]);
   useEffect(() => {
     if (backend === 'local' && ready) saveLocal(STORAGE_KEYS.stages, stages);
@@ -430,7 +464,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const remote = await loadFromKV();
         if (remote && remote.data) {
           const d = remote.data;
-          if (Array.isArray(d.users) && d.users.length > 0) setUsers(d.users);
+          if (Array.isArray(d.users) && d.users.length > 0) setUsers(hydrateUserPhotos(d.users));
           if (Array.isArray(d.stages) && d.stages.length > 0) setStages(d.stages);
           if (Array.isArray(d.tickets)) setTickets(d.tickets);
           if (Array.isArray(d.categories) && d.categories.length > 0) setCategories(d.categories);
@@ -457,12 +491,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // Bir vaqtning o'zida bir nechta kolleksiya o'zgarsa ham hammasi parallel saqlanadi.
   const collectionTimersRef = useRef<Record<string, number>>({});
 
+  // KV'ga yuborilayotgan ma'lumotni filtrlash: foydalanuvchi rasmlari faqat
+  // lokal bo'lib qoladi (joy ekonomiyasi uchun)
+  function valueForKV(name: CollectionName, value: unknown): unknown {
+    if (name === 'users' && Array.isArray(value)) {
+      return stripUserPhotos(value as User[]);
+    }
+    return value;
+  }
+
   function scheduleCollectionSave(name: CollectionName, value: unknown) {
     if (backend !== 'local' || !kvReady || !kvConfigured) return;
     const timers = collectionTimersRef.current;
     if (timers[name]) clearTimeout(timers[name]);
     timers[name] = window.setTimeout(() => {
-      saveCollectionToKV(name, value)
+      saveCollectionToKV(name, valueForKV(name, value))
         .then((r) => {
           if (r.ok) {
             broadcastChange(name);
@@ -482,7 +525,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       delete timers[name];
     }
     try {
-      const r = await saveCollectionToKV(name, value);
+      const r = await saveCollectionToKV(name, valueForKV(name, value));
       if (r.ok) {
         broadcastChange(name);
         return true;
@@ -545,7 +588,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const data = pendingStateRef.current[name];
         if (data === undefined) return;
         try {
-          const payload = JSON.stringify({ data });
+          const payload = JSON.stringify({ data: valueForKV(name, data) });
           const blob = new Blob([payload], { type: 'application/json' });
           if (navigator.sendBeacon) {
             navigator.sendBeacon(
@@ -584,7 +627,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   function setterFor(name: CollectionName): (v: any) => void {
     switch (name) {
-      case 'users': return (v) => Array.isArray(v) && v.length > 0 && setUsers(v);
+      case 'users': return (v) => Array.isArray(v) && v.length > 0 && setUsers(hydrateUserPhotos(v));
       case 'stages': return (v) => Array.isArray(v) && v.length > 0 && setStages(v);
       case 'tickets': return (v) => Array.isArray(v) && setTickets(v);
       case 'categories': return (v) => Array.isArray(v) && v.length > 0 && setCategories(v);
@@ -797,11 +840,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
           },
         ],
       };
-      setTickets((prev) => [ticket, ...prev]);
+      const nextTickets = [ticket, ...tickets];
+      setTickets(nextTickets);
       await writeDoc('tickets', id, ticket);
+      // Darhol KV'ga yozish — saqlash 100% kafolatlanadi
+      const ok = await flushCollectionSave('tickets', nextTickets);
+      if (!ok && backend === 'local' && kvConfigured) {
+        throw new Error('Murojaat bazaga saqlanmadi — internetni tekshiring');
+      }
       return ticket;
     },
-    [stages, users, tickets, settings, currentUser, writeDoc]
+    [stages, users, tickets, settings, currentUser, writeDoc, backend, kvConfigured, kvReady]
   );
 
   const appendHistory = (ticket: Ticket, entry: Omit<TicketHistoryEntry, 'id' | 'timestamp'>) => {
@@ -815,89 +864,92 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const updateTicket = useCallback<AppState['updateTicket']>(
     async (id, patch, note) => {
-      let updated: Ticket | null = null;
-      setTickets((prev) =>
-        prev.map((t) => {
-          if (t.id !== id) return t;
-          let next = { ...t, ...patch, updatedAt: Date.now() } as Ticket;
-          if (note) {
-            next = appendHistory(next, {
-              actorId: currentUser?.id ?? 'system',
-              actorName: currentUser?.fullName ?? currentUser?.username,
-              action: note,
-            });
-          }
-          updated = next;
-          return next;
-        })
-      );
+      const nextTickets = tickets.map((t) => {
+        if (t.id !== id) return t;
+        let next = { ...t, ...patch, updatedAt: Date.now() } as Ticket;
+        if (note) {
+          next = appendHistory(next, {
+            actorId: currentUser?.id ?? 'system',
+            actorName: currentUser?.fullName ?? currentUser?.username,
+            action: note,
+          });
+        }
+        return next;
+      });
+      const updated = nextTickets.find((t) => t.id === id) ?? null;
+      setTickets(nextTickets);
       if (updated) await writeDoc('tickets', id, updated);
+      const ok = await flushCollectionSave('tickets', nextTickets);
+      if (!ok && backend === 'local' && kvConfigured) {
+        throw new Error('Murojaat bazaga saqlanmadi');
+      }
     },
-    [currentUser, writeDoc]
+    [tickets, currentUser, writeDoc, backend, kvConfigured, kvReady]
   );
 
   const moveTicket = useCallback<AppState['moveTicket']>(
     async (id, stageId) => {
-      let updated: Ticket | null = null;
-      setTickets((prev) =>
-        prev.map((t) => {
-          if (t.id !== id) return t;
-          const stage = stages.find((s) => s.id === stageId);
-          const next = appendHistory(
-            { ...t, stageId, updatedAt: Date.now() },
-            {
-              actorId: currentUser?.id ?? 'system',
-              actorName: currentUser?.fullName ?? currentUser?.username,
-              action: `Bosqich → ${stage?.name ?? stageId}`,
-              stageId,
-            }
-          );
-          updated = next;
-          return next;
-        })
-      );
+      const nextTickets = tickets.map((t) => {
+        if (t.id !== id) return t;
+        const stage = stages.find((s) => s.id === stageId);
+        return appendHistory(
+          { ...t, stageId, updatedAt: Date.now() },
+          {
+            actorId: currentUser?.id ?? 'system',
+            actorName: currentUser?.fullName ?? currentUser?.username,
+            action: `Bosqich → ${stage?.name ?? stageId}`,
+            stageId,
+          }
+        );
+      });
+      const updated = nextTickets.find((t) => t.id === id) ?? null;
+      setTickets(nextTickets);
       if (updated) await writeDoc('tickets', id, updated);
+      await flushCollectionSave('tickets', nextTickets);
     },
-    [currentUser, stages, writeDoc]
+    [tickets, currentUser, stages, writeDoc, backend, kvConfigured, kvReady]
   );
 
   const resolveTicket = useCallback<AppState['resolveTicket']>(
     async (id, resolution) => {
-      let updated: Ticket | null = null;
       const resolvedStage = stages.find((s) => /hal|resolved/i.test(s.name)) ?? stages[stages.length - 1];
-      setTickets((prev) =>
-        prev.map((t) => {
-          if (t.id !== id) return t;
-          const next = appendHistory(
-            {
-              ...t,
-              status: 'resolved' as TicketStatus,
-              stageId: resolvedStage?.id ?? t.stageId,
-              resolvedAt: Date.now(),
-              details: { ...t.details, resolution },
-            },
-            {
-              actorId: currentUser?.id ?? 'system',
-              actorName: currentUser?.fullName ?? currentUser?.username,
-              action: 'Hal etildi',
-              note: resolution,
-            }
-          );
-          updated = next;
-          return next;
-        })
-      );
+      const nextTickets = tickets.map((t) => {
+        if (t.id !== id) return t;
+        return appendHistory(
+          {
+            ...t,
+            status: 'resolved' as TicketStatus,
+            stageId: resolvedStage?.id ?? t.stageId,
+            resolvedAt: Date.now(),
+            details: { ...t.details, resolution },
+          },
+          {
+            actorId: currentUser?.id ?? 'system',
+            actorName: currentUser?.fullName ?? currentUser?.username,
+            action: 'Hal etildi',
+            note: resolution,
+          }
+        );
+      });
+      const updated = nextTickets.find((t) => t.id === id) ?? null;
+      setTickets(nextTickets);
       if (updated) await writeDoc('tickets', id, updated);
+      const ok = await flushCollectionSave('tickets', nextTickets);
+      if (!ok && backend === 'local' && kvConfigured) {
+        throw new Error('Hal etish bazaga saqlanmadi');
+      }
     },
-    [currentUser, stages, writeDoc]
+    [tickets, currentUser, stages, writeDoc, backend, kvConfigured, kvReady]
   );
 
   const deleteTicket = useCallback<AppState['deleteTicket']>(
     async (id) => {
-      setTickets((prev) => prev.filter((t) => t.id !== id));
+      const next = tickets.filter((t) => t.id !== id);
+      setTickets(next);
       await removeDoc('tickets', id);
+      await flushCollectionSave('tickets', next);
     },
-    [removeDoc]
+    [tickets, removeDoc, backend, kvConfigured, kvReady]
   );
 
   const saveUser = useCallback<AppState['saveUser']>(
@@ -1134,12 +1186,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     (phones, source, notes) => {
       if (!currentUser) return 0;
       const now = Date.now();
-      const cleaned = phones
-        .map((p) => p.trim())
-        .filter((p) => p.length > 0);
+      const cleaned = phones.map((p) => p.trim()).filter((p) => p.length > 0);
       if (cleaned.length === 0) return 0;
-      // Duplikatlarni yangi murojaat sifatida ham qo'shamiz —
-      // har bir kanaldan qayta murojaat alohida yozuv bo'lishi mumkin.
       const newLeads: Lead[] = cleaned.map((phone, i) => ({
         id: `lead-${now}-${i}-${Math.random().toString(36).slice(2, 7)}`,
         phone,
@@ -1150,41 +1198,62 @@ export function AppProvider({ children }: { children: ReactNode }) {
         createdBy: currentUser.id,
         createdByName: currentUser.fullName ?? currentUser.username,
       }));
-      setLeads((prev) => [...newLeads, ...prev].slice(0, 50000));
+      const next = [...newLeads, ...leads].slice(0, 50000);
+      setLeads(next);
+      // Darhol KV'ga — yangi qabul qilingan raqamlar bir lahzada saqlanadi
+      void flushCollectionSave('leads', next);
       return newLeads.length;
     },
-    [currentUser]
+    [leads, currentUser, backend, kvConfigured, kvReady]
   );
 
-  const updateLead = useCallback<AppState['updateLead']>((id, patch) => {
-    setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, ...patch } : l)));
-  }, []);
+  const updateLead = useCallback<AppState['updateLead']>(
+    (id, patch) => {
+      const next = leads.map((l) => (l.id === id ? { ...l, ...patch } : l));
+      setLeads(next);
+      void flushCollectionSave('leads', next);
+    },
+    [leads, backend, kvConfigured, kvReady]
+  );
 
-  const markLeadInfoGiven = useCallback<AppState['markLeadInfoGiven']>((id) => {
-    if (!currentUser) return;
-    const now = Date.now();
-    setLeads((prev) =>
-      prev.map((l) =>
+  const markLeadInfoGiven = useCallback<AppState['markLeadInfoGiven']>(
+    (id) => {
+      if (!currentUser) return;
+      const now = Date.now();
+      const next = leads.map((l) =>
         l.id === id
           ? {
               ...l,
-              status: 'info_given',
+              status: 'info_given' as LeadStatus,
               calledAt: now,
               calledBy: currentUser.id,
               calledByName: currentUser.fullName ?? currentUser.username,
             }
           : l
-      )
-    );
-  }, [currentUser]);
+      );
+      setLeads(next);
+      void flushCollectionSave('leads', next);
+    },
+    [leads, currentUser, backend, kvConfigured, kvReady]
+  );
 
-  const deleteLead = useCallback<AppState['deleteLead']>((id) => {
-    setLeads((prev) => prev.filter((l) => l.id !== id));
-  }, []);
+  const deleteLead = useCallback<AppState['deleteLead']>(
+    (id) => {
+      const next = leads.filter((l) => l.id !== id);
+      setLeads(next);
+      void flushCollectionSave('leads', next);
+    },
+    [leads, backend, kvConfigured, kvReady]
+  );
 
-  const clearLeads = useCallback<AppState['clearLeads']>((status) => {
-    setLeads((prev) => (status ? prev.filter((l) => l.status !== status) : []));
-  }, []);
+  const clearLeads = useCallback<AppState['clearLeads']>(
+    (status) => {
+      const next = status ? leads.filter((l) => l.status !== status) : [];
+      setLeads(next);
+      void flushCollectionSave('leads', next);
+    },
+    [leads, backend, kvConfigured, kvReady]
+  );
 
   // Mijoz qayta aloqaga chiqdi — boshqa operatorga eslatma
   const notifyCallback = useCallback<AppState['notifyCallback']>((ticket) => {
@@ -1336,42 +1405,34 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const addAttachment = useCallback<AppState['addAttachment']>(
     async (ticketId, file) => {
-      let updated: Ticket | null = null;
-      setTickets((prev) =>
-        prev.map((t) => {
-          if (t.id !== ticketId) return t;
-          const next: Ticket = {
-            ...t,
-            attachments: [...(t.attachments ?? []), file],
-            updatedAt: Date.now(),
-          };
-          updated = next;
-          return next;
-        })
-      );
+      const nextTickets = tickets.map((t) => {
+        if (t.id !== ticketId) return t;
+        return { ...t, attachments: [...(t.attachments ?? []), file], updatedAt: Date.now() };
+      });
+      const updated = nextTickets.find((t) => t.id === ticketId) ?? null;
+      setTickets(nextTickets);
       if (updated) await writeDoc('tickets', ticketId, updated);
+      await flushCollectionSave('tickets', nextTickets);
     },
-    [writeDoc]
+    [tickets, writeDoc, backend, kvConfigured, kvReady]
   );
 
   const removeAttachment = useCallback<AppState['removeAttachment']>(
     async (ticketId, attachmentId) => {
-      let updated: Ticket | null = null;
-      setTickets((prev) =>
-        prev.map((t) => {
-          if (t.id !== ticketId) return t;
-          const next: Ticket = {
-            ...t,
-            attachments: (t.attachments ?? []).filter((a) => a.id !== attachmentId),
-            updatedAt: Date.now(),
-          };
-          updated = next;
-          return next;
-        })
-      );
+      const nextTickets = tickets.map((t) => {
+        if (t.id !== ticketId) return t;
+        return {
+          ...t,
+          attachments: (t.attachments ?? []).filter((a) => a.id !== attachmentId),
+          updatedAt: Date.now(),
+        };
+      });
+      const updated = nextTickets.find((t) => t.id === ticketId) ?? null;
+      setTickets(nextTickets);
       if (updated) await writeDoc('tickets', ticketId, updated);
+      await flushCollectionSave('tickets', nextTickets);
     },
-    [writeDoc]
+    [tickets, writeDoc, backend, kvConfigured, kvReady]
   );
 
   const addNote = useCallback<AppState['addNote']>(
@@ -1384,43 +1445,39 @@ export function AppProvider({ children }: { children: ReactNode }) {
         authorName: currentUser?.fullName ?? currentUser?.username,
         createdAt: Date.now(),
       };
-      let updated: Ticket | null = null;
-      setTickets((prev) =>
-        prev.map((t) => {
-          if (t.id !== ticketId) return t;
-          const next: Ticket = {
-            ...t,
-            updatedAt: Date.now(),
-            firstResponseAt: t.firstResponseAt ?? Date.now(),
-          };
-          if (kind === 'internal') {
-            next.internalNotes = [...(t.internalNotes ?? []), note];
-          } else {
-            next.publicComments = [...(t.publicComments ?? []), note];
-          }
-          updated = next;
-          return next;
-        })
-      );
+      const nextTickets = tickets.map((t) => {
+        if (t.id !== ticketId) return t;
+        const next: Ticket = {
+          ...t,
+          updatedAt: Date.now(),
+          firstResponseAt: t.firstResponseAt ?? Date.now(),
+        };
+        if (kind === 'internal') {
+          next.internalNotes = [...(t.internalNotes ?? []), note];
+        } else {
+          next.publicComments = [...(t.publicComments ?? []), note];
+        }
+        return next;
+      });
+      const updated = nextTickets.find((t) => t.id === ticketId) ?? null;
+      setTickets(nextTickets);
       if (updated) await writeDoc('tickets', ticketId, updated);
+      await flushCollectionSave('tickets', nextTickets);
     },
-    [currentUser, writeDoc]
+    [tickets, currentUser, writeDoc, backend, kvConfigured, kvReady]
   );
 
   const rateTicket = useCallback<AppState['rateTicket']>(
     async (ticketId, rating) => {
-      let updated: Ticket | null = null;
-      setTickets((prev) =>
-        prev.map((t) => {
-          if (t.id !== ticketId) return t;
-          const next: Ticket = { ...t, rating, updatedAt: Date.now() };
-          updated = next;
-          return next;
-        })
+      const nextTickets = tickets.map((t) =>
+        t.id === ticketId ? { ...t, rating, updatedAt: Date.now() } : t
       );
+      const updated = nextTickets.find((t) => t.id === ticketId) ?? null;
+      setTickets(nextTickets);
       if (updated) await writeDoc('tickets', ticketId, updated);
+      await flushCollectionSave('tickets', nextTickets);
     },
-    [writeDoc]
+    [tickets, writeDoc, backend, kvConfigured, kvReady]
   );
 
   const runTestScenario = useCallback<AppState['runTestScenario']>(async () => {
