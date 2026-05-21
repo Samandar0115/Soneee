@@ -1,36 +1,61 @@
 // Vercel Serverless Function: butun ilova holatini saqlash/o'qish
-// Upstash Redis REST API orqali (Vercel Marketplace'dan Redis integratsiya
-// ulanganda KV_REST_API_URL va KV_REST_API_TOKEN env'lari avtomatik kelib qoladi)
+// Upstash Redis REST API orqali (Vercel Marketplace'dan Redis integratsiya ulanganda
+// KV_REST_API_URL va KV_REST_API_TOKEN env'lari avtomatik kelib qoladi)
 //
-// Endpoints:
-//   GET  /api/state         → { ok, configured, data?, updatedAt? }
-//   POST /api/state {data}  → { ok, configured }
+// REJIMLAR (eski + yangi):
+//   GET  /api/state                      → eski rejim: butun snapshot (orqaga moslik)
+//   GET  /api/state?meta=1               → meta: har bir kolleksiya updatedAt'i (~200 bayt)
+//   GET  /api/state?collection=tickets   → bitta kolleksiya
+//   POST /api/state {data: {...}}        → butun snapshot (eski rejim)
+//   POST /api/state?collection=tickets {data: [...]} → bitta kolleksiyani yangilash + meta
 //
-// Agar env'lar yo'q bo'lsa, 200 status va configured:false bilan javob qaytaradi
-// (front-end localStorage'ga fallback qiladi).
+// Per-collection rejim:
+//   * Bitta name'ni o'zgartirsangiz faqat users + meta yoziladi (~10 KB), 5-10 MB emas
+//   * Polling meta'ni oladi (~200 bayt), faqat o'zgargan kolleksiyani qayta o'qiydi
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 const URL_ENV = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
 const TOKEN_ENV = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
-const KEY = 'ipost:state:v1';
+
+const KEY_LEGACY = 'ipost:state:v1';
+const KEY_META = 'ipost:meta:v3';
+const COL_KEY = (name: string) => `ipost:col:${name}:v3`;
+
+const COLLECTIONS = [
+  'users', 'stages', 'tickets', 'categories', 'announcements',
+  'branches', 'tariff', 'settings', 'templates', 'notifications',
+  'callLogs', 'cargoShipments',
+] as const;
+
+type Collection = typeof COLLECTIONS[number];
 
 function isConfigured() {
   return !!(URL_ENV && TOKEN_ENV);
 }
 
-async function redis(command: (string | number)[]): Promise<any> {
-  if (!isConfigured()) return null;
-  const res = await fetch(`${URL_ENV}/${command.map(encodeURIComponent).join('/')}`, {
+async function redisGet(key: string): Promise<string | null> {
+  const res = await fetch(`${URL_ENV}/get/${encodeURIComponent(key)}`, {
     headers: { Authorization: `Bearer ${TOKEN_ENV}` },
   });
-  if (!res.ok) throw new Error(`Redis HTTP ${res.status}`);
-  return res.json();
+  if (!res.ok) throw new Error(`Redis GET ${key} HTTP ${res.status}`);
+  const json = await res.json();
+  return json?.result ?? null;
 }
 
-async function redisSet(value: string): Promise<any> {
-  if (!isConfigured()) return null;
-  const res = await fetch(`${URL_ENV}/set/${encodeURIComponent(KEY)}`, {
+async function redisMGet(keys: string[]): Promise<(string | null)[]> {
+  if (keys.length === 0) return [];
+  const path = ['mget', ...keys].map(encodeURIComponent).join('/');
+  const res = await fetch(`${URL_ENV}/${path}`, {
+    headers: { Authorization: `Bearer ${TOKEN_ENV}` },
+  });
+  if (!res.ok) throw new Error(`Redis MGET HTTP ${res.status}`);
+  const json = await res.json();
+  return (json?.result ?? []) as (string | null)[];
+}
+
+async function redisSet(key: string, value: string): Promise<void> {
+  const res = await fetch(`${URL_ENV}/set/${encodeURIComponent(key)}`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${TOKEN_ENV}`,
@@ -38,12 +63,43 @@ async function redisSet(value: string): Promise<any> {
     },
     body: value,
   });
-  if (!res.ok) throw new Error(`Redis HTTP ${res.status}`);
-  return res.json();
+  if (!res.ok) throw new Error(`Redis SET ${key} HTTP ${res.status}`);
+}
+
+async function loadMeta(): Promise<Record<string, number>> {
+  const raw = await redisGet(KEY_META);
+  if (!raw) return {};
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return {};
+  }
+}
+
+async function saveMeta(meta: Record<string, number>): Promise<void> {
+  await redisSet(KEY_META, JSON.stringify(meta));
+}
+
+async function loadFullFromCollections(): Promise<{ data: any; updatedAt: number } | null> {
+  const keys = COLLECTIONS.map(COL_KEY);
+  const values = await redisMGet(keys);
+  const data: any = {};
+  let hasAny = false;
+  COLLECTIONS.forEach((name, i) => {
+    const raw = values[i];
+    if (!raw) return;
+    try {
+      data[name] = JSON.parse(raw);
+      hasAny = true;
+    } catch {}
+  });
+  if (!hasAny) return null;
+  const meta = await loadMeta();
+  const updatedAt = Math.max(0, ...Object.values(meta));
+  return { data, updatedAt: updatedAt || Date.now() };
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // CORS — front-end shu domeniga uradi, lekin har qanday holatda ham xavfsiz
   res.setHeader('Cache-Control', 'no-store');
 
   if (!isConfigured()) {
@@ -55,14 +111,50 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
+    const q = req.query || {};
+    const collectionParam = typeof q.collection === 'string' ? q.collection : '';
+    const metaOnly = q.meta === '1' || q.meta === 'true';
+
     if (req.method === 'GET') {
-      const result = await redis(['get', KEY]);
-      const raw = result?.result;
-      if (!raw) {
+      if (metaOnly) {
+        const meta = await loadMeta();
+        return res.status(200).json({ ok: true, configured: true, meta });
+      }
+
+      if (collectionParam) {
+        if (!COLLECTIONS.includes(collectionParam as Collection)) {
+          return res.status(400).json({ ok: false, error: `Nomalum kolleksiya: ${collectionParam}` });
+        }
+        const raw = await redisGet(COL_KEY(collectionParam));
+        const data = raw ? JSON.parse(raw) : null;
+        const meta = await loadMeta();
+        return res.status(200).json({
+          ok: true,
+          configured: true,
+          collection: collectionParam,
+          data,
+          updatedAt: meta[collectionParam] || 0,
+        });
+      }
+
+      // Butun snapshot — avval per-collection key'lardan
+      const combined = await loadFullFromCollections();
+      if (combined) {
+        return res.status(200).json({
+          ok: true,
+          configured: true,
+          data: combined.data,
+          updatedAt: combined.updatedAt,
+        });
+      }
+
+      // Legacy fallback
+      const legacy = await redisGet(KEY_LEGACY);
+      if (!legacy) {
         return res.status(200).json({ ok: true, configured: true, data: null });
       }
       try {
-        const parsed = JSON.parse(raw);
+        const parsed = JSON.parse(legacy);
         return res.status(200).json({
           ok: true,
           configured: true,
@@ -76,16 +168,54 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (req.method === 'POST') {
       const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-      if (!body || typeof body !== 'object' || !body.data) {
+      if (!body || typeof body !== 'object') {
+        return res.status(400).json({ ok: false, error: 'body kerak' });
+      }
+
+      // Bitta kolleksiyani yangilash (delta save)
+      if (collectionParam) {
+        if (!COLLECTIONS.includes(collectionParam as Collection)) {
+          return res.status(400).json({ ok: false, error: `Nomalum kolleksiya: ${collectionParam}` });
+        }
+        const value = JSON.stringify(body.data ?? null);
+        if (value.length > 900_000) {
+          return res.status(413).json({ ok: false, error: `${collectionParam} > 900 KB` });
+        }
+        const now = Date.now();
+        const meta = await loadMeta();
+        meta[collectionParam] = now;
+        await Promise.all([
+          redisSet(COL_KEY(collectionParam), value),
+          saveMeta(meta),
+        ]);
+        return res.status(200).json({ ok: true, configured: true, updatedAt: now });
+      }
+
+      // Butun snapshot — har bir kolleksiyani alohida yozish + meta yangilash
+      if (!body.data || typeof body.data !== 'object') {
         return res.status(400).json({ ok: false, error: 'data majburiy' });
       }
-      const payload = JSON.stringify({ data: body.data, updatedAt: Date.now() });
-      // Vercel KV doc size limitlari mavjud — taxminan 1 MB. Katta bo'lsa xato.
-      if (payload.length > 1_000_000) {
-        return res.status(413).json({ ok: false, error: 'Backup hajmi > 1MB' });
+      const now = Date.now();
+      const meta: Record<string, number> = {};
+      const writes: Promise<void>[] = [];
+      for (const name of COLLECTIONS) {
+        const v = body.data[name];
+        if (v === undefined) continue;
+        const s = JSON.stringify(v);
+        if (s.length > 900_000) {
+          return res.status(413).json({ ok: false, error: `${name} > 900 KB` });
+        }
+        writes.push(redisSet(COL_KEY(name), s));
+        meta[name] = now;
       }
-      await redisSet(payload);
-      return res.status(200).json({ ok: true, configured: true });
+      writes.push(saveMeta(meta));
+      // Legacy ham yangilab turamiz — agar < 900 KB sig'sa
+      const legacyPayload = JSON.stringify({ data: body.data, updatedAt: now });
+      if (legacyPayload.length < 900_000) {
+        writes.push(redisSet(KEY_LEGACY, legacyPayload));
+      }
+      await Promise.all(writes);
+      return res.status(200).json({ ok: true, configured: true, updatedAt: now });
     }
 
     return res.status(405).json({ ok: false, error: 'Method not allowed' });

@@ -8,12 +8,17 @@ export interface KVStatus {
   updatedAt?: number;
 }
 
+export type CollectionName =
+  | 'users' | 'stages' | 'tickets' | 'categories' | 'announcements'
+  | 'branches' | 'tariff' | 'settings' | 'templates' | 'notifications'
+  | 'callLogs' | 'cargoShipments';
+
 let cachedStatus: KVStatus | null = null;
 
 export async function checkKVStatus(): Promise<KVStatus> {
   if (cachedStatus) return cachedStatus;
   try {
-    const res = await fetch('/api/state', { method: 'GET' });
+    const res = await fetch('/api/state?meta=1', { method: 'GET' });
     if (!res.ok) {
       cachedStatus = { available: false, configured: false };
       return cachedStatus;
@@ -22,7 +27,6 @@ export async function checkKVStatus(): Promise<KVStatus> {
     cachedStatus = {
       available: true,
       configured: !!json.configured,
-      updatedAt: json.updatedAt,
     };
     return cachedStatus;
   } catch {
@@ -34,6 +38,8 @@ export async function checkKVStatus(): Promise<KVStatus> {
 export function resetKVStatus() {
   cachedStatus = null;
 }
+
+/* --------------- Eski rejim: butun snapshot --------------- */
 
 export async function loadFromKV(): Promise<{ data: any; updatedAt?: number } | null> {
   try {
@@ -60,6 +66,58 @@ export async function saveToKV(data: unknown): Promise<{ ok: boolean; configured
     }
     const json = await res.json();
     return { ok: !!json.ok, configured: !!json.configured, error: json.error };
+  } catch (err) {
+    return { ok: false, configured: false, error: (err as Error).message };
+  }
+}
+
+/* --------------- Yangi rejim: per-collection + meta --------------- */
+
+// Faqat metani olish — har bir kolleksiya updatedAt'i. ~200 bayt, polling uchun arzon
+export async function loadMetaFromKV(): Promise<Record<string, number> | null> {
+  try {
+    const res = await fetch('/api/state?meta=1', { method: 'GET' });
+    if (!res.ok) return null;
+    const json = await res.json();
+    if (!json.configured) return null;
+    return json.meta || {};
+  } catch {
+    return null;
+  }
+}
+
+// Bitta kolleksiyani olish
+export async function loadCollectionFromKV(
+  name: CollectionName
+): Promise<{ data: any; updatedAt: number } | null> {
+  try {
+    const res = await fetch(`/api/state?collection=${encodeURIComponent(name)}`, { method: 'GET' });
+    if (!res.ok) return null;
+    const json = await res.json();
+    if (!json.configured) return null;
+    return { data: json.data, updatedAt: json.updatedAt || 0 };
+  } catch {
+    return null;
+  }
+}
+
+// Bitta kolleksiyani yangilash — delta save (5-10 MB emas, ~10-100 KB)
+export async function saveCollectionToKV(
+  name: CollectionName,
+  data: unknown
+): Promise<{ ok: boolean; configured: boolean; error?: string; updatedAt?: number }> {
+  try {
+    const res = await fetch(`/api/state?collection=${encodeURIComponent(name)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data }),
+    });
+    if (!res.ok) {
+      const txt = await res.text().catch(() => '');
+      return { ok: false, configured: false, error: txt || `HTTP ${res.status}` };
+    }
+    const json = await res.json();
+    return { ok: !!json.ok, configured: !!json.configured, error: json.error, updatedAt: json.updatedAt };
   } catch (err) {
     return { ok: false, configured: false, error: (err as Error).message };
   }

@@ -50,7 +50,17 @@ import {
 } from '../api/seed';
 import { handleFirestoreError } from '../utils/errors';
 import { generateTrackingNumber, randomId } from '../utils/format';
-import { loadFromKV, saveToKV, checkKVStatus } from '../utils/vercelKV';
+import {
+  loadFromKV,
+  saveToKV,
+  checkKVStatus,
+  loadMetaFromKV,
+  loadCollectionFromKV,
+  saveCollectionToKV,
+  type CollectionName,
+} from '../utils/vercelKV';
+import { broadcastChange, onBroadcast } from '../utils/broadcast';
+import { saveDailyBackup } from '../utils/backup';
 
 interface AppState {
   ready: boolean;
@@ -425,87 +435,151 @@ export function AppProvider({ children }: { children: ReactNode }) {
     })();
   }, [backend, ready]);
 
-  /* ---------------- Vercel KV: auto-save (debounced) ---------------- */
-  // Ma'lumot o'zgarsa, 1 sekund kechikish bilan KV'ga yuboramiz.
-  const kvSaveTimerRef = useRef<number | null>(null);
-  useEffect(() => {
+  /* ---------------- Vercel KV: per-collection delta save ---------------- */
+  // Har bir kolleksiya o'zgarganda alohida saqlanadi (5-10 MB blob emas, ~10-100 KB).
+  // Bir vaqtning o'zida bir nechta kolleksiya o'zgarsa ham hammasi parallel saqlanadi.
+  const collectionTimersRef = useRef<Record<string, number>>({});
+
+  function scheduleCollectionSave(name: CollectionName, value: unknown) {
     if (backend !== 'local' || !kvReady || !kvConfigured) return;
-    if (kvSaveTimerRef.current) clearTimeout(kvSaveTimerRef.current);
-    kvSaveTimerRef.current = window.setTimeout(() => {
-      const payload = {
-        version: 2,
-        users,
-        stages,
-        tickets,
-        categories,
-        announcements,
-        branches,
-        tariff,
-        settings,
-        templates,
-        notifications,
-        callLogs,
-        cargoShipments,
-      };
-      saveToKV(payload).catch(() => {});
-    }, 1000);
+    const timers = collectionTimersRef.current;
+    if (timers[name]) clearTimeout(timers[name]);
+    timers[name] = window.setTimeout(() => {
+      saveCollectionToKV(name, value)
+        .then((r) => {
+          if (r.ok) {
+            broadcastChange(name);
+          }
+        })
+        .catch(() => {});
+    }, 700);
+  }
+
+  // Har bir state uchun alohida useEffect — faqat o'sha kolleksiya o'zgarganda yoziladi
+  useEffect(() => { scheduleCollectionSave('users', users); }, [users, backend, kvReady, kvConfigured]);
+  useEffect(() => { scheduleCollectionSave('stages', stages); }, [stages, backend, kvReady, kvConfigured]);
+  useEffect(() => { scheduleCollectionSave('tickets', tickets); }, [tickets, backend, kvReady, kvConfigured]);
+  useEffect(() => { scheduleCollectionSave('categories', categories); }, [categories, backend, kvReady, kvConfigured]);
+  useEffect(() => { scheduleCollectionSave('announcements', announcements); }, [announcements, backend, kvReady, kvConfigured]);
+  useEffect(() => { scheduleCollectionSave('branches', branches); }, [branches, backend, kvReady, kvConfigured]);
+  useEffect(() => { scheduleCollectionSave('tariff', tariff); }, [tariff, backend, kvReady, kvConfigured]);
+  useEffect(() => { scheduleCollectionSave('settings', settings); }, [settings, backend, kvReady, kvConfigured]);
+  useEffect(() => { scheduleCollectionSave('templates', templates); }, [templates, backend, kvReady, kvConfigured]);
+  useEffect(() => { scheduleCollectionSave('notifications', notifications); }, [notifications, backend, kvReady, kvConfigured]);
+  useEffect(() => { scheduleCollectionSave('callLogs', callLogs); }, [callLogs, backend, kvReady, kvConfigured]);
+  useEffect(() => { scheduleCollectionSave('cargoShipments', cargoShipments); }, [cargoShipments, backend, kvReady, kvConfigured]);
+
+  useEffect(() => {
     return () => {
-      if (kvSaveTimerRef.current) clearTimeout(kvSaveTimerRef.current);
+      Object.values(collectionTimersRef.current).forEach((t) => clearTimeout(t));
     };
-  }, [
-    backend,
-    kvReady,
-    kvConfigured,
-    users,
-    stages,
-    tickets,
-    categories,
-    announcements,
-    branches,
-    callLogs,
-    cargoShipments,
-    tariff,
-    settings,
-    templates,
-    notifications,
-  ]);
+  }, []);
 
-  /* ---------------- Vercel KV: avto-polling (boshqa qurilmadan o'zgarishlarni olish) ---------------- */
-  const lastKvUpdateRef = useRef<number>(0);
-  const lastLocalChangeRef = useRef<number>(0);
+  /* ---------------- KV polling (meta) + cross-tab broadcast ---------------- */
+  // Har bir kolleksiya uchun oxirgi sinxronlash vaqtini eslab boramiz.
+  // Polling avval meta'ni oladi (~200 bayt), keyin faqat yangilangan kolleksiyani.
+  const lastSyncMetaRef = useRef<Record<string, number>>({});
+  const lastLocalChangeRef = useRef<Record<string, number>>({});
 
-  // Mahalliy o'zgarishlarni belgilab boramiz — polling paytida nima yangiroqligini taqqoslash uchun
-  useEffect(() => {
-    lastLocalChangeRef.current = Date.now();
-  }, [users, stages, tickets, categories, announcements, branches, tariff, settings, templates, callLogs, cargoShipments]);
+  function setterFor(name: CollectionName): (v: any) => void {
+    switch (name) {
+      case 'users': return (v) => Array.isArray(v) && v.length > 0 && setUsers(v);
+      case 'stages': return (v) => Array.isArray(v) && v.length > 0 && setStages(v);
+      case 'tickets': return (v) => Array.isArray(v) && setTickets(v);
+      case 'categories': return (v) => Array.isArray(v) && v.length > 0 && setCategories(v);
+      case 'announcements': return (v) => Array.isArray(v) && setAnnouncements(v);
+      case 'branches': return (v) => Array.isArray(v) && v.length > 0 && setBranches(v);
+      case 'tariff': return (v) => v && setTariff(v);
+      case 'settings': return (v) => v && setSettings(v);
+      case 'templates': return (v) => Array.isArray(v) && setTemplates(v);
+      case 'notifications': return (v) => Array.isArray(v) && setNotifications(v);
+      case 'callLogs': return (v) => Array.isArray(v) && setCallLogs(v);
+      case 'cargoShipments': return (v) => Array.isArray(v) && setCargoShipments(v);
+    }
+  }
 
+  async function pullChangedCollections(meta: Record<string, number>) {
+    const toFetch: CollectionName[] = [];
+    (Object.keys(meta) as CollectionName[]).forEach((name) => {
+      const remoteTs = meta[name] || 0;
+      const lastSync = lastSyncMetaRef.current[name] || 0;
+      const lastLocal = lastLocalChangeRef.current[name] || 0;
+      if (remoteTs <= lastSync) return;
+      // Mahalliy o'zgartirish 2 sekunddan kam vaqt oldin bo'lgan bo'lsa — o'tkazib yuboramiz (race)
+      if (Date.now() - lastLocal < 2000) return;
+      toFetch.push(name);
+    });
+    if (toFetch.length === 0) return;
+    await Promise.all(
+      toFetch.map(async (name) => {
+        const res = await loadCollectionFromKV(name);
+        if (!res) return;
+        setterFor(name)(res.data);
+        lastSyncMetaRef.current[name] = res.updatedAt;
+      })
+    );
+  }
+
+  // Mahalliy o'zgarish vaqti — race avoidance uchun
+  useEffect(() => { lastLocalChangeRef.current.users = Date.now(); }, [users]);
+  useEffect(() => { lastLocalChangeRef.current.stages = Date.now(); }, [stages]);
+  useEffect(() => { lastLocalChangeRef.current.tickets = Date.now(); }, [tickets]);
+  useEffect(() => { lastLocalChangeRef.current.categories = Date.now(); }, [categories]);
+  useEffect(() => { lastLocalChangeRef.current.announcements = Date.now(); }, [announcements]);
+  useEffect(() => { lastLocalChangeRef.current.branches = Date.now(); }, [branches]);
+  useEffect(() => { lastLocalChangeRef.current.tariff = Date.now(); }, [tariff]);
+  useEffect(() => { lastLocalChangeRef.current.settings = Date.now(); }, [settings]);
+  useEffect(() => { lastLocalChangeRef.current.templates = Date.now(); }, [templates]);
+  useEffect(() => { lastLocalChangeRef.current.notifications = Date.now(); }, [notifications]);
+  useEffect(() => { lastLocalChangeRef.current.callLogs = Date.now(); }, [callLogs]);
+  useEffect(() => { lastLocalChangeRef.current.cargoShipments = Date.now(); }, [cargoShipments]);
+
+  // Meta polling — har 5 sekundda
   useEffect(() => {
     if (backend !== 'local' || !kvReady || !kvConfigured) return;
-    const pollInterval = window.setInterval(async () => {
-      try {
-        const remote = await loadFromKV();
-        if (!remote || !remote.data || !remote.updatedAt) return;
-        // Faqat KV remote yangiroq bo'lsa va mahalliy o'zgartirish 3 sekunddan oshiq vaqt oldin bo'lgan bo'lsa
-        if (remote.updatedAt <= lastKvUpdateRef.current) return;
-        if (Date.now() - lastLocalChangeRef.current < 3000) return;
-        lastKvUpdateRef.current = remote.updatedAt;
-        const d = remote.data;
-        if (Array.isArray(d.users) && d.users.length > 0) setUsers(d.users);
-        if (Array.isArray(d.stages) && d.stages.length > 0) setStages(d.stages);
-        if (Array.isArray(d.tickets)) setTickets(d.tickets);
-        if (Array.isArray(d.categories) && d.categories.length > 0) setCategories(d.categories);
-        if (Array.isArray(d.announcements)) setAnnouncements(d.announcements);
-        if (Array.isArray(d.branches) && d.branches.length > 0) setBranches(d.branches);
-        if (d.tariff) setTariff(d.tariff);
-        if (d.settings) setSettings(d.settings);
-        if (Array.isArray(d.templates)) setTemplates(d.templates);
-        if (Array.isArray(d.notifications)) setNotifications(d.notifications);
-        if (Array.isArray(d.callLogs)) setCallLogs(d.callLogs);
-        if (Array.isArray(d.cargoShipments)) setCargoShipments(d.cargoShipments);
-      } catch {}
-    }, 10000);
-    return () => clearInterval(pollInterval);
+    const tick = async () => {
+      const meta = await loadMetaFromKV();
+      if (meta) await pullChangedCollections(meta);
+    };
+    // Birinchi marta hozir
+    tick();
+    const id = window.setInterval(tick, 5000);
+    return () => clearInterval(id);
   }, [backend, kvReady, kvConfigured]);
+
+  // BroadcastChannel — boshqa tab'dan o'zgarish kelsa zudlik bilan
+  useEffect(() => {
+    if (backend !== 'local' || !kvReady || !kvConfigured) return;
+    const unsub = onBroadcast(async () => {
+      const meta = await loadMetaFromKV();
+      if (meta) await pullChangedCollections(meta);
+    });
+    return unsub;
+  }, [backend, kvReady, kvConfigured]);
+
+  // Window fokuslanganda darhol bir marta poll qiladi — foydalanuvchi tab'ga qaytganda yangi data
+  useEffect(() => {
+    if (backend !== 'local' || !kvReady || !kvConfigured) return;
+    const onFocus = async () => {
+      const meta = await loadMetaFromKV();
+      if (meta) await pullChangedCollections(meta);
+    };
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [backend, kvReady, kvConfigured]);
+
+  /* ---------------- Avto-backup (har kun bir marta) ---------------- */
+  useEffect(() => {
+    if (!ready) return;
+    // 30 sekund kechikish — boshlang'ich yuklash tugashini kutamiz
+    const t = window.setTimeout(() => {
+      saveDailyBackup({
+        users, stages, tickets, categories, announcements,
+        branches, tariff, settings, templates, callLogs, cargoShipments,
+      });
+    }, 30000);
+    return () => clearTimeout(t);
+  }, [ready, users, stages, tickets, categories, announcements, branches, tariff, settings, templates, callLogs, cargoShipments]);
 
   /* ---------------- Auth ---------------- */
   const login = useCallback(
@@ -1030,20 +1104,58 @@ export function AppProvider({ children }: { children: ReactNode }) {
     []
   );
 
+  // O(1) qidiruv uchun indekslar — har bir o'zgarishda qayta hisoblanadi
+  const ticketsByTracking = useMemo(() => {
+    const map = new Map<string, Ticket>();
+    tickets.forEach((t) => {
+      if (t.trackingNumber) map.set(t.trackingNumber.toLowerCase().trim(), t);
+    });
+    return map;
+  }, [tickets]);
+
+  // Telefon bo'yicha indeks: normalizatsiya qilingan telefon → ticket'lar (yaratilish sanasi bo'yicha kamayuvchi)
+  const ticketsByPhone = useMemo(() => {
+    const map = new Map<string, Ticket[]>();
+    const sorted = [...tickets].sort((a, b) => b.createdAt - a.createdAt);
+    sorted.forEach((t) => {
+      const norm = t.customerPhone.replace(/\D/g, '');
+      if (!norm) return;
+      const arr = map.get(norm);
+      if (arr) arr.push(t);
+      else map.set(norm, [t]);
+    });
+    return map;
+  }, [tickets]);
+
   const findByTracking = useCallback<AppState['findByTracking']>(
-    (tracking) => tickets.find((t) => t.trackingNumber.toLowerCase() === tracking.toLowerCase().trim()),
-    [tickets]
+    (tracking) => {
+      const k = tracking.toLowerCase().trim();
+      return ticketsByTracking.get(k);
+    },
+    [ticketsByTracking]
   );
 
   const findByPhone = useCallback<AppState['findByPhone']>(
     (phone) => {
       const norm = phone.replace(/\D/g, '');
       if (!norm) return [];
-      return tickets
-        .filter((t) => t.customerPhone.replace(/\D/g, '').includes(norm))
-        .sort((a, b) => b.createdAt - a.createdAt);
+      // Aniq mos kelish — O(1)
+      const exact = ticketsByPhone.get(norm);
+      if (exact) return exact;
+      // Suffiks/prefiks moslashuvi — qisqa qidiruv (oxirgi 9 raqam Uz uchun)
+      const tail = norm.slice(-9);
+      if (tail !== norm) {
+        const t2 = ticketsByPhone.get(tail);
+        if (t2) return t2;
+      }
+      // Fallback — to'liq skan (kam hollarda)
+      const result: Ticket[] = [];
+      ticketsByPhone.forEach((list, key) => {
+        if (key.includes(norm)) result.push(...list);
+      });
+      return result.sort((a, b) => b.createdAt - a.createdAt);
     },
-    [tickets]
+    [ticketsByPhone]
   );
 
   const addAttachment = useCallback<AppState['addAttachment']>(
