@@ -4,22 +4,66 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Camera, ScanFace, KeyRound, Check, X, RotateCcw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useApp } from '../context/AppContext';
-import { computeDescriptorBoth, findBestMatchMulti, loadFaceModels } from '../utils/face';
+import {
+  computeDescriptorBoth, findBestMatchMulti, loadFaceModels,
+  areFaceModelsFailed,
+} from '../utils/face';
 import type { User } from '../types';
 
 type Mode = 'face' | 'password';
 
+const IPostLogo = () => (
+  <svg viewBox="0 0 640 640" className="h-28 w-28 rounded-2xl shadow-lg shadow-brand-500/30 mb-3">
+    <rect width="640" height="640" rx="40" fill="#0540D6" />
+    <g transform="translate(170,170)">
+      <path d="M0 40 L240 40 L300 90 L240 140 L0 140 Z" fill="#ffffff" />
+      <g stroke="#0A2A8A" strokeWidth="10" strokeLinecap="round" fill="none">
+        <line x1="20" y1="64" x2="270" y2="64" />
+        <line x1="40" y1="90" x2="270" y2="90" />
+        <line x1="20" y1="116" x2="270" y2="116" />
+      </g>
+    </g>
+    <text
+      x="320" y="430" textAnchor="middle"
+      fontFamily="Inter, system-ui, -apple-system, sans-serif"
+      fontWeight="900" fontSize="140" fill="#ffffff" letterSpacing="2"
+    >iPOST</text>
+    <text
+      x="320" y="490" textAnchor="middle"
+      fontFamily="Inter, system-ui, -apple-system, sans-serif"
+      fontWeight="700" fontSize="38" fill="#0A2A8A" letterSpacing="6"
+    >FAST AND EASY</text>
+  </svg>
+);
+
 export default function Login() {
   const { login, currentUser, users } = useApp();
   const nav = useNavigate();
-  // Face ID'ni har doim ko'rsatamiz — KV'dan keyin yuklanishi mumkin, va
-  // har bir qurilmada kamera/Face ID sinab ko'rilishi mumkin bo'lsin
+  // Face ID — faqat ro'yxatdan o'tgan foydalanuvchi mavjud bo'lsa VA modellar yuklab olinsa
   const hasFaceUsers = users.some((u) => u.faceDescriptor && u.faceDescriptor.length > 0);
-  const [mode, setMode] = useState<Mode>('face');
+  const [faceAvailable, setFaceAvailable] = useState(false);
+  const [mode, setMode] = useState<Mode>('password');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [failedAttempts, setFailedAttempts] = useState(0);
+
+  // Sahifa ochilganda jim ravishda modellarni yuklab ko'ramiz.
+  // Muvaffaqiyatli bo'lsa Face ID tabini ko'rsatamiz, bo'lmasa Parol rejimida qolamiz.
+  useEffect(() => {
+    if (!hasFaceUsers) return;
+    let cancelled = false;
+    loadFaceModels()
+      .then(() => {
+        if (cancelled) return;
+        setFaceAvailable(true);
+        setMode('face');
+      })
+      .catch(() => {
+        // jim — Parol rejimi qoladi
+      });
+    return () => { cancelled = true; };
+  }, [hasFaceUsers]);
 
   if (currentUser) return <Navigate to="/" replace />;
 
@@ -60,13 +104,12 @@ export default function Login() {
         className="w-full max-w-md card p-7"
       >
         <div className="flex flex-col items-center mb-5">
-          <motion.img
-            src="/ipost-logo.svg"
-            alt="iPOST"
+          <motion.div
             whileHover={{ scale: 1.04 }}
             transition={{ duration: 0.3 }}
-            className="h-28 w-28 rounded-2xl shadow-lg shadow-brand-500/30 mb-3"
-          />
+          >
+            <IPostLogo />
+          </motion.div>
           <div className="text-center">
             <div className="text-xl font-bold text-slate-900 dark:text-slate-100">iPOST CRM</div>
             <div className="text-xs text-slate-500 dark:text-slate-400">
@@ -75,7 +118,7 @@ export default function Login() {
           </div>
         </div>
 
-        {hasFaceUsers && (
+        {hasFaceUsers && faceAvailable && (
           <div className="flex bg-slate-100 dark:bg-slate-800 rounded-xl p-1 mb-4">
             <button
               type="button"
@@ -401,17 +444,17 @@ function FaceLoginPanel({
         )}
 
         {state === 'failed_models' && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-amber-900/85 text-white text-center px-6">
-            <X className="h-10 w-10 mb-2" />
-            <div className="text-sm font-semibold">Modellarni yuklab bo'lmadi</div>
-            <div className="text-xs mt-1 opacity-80">
-              Internet aloqasini tekshiring (CDN'dan ~3MB)
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-800/90 text-white text-center px-6">
+            <KeyRound className="h-10 w-10 mb-2 opacity-70" />
+            <div className="text-sm font-semibold">Face ID hozir mavjud emas</div>
+            <div className="text-xs mt-1 opacity-70">
+              Parol bilan kirishni davom ettiring
             </div>
             <button
-              onClick={start}
-              className="mt-3 bg-white text-amber-900 px-4 py-1.5 rounded-lg text-xs font-semibold"
+              onClick={onFallback}
+              className="mt-3 bg-brand-600 hover:bg-brand-700 text-white px-4 py-1.5 rounded-lg text-xs font-semibold"
             >
-              <RotateCcw className="h-3 w-3 inline mr-1" /> Qaytadan urinish
+              <KeyRound className="h-3 w-3 inline mr-1" /> Parol bilan kirish
             </button>
           </div>
         )}

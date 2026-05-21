@@ -1,22 +1,52 @@
 import * as faceapi from 'face-api.js';
 
-// Face-api modellarini CDN'dan yuklaymiz (~3 MB jami)
-const MODEL_URL =
+// Face-api modellarini avval local /public/face-models/ dan, bo'lmasa CDN'dan yuklaymiz.
+// Vercel sandbox yoki cheklangan tarmoqda CDN ishlamasligi mumkin —
+// shu sababli Login Parol rejimiga avtomatik o'tib ketadi.
+const LOCAL_MODEL_URL = '/face-models';
+const CDN_MODEL_URL =
   'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights';
 
 let modelsLoaded = false;
+let modelsFailed = false;
 let loadingPromise: Promise<void> | null = null;
+
+export function areFaceModelsLoaded(): boolean {
+  return modelsLoaded;
+}
+
+export function areFaceModelsFailed(): boolean {
+  return modelsFailed;
+}
+
+async function tryLoadFrom(url: string): Promise<void> {
+  await Promise.all([
+    faceapi.nets.tinyFaceDetector.loadFromUri(url),
+    faceapi.nets.faceLandmark68TinyNet.loadFromUri(url),
+    faceapi.nets.faceRecognitionNet.loadFromUri(url),
+  ]);
+}
 
 export async function loadFaceModels(): Promise<void> {
   if (modelsLoaded) return;
+  if (modelsFailed) throw new Error('Face modellari yuklanmadi');
   if (loadingPromise) return loadingPromise;
   loadingPromise = (async () => {
-    await Promise.all([
-      faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
-      faceapi.nets.faceLandmark68TinyNet.loadFromUri(MODEL_URL),
-      faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
-    ]);
-    modelsLoaded = true;
+    // Avval local'dan
+    try {
+      await tryLoadFrom(LOCAL_MODEL_URL);
+      modelsLoaded = true;
+      return;
+    } catch {
+      // local yo'q — CDN'ga o'tamiz
+    }
+    try {
+      await tryLoadFrom(CDN_MODEL_URL);
+      modelsLoaded = true;
+    } catch (err) {
+      modelsFailed = true;
+      throw err;
+    }
   })();
   return loadingPromise;
 }
