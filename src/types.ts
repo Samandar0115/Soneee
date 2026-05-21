@@ -79,9 +79,18 @@ export interface Ticket {
   warehouseTracks?: WarehouseTrack[];
 }
 
+// Sklad navbatiga qo'shish sababi
+export type WarehouseReason =
+  | 'paid'        // To'lovi endi qilindi — chiqarish kerak
+  | 'returned'    // Vozvrat bo'lgan — chiqarish kerak
+  | 'held'        // Skladda qaysidur sababga ko'ra ushlab qolingan — chiqarish kerak
+  | 'other';
+
 export interface WarehouseTrack {
   id: string;
   trackingNumber: string;
+  reason: WarehouseReason;    // skladga jo'natish sababi
+  reasonNote?: string;        // sababni qo'shimcha izoh (masalan: nima uchun ushlab qolingan)
   amount?: number;            // to'lov summasi (so'm)
   paid: boolean;
   paidAt?: number;

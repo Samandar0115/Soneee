@@ -5,7 +5,7 @@ import Modal from './Modal';
 import CopyButton from './CopyButton';
 import { formatDateTime, randomId, timeAgo } from '../utils/format';
 import { dialNumber } from './Softphone';
-import type { MisrouteDetails, TrackingType, WarehouseTrack } from '../types';
+import type { MisrouteDetails, TrackingType, WarehouseTrack, WarehouseReason } from '../types';
 import {
   CheckCircle2,
   Trash2,
@@ -88,6 +88,8 @@ export default function TicketModal({ open, onClose, ticket, prefill, onCreated 
   const [warehouseTracks, setWarehouseTracks] = useState<WarehouseTrack[]>(ticket?.warehouseTracks ?? []);
   const [whTrackDraft, setWhTrackDraft] = useState('');
   const [whAmountDraft, setWhAmountDraft] = useState('');
+  const [whReasonDraft, setWhReasonDraft] = useState<WarehouseReason>('paid');
+  const [whNoteDraft, setWhNoteDraft] = useState('');
 
   const isMisroute = useMemo(() => {
     if (!categoryId) return false;
@@ -138,6 +140,8 @@ export default function TicketModal({ open, onClose, ticket, prefill, onCreated 
       setWarehouseTracks(ticket?.warehouseTracks ?? []);
       setWhTrackDraft('');
       setWhAmountDraft('');
+      setWhReasonDraft('paid');
+      setWhNoteDraft('');
       setResolution('');
       setCustomTracking('');
       setInternalNoteDraft('');
@@ -605,147 +609,209 @@ export default function TicketModal({ open, onClose, ticket, prefill, onCreated 
             {/* Mavjud treklar */}
             {warehouseTracks.length > 0 && (
               <div className="space-y-1.5 mb-3">
-                {warehouseTracks.map((wt) => (
-                  <div
-                    key={wt.id}
-                    className={`flex items-center gap-2 p-2 rounded-lg border ${
-                      wt.releasedAt
-                        ? 'bg-emerald-50 dark:bg-emerald-900/10 border-emerald-200 dark:border-emerald-800'
-                        : wt.paid
-                        ? 'bg-sky-50 dark:bg-sky-900/10 border-sky-200 dark:border-sky-800'
-                        : 'bg-amber-50 dark:bg-amber-900/10 border-amber-200 dark:border-amber-800'
-                    }`}
-                  >
-                    <span className="font-mono font-semibold text-sm text-brand-700 dark:text-brand-400 flex-1 truncate">
-                      {wt.trackingNumber}
-                    </span>
-                    {wt.amount ? (
-                      <span className="text-xs text-slate-600 dark:text-slate-300 whitespace-nowrap">
-                        {wt.amount.toLocaleString('uz-UZ')} so'm
-                      </span>
-                    ) : null}
-                    {wt.releasedAt ? (
-                      <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-200 text-emerald-800 dark:bg-emerald-800 dark:text-emerald-100">
-                        ✓ Chiqarildi
-                      </span>
-                    ) : wt.paid ? (
-                      <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-sky-200 text-sky-800 dark:bg-sky-800 dark:text-sky-100">
-                        ✓ To'lov bor — omborga
-                      </span>
-                    ) : (
-                      <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-200 text-amber-800 dark:bg-amber-800 dark:text-amber-100">
-                        To'lov yo'q
-                      </span>
-                    )}
-                    {!wt.releasedAt && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setWarehouseTracks((arr) =>
-                            arr.map((x) =>
-                              x.id === wt.id
-                                ? x.paid
-                                  ? { ...x, paid: false, paidAt: undefined, paidBy: undefined, paidByName: undefined }
-                                  : {
-                                      ...x,
-                                      paid: true,
-                                      paidAt: Date.now(),
-                                      paidBy: currentUser?.id,
-                                      paidByName: currentUser?.fullName || currentUser?.username,
-                                    }
-                                : x
-                            )
-                          );
-                        }}
-                        className={`px-2 py-1 rounded text-[10px] font-semibold ${
-                          wt.paid
-                            ? 'bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-900/40 dark:text-amber-200'
-                            : 'bg-sky-600 text-white hover:bg-sky-700'
-                        }`}
-                        title={wt.paid ? "To'lovni bekor qilish" : "To'lov qilindi deb belgilash"}
-                      >
-                        {wt.paid ? 'Bekor' : "To'lov qilindi"}
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => setWarehouseTracks((arr) => arr.filter((x) => x.id !== wt.id))}
-                      className="p-1 rounded text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/30"
-                      title="O'chirish"
+                {warehouseTracks.map((wt) => {
+                  const r = wt.reason ?? 'paid';
+                  const reasonLabel =
+                    r === 'paid' ? "💳 To'lov qilindi" :
+                    r === 'returned' ? '↩️ Vozvrat' :
+                    r === 'held' ? '⏸️ Ushlab qolingan' : '📦 Boshqa';
+                  const reasonColor =
+                    r === 'paid' ? 'bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200' :
+                    r === 'returned' ? 'bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-200' :
+                    r === 'held' ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-200' :
+                    'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200';
+                  return (
+                    <div
+                      key={wt.id}
+                      className={`p-2 rounded-lg border ${
+                        wt.releasedAt
+                          ? 'bg-emerald-50 dark:bg-emerald-900/10 border-emerald-200 dark:border-emerald-800'
+                          : 'bg-violet-50/60 dark:bg-violet-900/10 border-violet-200 dark:border-violet-800'
+                      }`}
                     >
-                      <X className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                ))}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-mono font-semibold text-sm text-brand-700 dark:text-brand-400 truncate">
+                          {wt.trackingNumber}
+                        </span>
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${reasonColor}`}>
+                          {reasonLabel}
+                        </span>
+                        {wt.amount ? (
+                          <span className="text-xs text-slate-600 dark:text-slate-300 whitespace-nowrap">
+                            {wt.amount.toLocaleString('uz-UZ')} so'm
+                          </span>
+                        ) : null}
+                        {wt.releasedAt && (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-200 text-emerald-800 dark:bg-emerald-800 dark:text-emerald-100">
+                            ✓ Chiqarildi
+                          </span>
+                        )}
+                        <div className="flex-1" />
+                        {!wt.releasedAt && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setWarehouseTracks((arr) =>
+                                arr.map((x) =>
+                                  x.id === wt.id
+                                    ? x.paid
+                                      ? { ...x, paid: false, paidAt: undefined, paidBy: undefined, paidByName: undefined }
+                                      : {
+                                          ...x,
+                                          paid: true,
+                                          paidAt: Date.now(),
+                                          paidBy: currentUser?.id,
+                                          paidByName: currentUser?.fullName || currentUser?.username,
+                                        }
+                                    : x
+                                )
+                              );
+                            }}
+                            className={`px-2 py-1 rounded text-[10px] font-semibold ${
+                              wt.paid
+                                ? 'bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-900/40 dark:text-amber-200'
+                                : 'bg-sky-600 text-white hover:bg-sky-700'
+                            }`}
+                            title={wt.paid ? "To'lovni bekor qilish" : "To'lov qilindi deb belgilash"}
+                          >
+                            {wt.paid ? "To'lov bekor" : "To'lov qilindi"}
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setWarehouseTracks((arr) => arr.filter((x) => x.id !== wt.id))}
+                          className="p-1 rounded text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/30"
+                          title="O'chirish"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                      {wt.reasonNote && (
+                        <div className="text-[11px] text-slate-600 dark:text-slate-400 mt-1 pl-1 italic">
+                          📝 {wt.reasonNote}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
 
             {/* Yangi trek qo'shish */}
-            <div className="flex items-center gap-2 flex-wrap">
-              <input
-                className="input text-sm flex-1 min-w-[180px] font-mono"
-                placeholder="Trek raqami"
-                value={whTrackDraft}
-                onChange={(e) => setWhTrackDraft(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    if (!whTrackDraft.trim() || !currentUser) return;
-                    setWarehouseTracks((arr) => [
-                      ...arr,
-                      {
-                        id: randomId('wh'),
-                        trackingNumber: whTrackDraft.trim(),
-                        amount: whAmountDraft ? Number(whAmountDraft) : undefined,
-                        paid: false,
-                        addedAt: Date.now(),
-                        addedBy: currentUser.id,
-                      },
-                    ]);
-                    setWhTrackDraft('');
-                    setWhAmountDraft('');
-                  }
-                }}
-              />
-              <div className="relative">
-                <DollarSign className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-                <input
-                  className="input text-sm w-32 pl-7"
-                  type="number"
-                  placeholder="Summa"
-                  value={whAmountDraft}
-                  onChange={(e) => setWhAmountDraft(e.target.value)}
-                />
+            <div className="space-y-2">
+              {/* Sabab tanlash */}
+              <div>
+                <label className="text-[11px] font-semibold text-violet-800 dark:text-violet-200 uppercase tracking-wider">
+                  Skladga jo'natish sababi
+                </label>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-1.5 mt-1">
+                  {([
+                    { v: 'paid' as WarehouseReason, label: "To'lovi endi qilindi", emoji: '💳' },
+                    { v: 'returned' as WarehouseReason, label: 'Vozvrat bo\'lgan', emoji: '↩️' },
+                    { v: 'held' as WarehouseReason, label: 'Skladda ushlab qolingan', emoji: '⏸️' },
+                  ]).map((opt) => {
+                    const active = whReasonDraft === opt.v;
+                    return (
+                      <button
+                        key={opt.v}
+                        type="button"
+                        onClick={() => {
+                          setWhReasonDraft(opt.v);
+                          // "To'lovi endi qilindi" sabab uchun avto paid=true bo'ladi
+                        }}
+                        className={`flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-semibold border transition ${
+                          active
+                            ? 'border-violet-500 bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-200'
+                            : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/60 text-slate-600 dark:text-slate-300 hover:border-violet-300'
+                        }`}
+                      >
+                        <span>{opt.emoji}</span>
+                        <span className="truncate">{opt.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
+
+              <div className="flex items-center gap-2 flex-wrap">
+                <input
+                  className="input text-sm flex-1 min-w-[180px] font-mono"
+                  placeholder="Trek raqami"
+                  value={whTrackDraft}
+                  onChange={(e) => setWhTrackDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && whTrackDraft.trim()) {
+                      e.preventDefault();
+                      document.getElementById('wh-add-btn')?.click();
+                    }
+                  }}
+                />
+                <div className="relative">
+                  <DollarSign className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                  <input
+                    className="input text-sm w-32 pl-7"
+                    type="number"
+                    placeholder="Summa"
+                    value={whAmountDraft}
+                    onChange={(e) => setWhAmountDraft(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <input
+                className="input text-sm w-full"
+                placeholder={
+                  whReasonDraft === 'held'
+                    ? 'Nima sababdan ushlab qolingan? (majburiy)'
+                    : "Qo'shimcha izoh (ixtiyoriy)"
+                }
+                value={whNoteDraft}
+                onChange={(e) => setWhNoteDraft(e.target.value)}
+              />
+
               <button
+                id="wh-add-btn"
                 type="button"
                 onClick={() => {
                   if (!whTrackDraft.trim() || !currentUser) {
                     toast.error('Trek raqamini kiriting');
                     return;
                   }
+                  if (whReasonDraft === 'held' && !whNoteDraft.trim()) {
+                    toast.error("Ushlab qolish sababini yozing");
+                    return;
+                  }
+                  const isPaid = whReasonDraft === 'paid';
+                  const now = Date.now();
                   setWarehouseTracks((arr) => [
                     ...arr,
                     {
                       id: randomId('wh'),
                       trackingNumber: whTrackDraft.trim(),
+                      reason: whReasonDraft,
+                      reasonNote: whNoteDraft.trim() || undefined,
                       amount: whAmountDraft ? Number(whAmountDraft) : undefined,
-                      paid: false,
-                      addedAt: Date.now(),
+                      paid: isPaid,
+                      paidAt: isPaid ? now : undefined,
+                      paidBy: isPaid ? currentUser.id : undefined,
+                      paidByName: isPaid ? currentUser.fullName || currentUser.username : undefined,
+                      addedAt: now,
                       addedBy: currentUser.id,
                     },
                   ]);
                   setWhTrackDraft('');
                   setWhAmountDraft('');
+                  setWhNoteDraft('');
                 }}
-                className="btn-primary text-xs"
+                className="btn-primary text-xs w-full"
               >
-                <Plus className="h-3.5 w-3.5" /> Qo'shish
+                <Plus className="h-3.5 w-3.5" /> Sklad navbatiga qo'shish
               </button>
             </div>
 
             <div className="mt-2 text-[11px] text-violet-700 dark:text-violet-300">
-              To'lov qilingan treklar avtomatik ravishda <b>Sklad navbati</b> sahifasida ko'rinadi va ombor hodimi chiqarishi mumkin.
+              Skladga jo'natilgan treklar darhol <b>Sklad navbati</b> sahifasida ko'rinadi.
+              Ombor hodimi chiqarganda belgilaydi va navbatdan o'chadi.
             </div>
           </div>
 
