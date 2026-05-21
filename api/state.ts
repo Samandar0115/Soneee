@@ -100,7 +100,26 @@ async function loadFullFromCollections(): Promise<{ data: any; updatedAt: number
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  res.setHeader('Cache-Control', 'no-store');
+  // Vercel Edge cache — bir nechta operator bir vaqtda poll qilsa,
+  // bitta origin'ga so'rov ketadi. Bu Fast Origin Transfer'ni 80-90% kamaytiradi.
+  // Mutation (POST) uchun cache ishlatilmaydi — har doim yangi yoziladi.
+  if (req.method === 'GET') {
+    const q = req.query || {};
+    const isMeta = q.meta === '1' || q.meta === 'true';
+    if (isMeta) {
+      // Meta endpoint: 3 sekund edge cache, 5 sekund stale-while-revalidate.
+      // Yangi mutation darhol meta'ni yangilaydi, edge esa 3 sekundlik bufer beradi.
+      res.setHeader('Cache-Control', 'public, s-maxage=3, stale-while-revalidate=5');
+    } else if (typeof q.collection === 'string') {
+      // Per-collection: 2 sekund edge cache. updatedAt o'zgarsa polling avto yangi data oladi.
+      res.setHeader('Cache-Control', 'public, s-maxage=2, stale-while-revalidate=4');
+    } else {
+      // Butun snapshot (legacy / initial load): 5 sekund edge cache
+      res.setHeader('Cache-Control', 'public, s-maxage=5, stale-while-revalidate=10');
+    }
+  } else {
+    res.setHeader('Cache-Control', 'no-store');
+  }
 
   if (!isConfigured()) {
     return res.status(200).json({

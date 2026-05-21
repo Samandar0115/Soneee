@@ -464,7 +464,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const remote = await loadFromKV();
         if (remote && remote.data) {
           const d = remote.data;
-          if (Array.isArray(d.users) && d.users.length > 0) setUsers(hydrateUserPhotos(d.users));
+          if (Array.isArray(d.users) && d.users.length > 0) {
+            const remote = hydrateUserPhotos(d.users) as User[];
+            // Mahalliy localStorage'dagi foydalanuvchilarni yo'qotmaslik uchun merge
+            const local = loadLocal<User[]>(STORAGE_KEYS.users, []);
+            const map = new Map<string, User>();
+            remote.forEach((u) => map.set(u.id, u));
+            local.forEach((u) => {
+              if (!map.has(u.id)) {
+                // Lokal'da bor, KV'da yo'q — saqlash to'liq sinxron bo'lmagan,
+                // qaytadan KV'ga yuborish uchun mark qilamiz
+                map.set(u.id, u);
+              }
+            });
+            const merged = Array.from(map.values());
+            setUsers(merged);
+            // Agar mahalliy versiya KV'dan farq qilsa — qaytadan KV'ga sinxronlash
+            if (merged.length > remote.length) {
+              setTimeout(() => {
+                void flushCollectionSave('users', merged);
+              }, 1000);
+            }
+          }
           if (Array.isArray(d.stages) && d.stages.length > 0) setStages(d.stages);
           if (Array.isArray(d.tickets)) setTickets(d.tickets);
           if (Array.isArray(d.categories) && d.categories.length > 0) setCategories(d.categories);
@@ -627,7 +648,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   function setterFor(name: CollectionName): (v: any) => void {
     switch (name) {
-      case 'users': return (v) => Array.isArray(v) && v.length > 0 && setUsers(hydrateUserPhotos(v));
+      case 'users': return (v) => {
+        if (!Array.isArray(v) || v.length === 0) return;
+        const remote = hydrateUserPhotos(v) as User[];
+        // MERGE: mahalliy foydalanuvchini hech qachon yo'qotmaymiz.
+        // Agar mahalliyda KV'da yo'q user bo'lsa — bu yaqinda yaratilgan, saqlash
+        // hali to'liq sync bo'lmagan. Uni saqlab qolamiz.
+        setUsers((prev) => {
+          const map = new Map<string, User>();
+          remote.forEach((u) => map.set(u.id, u));
+          prev.forEach((u) => {
+            if (!map.has(u.id)) {
+              map.set(u.id, u);
+            } else {
+              // Ikkalasida ham bor — KV versiyasini olamiz, lekin lokal foto'ni qo'shamiz
+              const r = map.get(u.id)!;
+              map.set(u.id, { ...r, photo: r.photo ?? u.photo });
+            }
+          });
+          return Array.from(map.values());
+        });
+      };
       case 'stages': return (v) => Array.isArray(v) && v.length > 0 && setStages(v);
       case 'tickets': return (v) => Array.isArray(v) && setTickets(v);
       case 'categories': return (v) => Array.isArray(v) && v.length > 0 && setCategories(v);
@@ -650,8 +691,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const lastSync = lastSyncMetaRef.current[name] || 0;
       const lastLocal = lastLocalChangeRef.current[name] || 0;
       if (remoteTs <= lastSync) return;
-      // Mahalliy o'zgartirish 2 sekunddan kam vaqt oldin bo'lgan bo'lsa — o'tkazib yuboramiz (race)
-      if (Date.now() - lastLocal < 2000) return;
+      // Mahalliy o'zgartirish 10 sekunddan kam vaqt oldin bo'lgan bo'lsa — o'tkazib yuboramiz.
+      // Bu race condition'ni oldini oladi: saqlash 1-2 sek davom etishi mumkin, polling
+      // bir vaqtning o'zida KV'dan eski versiyani olib mahalliy state'ni qaytarmasligi uchun.
+      if (Date.now() - lastLocal < 10000) return;
       toFetch.push(name);
     });
     if (toFetch.length === 0) return;
@@ -680,17 +723,38 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => { lastLocalChangeRef.current.cargoShipments = Date.now(); }, [cargoShipments]);
   useEffect(() => { lastLocalChangeRef.current.leads = Date.now(); }, [leads]);
 
-  // Meta polling — har 5 sekundda
+  // Meta polling — visibility-aware: tab aktiv bo'lganda har 15 sek, yashirin bo'lsa to'xtaydi.
+  // Bu Vercel Fast Origin Transfer'ni ~80% kamaytiradi (avval 5s × doimiy edi).
+  // Edge cache (s-maxage=3) bilan birgalikda bir nechta operator bitta origin'ga boradi.
   useEffect(() => {
     if (backend !== 'local' || !kvReady || !kvConfigured) return;
+    let intervalId: number | null = null;
     const tick = async () => {
+      if (document.hidden) return;
       const meta = await loadMetaFromKV();
       if (meta) await pullChangedCollections(meta);
     };
-    // Birinchi marta hozir
-    tick();
-    const id = window.setInterval(tick, 5000);
-    return () => clearInterval(id);
+    const start = () => {
+      if (intervalId !== null) return;
+      tick();
+      intervalId = window.setInterval(tick, 15000);
+    };
+    const stop = () => {
+      if (intervalId !== null) {
+        clearInterval(intervalId);
+        intervalId = null;
+      }
+    };
+    const onVis = () => {
+      if (document.hidden) stop();
+      else start();
+    };
+    document.addEventListener('visibilitychange', onVis);
+    start();
+    return () => {
+      document.removeEventListener('visibilitychange', onVis);
+      stop();
+    };
   }, [backend, kvReady, kvConfigured]);
 
   // BroadcastChannel — boshqa tab'dan o'zgarish kelsa zudlik bilan
@@ -954,13 +1018,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const saveUser = useCallback<AppState['saveUser']>(
     async (user) => {
+      // Sinxron belgilash — polling shu zahoti KV'dan eski versiyani olmasligi uchun
+      lastLocalChangeRef.current.users = Date.now();
       const exists = users.some((u) => u.id === user.id);
       const next = exists ? users.map((u) => (u.id === user.id ? user : u)) : [...users, user];
       setUsers(next);
       await writeDoc('users', user.id, user);
       const ok = await flushCollectionSave('users', next);
+      // Saqlash tugagandan keyin yana belgilash — race window davom etadi
+      lastLocalChangeRef.current.users = Date.now();
+      // KV'dagi updatedAt'ni biz hozir yozgan qiymatga moslab qo'yamiz — keyingi
+      // polling KV'dan o'zimiz yozganlarini qaytib yuklab kelmasin
+      lastSyncMetaRef.current.users = Date.now();
       if (!ok && backend === 'local' && kvConfigured) {
-        throw new Error('Bazaga saqlanmadi — internetni tekshiring yoki rasm hajmi katta');
+        throw new Error('Bazaga saqlanmadi — internetni tekshiring');
       }
     },
     [users, writeDoc, backend, kvConfigured, kvReady]
@@ -968,10 +1039,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const deleteUser = useCallback<AppState['deleteUser']>(
     async (id) => {
+      lastLocalChangeRef.current.users = Date.now();
       const next = users.filter((u) => u.id !== id);
       setUsers(next);
       await removeDoc('users', id);
       await flushCollectionSave('users', next);
+      lastLocalChangeRef.current.users = Date.now();
+      lastSyncMetaRef.current.users = Date.now();
     },
     [users, removeDoc, backend, kvConfigured, kvReady]
   );
