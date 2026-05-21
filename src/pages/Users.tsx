@@ -8,6 +8,7 @@ import { useApp } from '../context/AppContext';
 import type { User } from '../types';
 import { randomId } from '../utils/format';
 import { imageDataUrlToDescriptor, loadFaceModels } from '../utils/face';
+import { compressImageDataUrl } from '../utils/image';
 
 export default function UsersPage() {
   const { users, tickets, saveUser, deleteUser, currentUser } = useApp();
@@ -29,9 +30,17 @@ export default function UsersPage() {
         setScanning(false);
         return;
       }
+      // Bazaga yuborishdan oldin rasmni kichraytiramiz (har bir xodim ~10-40 KB).
+      // Aks holda 6+ xodim qo'shganda kolleksiya 4.5 MB chegarasidan oshib saqlanmay qoladi.
+      let compressed = dataUrl;
+      try {
+        compressed = await compressImageDataUrl(dataUrl, { maxDim: 400, quality: 0.78 });
+      } catch {
+        // siqish ishlamasa asl rasmni qoldiramiz
+      }
       setEditing({
         ...editing,
-        photo: dataUrl,
+        photo: compressed,
         faceDescriptor: Array.from(desc),
       });
       toast.success('Yuz qayd etildi', { id: 'face' });
@@ -106,9 +115,14 @@ export default function UsersPage() {
       toast.error("Bu xodimda aktiv murojaatlar bor — rolini o'zgartirib bo'lmaydi");
       return;
     }
-    await saveUser(editing);
-    toast.success('Saqlandi');
-    setOpen(false);
+    const tid = toast.loading('Bazaga saqlanmoqda...');
+    try {
+      await saveUser(editing);
+      toast.success('Saqlandi ✓', { id: tid });
+      setOpen(false);
+    } catch (err) {
+      toast.error((err as Error).message || 'Saqlanmadi', { id: tid });
+    }
   }
 
   async function remove(u: User) {

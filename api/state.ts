@@ -25,7 +25,7 @@ const COL_KEY = (name: string) => `ipost:col:${name}:v3`;
 const COLLECTIONS = [
   'users', 'stages', 'tickets', 'categories', 'announcements',
   'branches', 'tariff', 'settings', 'templates', 'notifications',
-  'callLogs', 'cargoShipments',
+  'callLogs', 'cargoShipments', 'leads',
 ] as const;
 
 type Collection = typeof COLLECTIONS[number];
@@ -178,8 +178,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           return res.status(400).json({ ok: false, error: `Nomalum kolleksiya: ${collectionParam}` });
         }
         const value = JSON.stringify(body.data ?? null);
-        if (value.length > 900_000) {
-          return res.status(413).json({ ok: false, error: `${collectionParam} > 900 KB` });
+        if (value.length > 4_500_000) {
+          return res.status(413).json({ ok: false, error: `${collectionParam} > 4.5 MB — kichikroq qiling (masalan rasm hajmini kamaytiring)` });
         }
         const now = Date.now();
         const meta = await loadMeta();
@@ -202,18 +202,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const v = body.data[name];
         if (v === undefined) continue;
         const s = JSON.stringify(v);
-        if (s.length > 900_000) {
-          return res.status(413).json({ ok: false, error: `${name} > 900 KB` });
+        if (s.length > 4_500_000) {
+          return res.status(413).json({ ok: false, error: `${name} > 4.5 MB` });
         }
         writes.push(redisSet(COL_KEY(name), s));
         meta[name] = now;
       }
       writes.push(saveMeta(meta));
-      // Legacy ham yangilab turamiz — agar < 900 KB sig'sa
-      const legacyPayload = JSON.stringify({ data: body.data, updatedAt: now });
-      if (legacyPayload.length < 900_000) {
-        writes.push(redisSet(KEY_LEGACY, legacyPayload));
-      }
+      // Legacy snapshot endi takror yozilmaydi — joy egallashni 50% kamaytiradi.
+      // Per-collection key'lar to'liq snapshot sifatida xizmat qiladi.
       await Promise.all(writes);
       return res.status(200).json({ ok: true, configured: true, updatedAt: now });
     }

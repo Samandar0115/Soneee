@@ -7,6 +7,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Headphones,
+  Inbox,
   KanbanSquare,
   Package,
   Warehouse,
@@ -103,6 +104,7 @@ export default function Layout() {
 
   const links = [
     { to: '/', label: t('nav.dashboard'), icon: LayoutDashboard, end: true },
+    { to: '/leads', label: 'Yangi murojaatlar', icon: Inbox },
     { to: '/pipeline', label: t('nav.pipeline'), icon: KanbanSquare },
     { to: '/tickets', label: t('nav.tickets'), icon: TicketIcon },
     { to: '/calls', label: "Qo'ng'iroqlar", icon: Phone },

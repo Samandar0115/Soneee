@@ -15,6 +15,7 @@ import TemplatesPage from './pages/Templates';
 import CallLogsPage from './pages/CallLogs';
 import CargoPage from './pages/Cargo';
 import WarehousePage from './pages/Warehouse';
+import LeadsPage from './pages/Leads';
 import Track from './pages/Track';
 import GlobalSearch from './components/GlobalSearch';
 import KeyboardShortcuts from './components/KeyboardShortcuts';
@@ -55,6 +56,7 @@ export default function App() {
           }
         >
           <Route index element={<Dashboard />} />
+          <Route path="leads" element={<LeadsPage />} />
           <Route path="pipeline" element={<Pipeline />} />
           <Route path="tickets" element={<Tickets />} />
           <Route path="calls" element={<CallLogsPage />} />

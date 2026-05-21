@@ -25,6 +25,9 @@ import type {
   CallLog,
   CargoShipment,
   Category,
+  Lead,
+  LeadSource,
+  LeadStatus,
   CustomerRating,
   Lang,
   NotificationType,
@@ -78,6 +81,7 @@ interface AppState {
   notifications: AppNotification[];
   callLogs: CallLog[];
   cargoShipments: CargoShipment[];
+  leads: Lead[];
   kvConfigured: boolean;
   kvReady: boolean;
   lang: Lang;
@@ -123,6 +127,11 @@ interface AppState {
   importCargoShipments: (shipments: CargoShipment[]) => void;
   deleteCargoShipment: (id: string) => void;
   clearCargoShipments: () => void;
+  addLeads: (phones: string[], source: LeadSource, notes?: string) => number;
+  updateLead: (id: string, patch: Partial<Lead>) => void;
+  markLeadInfoGiven: (id: string) => void;
+  deleteLead: (id: string) => void;
+  clearLeads: (status?: LeadStatus) => void;
   exportBackup: () => string;
   importBackup: (json: string) => boolean;
   runTestScenario: () => Promise<Ticket | null>;
@@ -143,6 +152,7 @@ const STORAGE_KEYS = {
   notifications: 'ipost.notifications',
   callLogs: 'ipost.callLogs',
   cargoShipments: 'ipost.cargoShipments',
+  leads: 'ipost.leads',
   lang: 'ipost.lang',
   theme: 'ipost.theme',
   session: 'ipost.session',
@@ -176,6 +186,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [callLogs, setCallLogs] = useState<CallLog[]>([]);
   const [cargoShipments, setCargoShipments] = useState<CargoShipment[]>([]);
+  const [leads, setLeads] = useState<Lead[]>([]);
   const [lang, setLangState] = useState<Lang>(() => (localStorage.getItem(STORAGE_KEYS.lang) as Lang) || 'uz');
   const [theme, setThemeState] = useState<'light' | 'dark'>(
     () => (localStorage.getItem(STORAGE_KEYS.theme) as 'light' | 'dark') || 'light'
@@ -306,6 +317,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setNotifications(loadLocal<AppNotification[]>(STORAGE_KEYS.notifications, []));
     setCallLogs(loadLocal<CallLog[]>(STORAGE_KEYS.callLogs, []));
     setCargoShipments(loadLocal<CargoShipment[]>(STORAGE_KEYS.cargoShipments, []));
+    setLeads(loadLocal<Lead[]>(STORAGE_KEYS.leads, []));
     if (!localStorage.getItem(STORAGE_KEYS.users)) saveLocal(STORAGE_KEYS.users, seedUsers);
     if (!localStorage.getItem(STORAGE_KEYS.stages)) saveLocal(STORAGE_KEYS.stages, seedStages);
     if (!localStorage.getItem(STORAGE_KEYS.categories)) saveLocal(STORAGE_KEYS.categories, seedCategories);
@@ -382,6 +394,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (backend === 'local' && ready) saveLocal(STORAGE_KEYS.cargoShipments, cargoShipments);
   }, [cargoShipments, backend, ready]);
 
+  useEffect(() => {
+    if (backend === 'local' && ready) saveLocal(STORAGE_KEYS.leads, leads);
+  }, [leads, backend, ready]);
+
   /* ---------------- Session restore ---------------- */
   useEffect(() => {
     if (!ready) return;
@@ -426,6 +442,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           if (Array.isArray(d.notifications)) setNotifications(d.notifications);
           if (Array.isArray(d.callLogs)) setCallLogs(d.callLogs);
           if (Array.isArray(d.cargoShipments)) setCargoShipments(d.cargoShipments);
+          if (Array.isArray(d.leads)) setLeads(d.leads);
         }
       } catch {
         // jim — fallback localStorage
@@ -455,6 +472,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }, 700);
   }
 
+  // Darhol KV'ga yozish — debounce'ni bekor qiladi, javobni await qiladi.
+  // Saqlash tugmasi bosilganda 100% ishonch uchun ishlatiladi.
+  async function flushCollectionSave(name: CollectionName, value: unknown): Promise<boolean> {
+    if (backend !== 'local' || !kvReady || !kvConfigured) return true;
+    const timers = collectionTimersRef.current;
+    if (timers[name]) {
+      clearTimeout(timers[name]);
+      delete timers[name];
+    }
+    try {
+      const r = await saveCollectionToKV(name, value);
+      if (r.ok) {
+        broadcastChange(name);
+        return true;
+      }
+      return false;
+    } catch {
+      return false;
+    }
+  }
+
   // Har bir state uchun alohida useEffect — faqat o'sha kolleksiya o'zgarganda yoziladi
   useEffect(() => { scheduleCollectionSave('users', users); }, [users, backend, kvReady, kvConfigured]);
   useEffect(() => { scheduleCollectionSave('stages', stages); }, [stages, backend, kvReady, kvConfigured]);
@@ -468,12 +506,75 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => { scheduleCollectionSave('notifications', notifications); }, [notifications, backend, kvReady, kvConfigured]);
   useEffect(() => { scheduleCollectionSave('callLogs', callLogs); }, [callLogs, backend, kvReady, kvConfigured]);
   useEffect(() => { scheduleCollectionSave('cargoShipments', cargoShipments); }, [cargoShipments, backend, kvReady, kvConfigured]);
+  useEffect(() => { scheduleCollectionSave('leads', leads); }, [leads, backend, kvReady, kvConfigured]);
 
   useEffect(() => {
     return () => {
       Object.values(collectionTimersRef.current).forEach((t) => clearTimeout(t));
     };
   }, []);
+
+  // Sahifa yopilayotganda barcha kutilayotgan debounce'larni darhol KV'ga yozish.
+  // Ma'lumot yo'qolmasligi uchun beforeunload va visibilitychange'da flush qilamiz.
+  // Pending state'ni ref orqali ushlab boramiz (closure stale bo'lmasligi uchun).
+  const pendingStateRef = useRef<Partial<Record<CollectionName, unknown>>>({});
+  useEffect(() => { pendingStateRef.current.users = users; }, [users]);
+  useEffect(() => { pendingStateRef.current.stages = stages; }, [stages]);
+  useEffect(() => { pendingStateRef.current.tickets = tickets; }, [tickets]);
+  useEffect(() => { pendingStateRef.current.categories = categories; }, [categories]);
+  useEffect(() => { pendingStateRef.current.announcements = announcements; }, [announcements]);
+  useEffect(() => { pendingStateRef.current.branches = branches; }, [branches]);
+  useEffect(() => { pendingStateRef.current.tariff = tariff; }, [tariff]);
+  useEffect(() => { pendingStateRef.current.settings = settings; }, [settings]);
+  useEffect(() => { pendingStateRef.current.templates = templates; }, [templates]);
+  useEffect(() => { pendingStateRef.current.notifications = notifications; }, [notifications]);
+  useEffect(() => { pendingStateRef.current.callLogs = callLogs; }, [callLogs]);
+  useEffect(() => { pendingStateRef.current.cargoShipments = cargoShipments; }, [cargoShipments]);
+  useEffect(() => { pendingStateRef.current.leads = leads; }, [leads]);
+
+  useEffect(() => {
+    if (backend !== 'local' || !kvReady || !kvConfigured) return;
+    const flushAllPending = () => {
+      const timers = collectionTimersRef.current;
+      const names = Object.keys(timers) as CollectionName[];
+      if (names.length === 0) return;
+      // sendBeacon — sahifa yopilayotganda ham yetkazib beradi
+      names.forEach((name) => {
+        clearTimeout(timers[name]);
+        delete timers[name];
+        const data = pendingStateRef.current[name];
+        if (data === undefined) return;
+        try {
+          const payload = JSON.stringify({ data });
+          const blob = new Blob([payload], { type: 'application/json' });
+          if (navigator.sendBeacon) {
+            navigator.sendBeacon(
+              `/api/state?collection=${encodeURIComponent(name)}`,
+              blob
+            );
+          } else {
+            // fallback — keepalive fetch (xatolarni jim ushlaymiz)
+            fetch(`/api/state?collection=${encodeURIComponent(name)}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: payload,
+              keepalive: true,
+            }).catch(() => {});
+          }
+        } catch {}
+      });
+    };
+    const onBeforeUnload = () => flushAllPending();
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') flushAllPending();
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.removeEventListener('beforeunload', onBeforeUnload);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [backend, kvReady, kvConfigured]);
 
   /* ---------------- KV polling (meta) + cross-tab broadcast ---------------- */
   // Har bir kolleksiya uchun oxirgi sinxronlash vaqtini eslab boramiz.
@@ -495,6 +596,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       case 'notifications': return (v) => Array.isArray(v) && setNotifications(v);
       case 'callLogs': return (v) => Array.isArray(v) && setCallLogs(v);
       case 'cargoShipments': return (v) => Array.isArray(v) && setCargoShipments(v);
+      case 'leads': return (v) => Array.isArray(v) && setLeads(v);
     }
   }
 
@@ -533,6 +635,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => { lastLocalChangeRef.current.notifications = Date.now(); }, [notifications]);
   useEffect(() => { lastLocalChangeRef.current.callLogs = Date.now(); }, [callLogs]);
   useEffect(() => { lastLocalChangeRef.current.cargoShipments = Date.now(); }, [cargoShipments]);
+  useEffect(() => { lastLocalChangeRef.current.leads = Date.now(); }, [leads]);
 
   // Meta polling — har 5 sekundda
   useEffect(() => {
@@ -575,11 +678,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const t = window.setTimeout(() => {
       saveDailyBackup({
         users, stages, tickets, categories, announcements,
-        branches, tariff, settings, templates, callLogs, cargoShipments,
+        branches, tariff, settings, templates, callLogs, cargoShipments, leads,
       });
     }, 30000);
     return () => clearTimeout(t);
-  }, [ready, users, stages, tickets, categories, announcements, branches, tariff, settings, templates, callLogs, cargoShipments]);
+  }, [ready, users, stages, tickets, categories, announcements, branches, tariff, settings, templates, callLogs, cargoShipments, leads]);
 
   /* ---------------- Auth ---------------- */
   const login = useCallback(
@@ -799,63 +902,74 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const saveUser = useCallback<AppState['saveUser']>(
     async (user) => {
-      setUsers((prev) => {
-        const exists = prev.some((u) => u.id === user.id);
-        return exists ? prev.map((u) => (u.id === user.id ? user : u)) : [...prev, user];
-      });
+      const exists = users.some((u) => u.id === user.id);
+      const next = exists ? users.map((u) => (u.id === user.id ? user : u)) : [...users, user];
+      setUsers(next);
       await writeDoc('users', user.id, user);
+      const ok = await flushCollectionSave('users', next);
+      if (!ok && backend === 'local' && kvConfigured) {
+        throw new Error('Bazaga saqlanmadi — internetni tekshiring yoki rasm hajmi katta');
+      }
     },
-    [writeDoc]
+    [users, writeDoc, backend, kvConfigured, kvReady]
   );
 
   const deleteUser = useCallback<AppState['deleteUser']>(
     async (id) => {
-      setUsers((prev) => prev.filter((u) => u.id !== id));
+      const next = users.filter((u) => u.id !== id);
+      setUsers(next);
       await removeDoc('users', id);
+      await flushCollectionSave('users', next);
     },
-    [removeDoc]
+    [users, removeDoc, backend, kvConfigured, kvReady]
   );
 
   const saveStage = useCallback<AppState['saveStage']>(
     async (stage) => {
-      setStages((prev) => {
-        const exists = prev.some((s) => s.id === stage.id);
-        const next = exists ? prev.map((s) => (s.id === stage.id ? stage : s)) : [...prev, stage];
-        return next.sort((a, b) => a.order - b.order);
-      });
+      const exists = stages.some((s) => s.id === stage.id);
+      const merged = exists ? stages.map((s) => (s.id === stage.id ? stage : s)) : [...stages, stage];
+      const next = merged.sort((a, b) => a.order - b.order);
+      setStages(next);
       await writeDoc('stages', stage.id, stage);
+      const ok = await flushCollectionSave('stages', next);
+      if (!ok && backend === 'local' && kvConfigured) throw new Error('Bazaga saqlanmadi');
     },
-    [writeDoc]
+    [stages, writeDoc, backend, kvConfigured, kvReady]
   );
 
   const deleteStage = useCallback<AppState['deleteStage']>(
     async (id) => {
-      setStages((prev) => prev.filter((s) => s.id !== id));
+      const next = stages.filter((s) => s.id !== id);
+      setStages(next);
       await removeDoc('stages', id);
+      await flushCollectionSave('stages', next);
     },
-    [removeDoc]
+    [stages, removeDoc, backend, kvConfigured, kvReady]
   );
 
   const saveCategory = useCallback<AppState['saveCategory']>(
     async (category) => {
-      setCategories((prev) => {
-        const exists = prev.some((c) => c.id === category.id);
-        const next = exists
-          ? prev.map((c) => (c.id === category.id ? category : c))
-          : [...prev, category];
-        return next.sort((a, b) => a.order - b.order);
-      });
+      const exists = categories.some((c) => c.id === category.id);
+      const merged = exists
+        ? categories.map((c) => (c.id === category.id ? category : c))
+        : [...categories, category];
+      const next = merged.sort((a, b) => a.order - b.order);
+      setCategories(next);
       await writeDoc('categories', category.id, category);
+      const ok = await flushCollectionSave('categories', next);
+      if (!ok && backend === 'local' && kvConfigured) throw new Error('Bazaga saqlanmadi');
     },
-    [writeDoc]
+    [categories, writeDoc, backend, kvConfigured, kvReady]
   );
 
   const deleteCategory = useCallback<AppState['deleteCategory']>(
     async (id) => {
-      setCategories((prev) => prev.filter((c) => c.id !== id));
+      const next = categories.filter((c) => c.id !== id);
+      setCategories(next);
       await removeDoc('categories', id);
+      await flushCollectionSave('categories', next);
     },
-    [removeDoc]
+    [categories, removeDoc, backend, kvConfigured, kvReady]
   );
 
   const saveAnnouncement = useCallback<AppState['saveAnnouncement']>(
@@ -881,22 +995,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const saveBranch = useCallback<AppState['saveBranch']>(
     async (b) => {
-      setBranches((prev) => {
-        const exists = prev.some((x) => x.id === b.id);
-        const list = exists ? prev.map((x) => (x.id === b.id ? b : x)) : [...prev, b];
-        return list.sort((x, y) => x.order - y.order);
-      });
+      const exists = branches.some((x) => x.id === b.id);
+      const merged = exists ? branches.map((x) => (x.id === b.id ? b : x)) : [...branches, b];
+      const next = merged.sort((x, y) => x.order - y.order);
+      setBranches(next);
       await writeDoc('branches', b.id, b);
+      const ok = await flushCollectionSave('branches', next);
+      if (!ok && backend === 'local' && kvConfigured) throw new Error('Bazaga saqlanmadi');
     },
-    [writeDoc]
+    [branches, writeDoc, backend, kvConfigured, kvReady]
   );
 
   const deleteBranch = useCallback<AppState['deleteBranch']>(
     async (id) => {
-      setBranches((prev) => prev.filter((b) => b.id !== id));
+      const next = branches.filter((b) => b.id !== id);
+      setBranches(next);
       await removeDoc('branches', id);
+      await flushCollectionSave('branches', next);
     },
-    [removeDoc]
+    [branches, removeDoc, backend, kvConfigured, kvReady]
   );
 
   const saveTariff = useCallback<AppState['saveTariff']>(
@@ -1010,6 +1127,63 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const clearCargoShipments = useCallback<AppState['clearCargoShipments']>(() => {
     setCargoShipments([]);
+  }, []);
+
+  // === Leads (yangi murojaatlar / qo'ng'iroq navbati) ===
+  const addLeads = useCallback<AppState['addLeads']>(
+    (phones, source, notes) => {
+      if (!currentUser) return 0;
+      const now = Date.now();
+      const cleaned = phones
+        .map((p) => p.trim())
+        .filter((p) => p.length > 0);
+      if (cleaned.length === 0) return 0;
+      // Duplikatlarni yangi murojaat sifatida ham qo'shamiz —
+      // har bir kanaldan qayta murojaat alohida yozuv bo'lishi mumkin.
+      const newLeads: Lead[] = cleaned.map((phone, i) => ({
+        id: `lead-${now}-${i}-${Math.random().toString(36).slice(2, 7)}`,
+        phone,
+        source,
+        status: 'new',
+        notes: notes?.trim() || undefined,
+        createdAt: now + i,
+        createdBy: currentUser.id,
+        createdByName: currentUser.fullName ?? currentUser.username,
+      }));
+      setLeads((prev) => [...newLeads, ...prev].slice(0, 50000));
+      return newLeads.length;
+    },
+    [currentUser]
+  );
+
+  const updateLead = useCallback<AppState['updateLead']>((id, patch) => {
+    setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, ...patch } : l)));
+  }, []);
+
+  const markLeadInfoGiven = useCallback<AppState['markLeadInfoGiven']>((id) => {
+    if (!currentUser) return;
+    const now = Date.now();
+    setLeads((prev) =>
+      prev.map((l) =>
+        l.id === id
+          ? {
+              ...l,
+              status: 'info_given',
+              calledAt: now,
+              calledBy: currentUser.id,
+              calledByName: currentUser.fullName ?? currentUser.username,
+            }
+          : l
+      )
+    );
+  }, [currentUser]);
+
+  const deleteLead = useCallback<AppState['deleteLead']>((id) => {
+    setLeads((prev) => prev.filter((l) => l.id !== id));
+  }, []);
+
+  const clearLeads = useCallback<AppState['clearLeads']>((status) => {
+    setLeads((prev) => (status ? prev.filter((l) => l.status !== status) : []));
   }, []);
 
   // Mijoz qayta aloqaga chiqdi — boshqa operatorga eslatma
@@ -1333,6 +1507,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       importCargoShipments,
       deleteCargoShipment,
       clearCargoShipments,
+      leads,
+      addLeads,
+      updateLead,
+      markLeadInfoGiven,
+      deleteLead,
+      clearLeads,
       exportBackup,
       importBackup,
       runTestScenario,
@@ -1398,6 +1578,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       importCargoShipments,
       deleteCargoShipment,
       clearCargoShipments,
+      leads,
+      addLeads,
+      updateLead,
+      markLeadInfoGiven,
+      deleteLead,
+      clearLeads,
       exportBackup,
       importBackup,
       runTestScenario,

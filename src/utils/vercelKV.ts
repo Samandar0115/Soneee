@@ -11,7 +11,7 @@ export interface KVStatus {
 export type CollectionName =
   | 'users' | 'stages' | 'tickets' | 'categories' | 'announcements'
   | 'branches' | 'tariff' | 'settings' | 'templates' | 'notifications'
-  | 'callLogs' | 'cargoShipments';
+  | 'callLogs' | 'cargoShipments' | 'leads';
 
 let cachedStatus: KVStatus | null = null;
 

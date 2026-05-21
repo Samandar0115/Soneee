@@ -33,9 +33,15 @@ interface Props {
   open: boolean;
   onClose: () => void;
   ticket?: Ticket | null;
+  prefill?: {
+    customerPhone?: string;
+    customerName?: string;
+    channel?: string;
+  };
+  onCreated?: (ticket: Ticket) => void;
 }
 
-export default function TicketModal({ open, onClose, ticket }: Props) {
+export default function TicketModal({ open, onClose, ticket, prefill, onCreated }: Props) {
   const {
     stages,
     users,
@@ -122,9 +128,9 @@ export default function TicketModal({ open, onClose, ticket }: Props) {
     if (open) {
       setStageId(ticket?.stageId ?? stages[0]?.id ?? '');
       setCategoryId(ticket?.categoryId ?? '');
-      setCustomerName(ticket?.customerName ?? '');
-      setCustomerPhone(ticket?.customerPhone ?? '');
-      setChannel(ticket?.channel ?? 'Telefon');
+      setCustomerName(ticket?.customerName ?? prefill?.customerName ?? '');
+      setCustomerPhone(ticket?.customerPhone ?? prefill?.customerPhone ?? '');
+      setChannel(ticket?.channel ?? prefill?.channel ?? 'Telefon');
       setPriority(ticket?.priority ?? 'normal');
       setAssigneeId(ticket?.assigneeId ?? currentUser?.id ?? '');
       setDetails(ticket?.details ?? {});
@@ -137,7 +143,7 @@ export default function TicketModal({ open, onClose, ticket }: Props) {
       setInternalNoteDraft('');
       setPublicNoteDraft('');
     }
-  }, [open, ticket, stages, currentUser]);
+  }, [open, ticket, stages, currentUser, prefill]);
 
   const currentStage: Stage | undefined = useMemo(
     () => stages.find((s) => s.id === stageId),
@@ -173,7 +179,7 @@ export default function TicketModal({ open, onClose, ticket }: Props) {
         toast.error("Bu trek raqami bilan murojaat allaqachon mavjud");
         return;
       }
-      await createTicket({
+      const created = await createTicket({
         stageId,
         categoryId: categoryId || undefined,
         customerName,
@@ -188,6 +194,7 @@ export default function TicketModal({ open, onClose, ticket }: Props) {
         warehouseTracks: warehouseTracks.length ? warehouseTracks : undefined,
       });
       toast.success('Yangi murojaat yaratildi');
+      if (onCreated && created) onCreated(created);
     }
     onClose();
   }

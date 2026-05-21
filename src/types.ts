@@ -105,6 +105,27 @@ export interface AppDataSnapshot {
   tariff: TariffSettings;
   callLogs?: CallLog[];
   cargoShipments?: CargoShipment[];
+  leads?: Lead[];
+}
+
+export type LeadSource = 'instagram' | 'telegram' | 'phone' | 'missed';
+export type LeadStatus = 'new' | 'info_given' | 'converted';
+
+export interface Lead {
+  id: string;
+  phone: string;
+  customerName?: string;
+  source: LeadSource;
+  status: LeadStatus;
+  notes?: string;
+  createdAt: number;
+  createdBy: string;
+  createdByName?: string;
+  calledAt?: number;
+  calledBy?: string;
+  calledByName?: string;
+  ticketId?: string;
+  ticketTracking?: string;
 }
 
 export type CargoStatus = 'pending' | 'delivered' | 'returned' | 'in_transit';
