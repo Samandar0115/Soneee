@@ -12,6 +12,8 @@ import {
   Inbox,
   CornerDownRight,
   Clock,
+  CheckSquare,
+  Square,
 } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
 import Modal from '../components/Modal';
@@ -36,7 +38,10 @@ const STATUS_META: Record<LeadStatus, { label: string; color: string }> = {
 };
 
 export default function LeadsPage() {
-  const { leads, addLeads, markLeadInfoGiven, updateLead, deleteLead, clearLeads, currentUser } = useApp();
+  const {
+    leads, addLeads, markLeadInfoGiven, updateLead, deleteLead,
+    deleteLeads, markLeadsInfoGiven, clearLeads, currentUser,
+  } = useApp();
   const [intakeOpen, setIntakeOpen] = useState(false);
   const [intakeSource, setIntakeSource] = useState<LeadSource>('phone');
   const [intakePhones, setIntakePhones] = useState('');
@@ -44,12 +49,61 @@ export default function LeadsPage() {
   const [filter, setFilter] = useState<LeadStatus | 'all'>('new');
   const [sourceFilter, setSourceFilter] = useState<LeadSource | 'all'>('all');
   const [convertingLead, setConvertingLead] = useState<Lead | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const filtered = useMemo(() => {
     return leads
       .filter((l) => (filter === 'all' ? true : l.status === filter))
       .filter((l) => (sourceFilter === 'all' ? true : l.source === sourceFilter));
   }, [leads, filter, sourceFilter]);
+
+  // Filtr o'zgarsa, ko'rinmaydigan tanlovlarni tozalaymiz
+  const visibleIds = useMemo(() => new Set(filtered.map((l) => l.id)), [filtered]);
+  const selectedVisible = useMemo(
+    () => [...selected].filter((id) => visibleIds.has(id)),
+    [selected, visibleIds]
+  );
+  const allVisibleSelected = filtered.length > 0 && selectedVisible.length === filtered.length;
+
+  function toggleOne(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleAll() {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (allVisibleSelected) {
+        filtered.forEach((l) => next.delete(l.id));
+      } else {
+        filtered.forEach((l) => next.add(l.id));
+      }
+      return next;
+    });
+  }
+
+  function clearSelection() {
+    setSelected(new Set());
+  }
+
+  function bulkDelete() {
+    if (selectedVisible.length === 0) return;
+    if (!confirm(`${selectedVisible.length} ta murojaatni o'chirishni tasdiqlaysizmi?`)) return;
+    deleteLeads(selectedVisible);
+    clearSelection();
+    toast.success(`${selectedVisible.length} ta o'chirildi`);
+  }
+
+  function bulkInfoGiven() {
+    if (selectedVisible.length === 0) return;
+    markLeadsInfoGiven(selectedVisible);
+    clearSelection();
+    toast.success(`${selectedVisible.length} ta "Info berildi" deb belgilandi`);
+  }
 
   const stats = useMemo(() => {
     return {
@@ -202,6 +256,34 @@ export default function LeadsPage() {
         )}
       </div>
 
+      {/* Ommaviy amallar paneli — bittadan tanlangan murojaatlar uchun */}
+      {selectedVisible.length > 0 && (
+        <div className="card p-3 mb-3 flex items-center gap-3 flex-wrap bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-800">
+          <span className="text-sm font-semibold text-brand-700 dark:text-brand-300">
+            {selectedVisible.length} ta belgilandi
+          </span>
+          <div className="flex-1" />
+          <button
+            onClick={bulkInfoGiven}
+            className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-200 text-slate-700 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-200 inline-flex items-center gap-1"
+          >
+            <CheckCircle2 className="h-3.5 w-3.5" /> Info berildi (belgilangan)
+          </button>
+          <button
+            onClick={bulkDelete}
+            className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-rose-600 text-white hover:bg-rose-700 inline-flex items-center gap-1"
+          >
+            <Trash2 className="h-3.5 w-3.5" /> O'chirish (belgilangan)
+          </button>
+          <button
+            onClick={clearSelection}
+            className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white text-slate-600 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-300 inline-flex items-center gap-1"
+          >
+            <X className="h-3.5 w-3.5" /> Bekor
+          </button>
+        </div>
+      )}
+
       {/* Ro'yxat */}
       <div className="card overflow-hidden">
         {filtered.length === 0 ? (
@@ -214,6 +296,19 @@ export default function LeadsPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-xs uppercase tracking-wider text-slate-500 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40">
+                  <th className="px-4 py-3 w-10">
+                    <button
+                      onClick={toggleAll}
+                      title={allVisibleSelected ? 'Belgilashni bekor qilish' : 'Barchasini belgilash'}
+                      className="flex items-center text-slate-500 hover:text-brand-600"
+                    >
+                      {allVisibleSelected ? (
+                        <CheckSquare className="h-4 w-4 text-brand-600" />
+                      ) : (
+                        <Square className="h-4 w-4" />
+                      )}
+                    </button>
+                  </th>
                   <th className="px-4 py-3">Telefon</th>
                   <th className="px-4 py-3">Manba</th>
                   <th className="px-4 py-3">Status</th>
@@ -227,8 +322,26 @@ export default function LeadsPage() {
                   const m = SOURCE_META[lead.source];
                   const Icon = m.icon;
                   const st = STATUS_META[lead.status];
+                  const isSel = selected.has(lead.id);
                   return (
-                    <tr key={lead.id} className="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900/40">
+                    <tr
+                      key={lead.id}
+                      className={`border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900/40 ${
+                        isSel ? 'bg-brand-50/60 dark:bg-brand-900/10' : ''
+                      }`}
+                    >
+                      <td className="px-4 py-3">
+                        <button
+                          onClick={() => toggleOne(lead.id)}
+                          className="flex items-center text-slate-400 hover:text-brand-600"
+                        >
+                          {isSel ? (
+                            <CheckSquare className="h-4 w-4 text-brand-600" />
+                          ) : (
+                            <Square className="h-4 w-4" />
+                          )}
+                        </button>
+                      </td>
                       <td className="px-4 py-3 font-mono font-semibold">
                         {lead.phone}
                         {lead.notes && (

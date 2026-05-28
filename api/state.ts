@@ -21,6 +21,8 @@ const TOKEN_ENV = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_RES
 const KEY_LEGACY = 'ipost:state:v1';
 const KEY_META = 'ipost:meta:v3';
 const COL_KEY = (name: string) => `ipost:col:${name}:v3`;
+// Foydalanuvchilar uchun HASH — har bir user alohida field
+const USERS_HASH_KEY = 'ipost:hash:users:v3';
 
 const COLLECTIONS = [
   'users', 'stages', 'tickets', 'categories', 'announcements',
@@ -64,6 +66,59 @@ async function redisSet(key: string, value: string): Promise<void> {
     body: value,
   });
   if (!res.ok) throw new Error(`Redis SET ${key} HTTP ${res.status}`);
+}
+
+async function redisDel(key: string): Promise<number> {
+  const res = await fetch(`${URL_ENV}/del/${encodeURIComponent(key)}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${TOKEN_ENV}` },
+  });
+  if (!res.ok) throw new Error(`Redis DEL ${key} HTTP ${res.status}`);
+  const json = await res.json();
+  return json?.result ?? 0;
+}
+
+// HASH operations — har bir field alohida atomik saqlanadi.
+// Foydalanuvchilar shu yerda turadi: hech qachon birini saqlash boshqasini yo'qotmaydi.
+async function redisHSet(key: string, field: string, value: string): Promise<void> {
+  const res = await fetch(`${URL_ENV}/hset/${encodeURIComponent(key)}/${encodeURIComponent(field)}`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${TOKEN_ENV}`,
+      'Content-Type': 'text/plain',
+    },
+    body: value,
+  });
+  if (!res.ok) throw new Error(`Redis HSET ${key}.${field} HTTP ${res.status}`);
+}
+
+async function redisHGetAll(key: string): Promise<Record<string, string>> {
+  const res = await fetch(`${URL_ENV}/hgetall/${encodeURIComponent(key)}`, {
+    headers: { Authorization: `Bearer ${TOKEN_ENV}` },
+  });
+  if (!res.ok) throw new Error(`Redis HGETALL ${key} HTTP ${res.status}`);
+  const json = await res.json();
+  const result = json?.result;
+  if (!result) return {};
+  // Upstash qaytaradigan format: massiv [field, value, field, value...] yoki obyekt
+  if (Array.isArray(result)) {
+    const obj: Record<string, string> = {};
+    for (let i = 0; i < result.length; i += 2) {
+      obj[result[i]] = result[i + 1];
+    }
+    return obj;
+  }
+  return result as Record<string, string>;
+}
+
+async function redisHDel(key: string, field: string): Promise<number> {
+  const res = await fetch(`${URL_ENV}/hdel/${encodeURIComponent(key)}/${encodeURIComponent(field)}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${TOKEN_ENV}` },
+  });
+  if (!res.ok) throw new Error(`Redis HDEL ${key}.${field} HTTP ${res.status}`);
+  const json = await res.json();
+  return json?.result ?? 0;
 }
 
 async function loadMeta(): Promise<Record<string, number>> {
@@ -133,6 +188,68 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const q = req.query || {};
     const collectionParam = typeof q.collection === 'string' ? q.collection : '';
     const metaOnly = q.meta === '1' || q.meta === 'true';
+    const userIdParam = typeof q.user === 'string' ? q.user : '';
+    const cleanupParam = typeof q.cleanup === 'string' ? q.cleanup : '';
+
+    // ============= HASH endpoints (foydalanuvchilar uchun atomik) =============
+    if (userIdParam) {
+      if (req.method === 'GET') {
+        // Bitta user'ni olish HGETALL'dan
+        const all = await redisHGetAll(USERS_HASH_KEY);
+        const raw = all[userIdParam];
+        const data = raw ? JSON.parse(raw) : null;
+        return res.status(200).json({ ok: true, configured: true, data });
+      }
+      if (req.method === 'POST') {
+        const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+        if (!body?.data?.id) return res.status(400).json({ ok: false, error: 'user data kerak' });
+        const value = JSON.stringify(body.data);
+        const now = Date.now();
+        // Atomik HSET — boshqa foydalanuvchilarni hech qachon o'zgartirmaydi
+        await redisHSet(USERS_HASH_KEY, userIdParam, value);
+        // Meta ham yangilanadi — boshqa tab'lar polling orqali biladi
+        const meta = await loadMeta();
+        meta['users'] = now;
+        await saveMeta(meta);
+        return res.status(200).json({ ok: true, configured: true, updatedAt: now });
+      }
+      if (req.method === 'DELETE') {
+        await redisHDel(USERS_HASH_KEY, userIdParam);
+        const meta = await loadMeta();
+        meta['users'] = Date.now();
+        await saveMeta(meta);
+        return res.status(200).json({ ok: true, configured: true });
+      }
+    }
+
+    // ============= Hammasini HASH'dan olish (full users) =============
+    if (req.method === 'GET' && (q.usersHash === '1' || q.usersHash === 'true')) {
+      const all = await redisHGetAll(USERS_HASH_KEY);
+      const list = Object.values(all).map((raw) => {
+        try { return JSON.parse(raw); } catch { return null; }
+      }).filter(Boolean);
+      const meta = await loadMeta();
+      return res.status(200).json({
+        ok: true,
+        configured: true,
+        data: list,
+        updatedAt: meta['users'] || 0,
+      });
+    }
+
+    // ============= Admin cleanup =============
+    if (cleanupParam && req.method === 'POST') {
+      if (cleanupParam === 'legacy') {
+        const removed = await redisDel(KEY_LEGACY);
+        return res.status(200).json({
+          ok: true,
+          configured: true,
+          removed,
+          message: removed > 0 ? "Legacy snapshot o'chirildi" : "Legacy snapshot mavjud emas edi",
+        });
+      }
+      return res.status(400).json({ ok: false, error: 'Nomalum cleanup turi' });
+    }
 
     if (req.method === 'GET') {
       if (metaOnly) {
@@ -143,6 +260,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (collectionParam) {
         if (!COLLECTIONS.includes(collectionParam as Collection)) {
           return res.status(400).json({ ok: false, error: `Nomalum kolleksiya: ${collectionParam}` });
+        }
+        // 'users' — HASH'dan o'qiymiz (yangi atomik storage)
+        if (collectionParam === 'users') {
+          const all = await redisHGetAll(USERS_HASH_KEY);
+          let list: any[] = Object.values(all).map((raw) => {
+            try { return JSON.parse(raw); } catch { return null; }
+          }).filter(Boolean);
+          // Agar HASH bo'sh bo'lsa — eski COL_KEY'dan ola olamiz (migratsiya uchun)
+          if (list.length === 0) {
+            const raw = await redisGet(COL_KEY('users'));
+            if (raw) {
+              try { list = JSON.parse(raw); } catch {}
+            }
+          }
+          const meta = await loadMeta();
+          return res.status(200).json({
+            ok: true,
+            configured: true,
+            collection: collectionParam,
+            data: list,
+            updatedAt: meta['users'] || 0,
+          });
         }
         const raw = await redisGet(COL_KEY(collectionParam));
         const data = raw ? JSON.parse(raw) : null;
@@ -196,13 +335,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (!COLLECTIONS.includes(collectionParam as Collection)) {
           return res.status(400).json({ ok: false, error: `Nomalum kolleksiya: ${collectionParam}` });
         }
+        const now = Date.now();
+        const meta = await loadMeta();
+        meta[collectionParam] = now;
+        // 'users' — alohida ishlanadi: HASH'ga har birini alohida yozamiz.
+        // Bu shu vaqtda bir nechta tab/PC saqlashdaa raqobat (race) ni
+        // butunlay yo'qotadi: bitta user'ni yozish boshqasini hech qachon o'chirmaydi.
+        if (collectionParam === 'users' && Array.isArray(body.data)) {
+          const writes: Promise<unknown>[] = [];
+          for (const u of body.data as Array<{ id?: string }>) {
+            if (!u || !u.id) continue;
+            const v = JSON.stringify(u);
+            if (v.length > 1_500_000) {
+              return res.status(413).json({ ok: false, error: `user ${u.id} > 1.5 MB` });
+            }
+            writes.push(redisHSet(USERS_HASH_KEY, u.id, v));
+          }
+          writes.push(saveMeta(meta));
+          await Promise.all(writes);
+          return res.status(200).json({ ok: true, configured: true, updatedAt: now });
+        }
         const value = JSON.stringify(body.data ?? null);
         if (value.length > 4_500_000) {
           return res.status(413).json({ ok: false, error: `${collectionParam} > 4.5 MB — kichikroq qiling (masalan rasm hajmini kamaytiring)` });
         }
-        const now = Date.now();
-        const meta = await loadMeta();
-        meta[collectionParam] = now;
         await Promise.all([
           redisSet(COL_KEY(collectionParam), value),
           saveMeta(meta),

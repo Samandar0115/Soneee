@@ -101,6 +101,64 @@ export async function loadCollectionFromKV(
   }
 }
 
+/* --------------- USER atomik saqlash (HASH) --------------- */
+// Har bir foydalanuvchi alohida HASH field sifatida saqlanadi.
+// Bu 100% atomik: bitta user'ni yozish boshqasini hech qachon o'zgartirmaydi.
+// 30+ xodim qo'shilganda ham har biri mustaqil yoziladi.
+
+export async function saveUserToKV(
+  user: { id: string } & Record<string, unknown>
+): Promise<{ ok: boolean; configured: boolean; error?: string; updatedAt?: number }> {
+  try {
+    const res = await fetch(`/api/state?user=${encodeURIComponent(user.id)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data: user }),
+    });
+    if (!res.ok) {
+      const txt = await res.text().catch(() => '');
+      return { ok: false, configured: false, error: txt || `HTTP ${res.status}` };
+    }
+    const json = await res.json();
+    return { ok: !!json.ok, configured: !!json.configured, error: json.error, updatedAt: json.updatedAt };
+  } catch (err) {
+    return { ok: false, configured: false, error: (err as Error).message };
+  }
+}
+
+export async function deleteUserFromKV(
+  userId: string
+): Promise<{ ok: boolean; configured: boolean; error?: string }> {
+  try {
+    const res = await fetch(`/api/state?user=${encodeURIComponent(userId)}`, {
+      method: 'DELETE',
+    });
+    if (!res.ok) {
+      const txt = await res.text().catch(() => '');
+      return { ok: false, configured: false, error: txt || `HTTP ${res.status}` };
+    }
+    const json = await res.json();
+    return { ok: !!json.ok, configured: !!json.configured, error: json.error };
+  } catch (err) {
+    return { ok: false, configured: false, error: (err as Error).message };
+  }
+}
+
+/* --------------- Admin cleanup --------------- */
+export async function cleanupLegacyKV(): Promise<{ ok: boolean; removed?: number; message?: string; error?: string }> {
+  try {
+    const res = await fetch(`/api/state?cleanup=legacy`, { method: 'POST' });
+    if (!res.ok) {
+      const txt = await res.text().catch(() => '');
+      return { ok: false, error: txt || `HTTP ${res.status}` };
+    }
+    const json = await res.json();
+    return { ok: !!json.ok, removed: json.removed, message: json.message, error: json.error };
+  } catch (err) {
+    return { ok: false, error: (err as Error).message };
+  }
+}
+
 // Bitta kolleksiyani yangilash — delta save (5-10 MB emas, ~10-100 KB)
 export async function saveCollectionToKV(
   name: CollectionName,

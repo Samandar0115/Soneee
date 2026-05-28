@@ -60,6 +60,8 @@ import {
   loadMetaFromKV,
   loadCollectionFromKV,
   saveCollectionToKV,
+  saveUserToKV,
+  deleteUserFromKV,
   type CollectionName,
 } from '../utils/vercelKV';
 import { broadcastChange, onBroadcast } from '../utils/broadcast';
@@ -131,6 +133,8 @@ interface AppState {
   updateLead: (id: string, patch: Partial<Lead>) => void;
   markLeadInfoGiven: (id: string) => void;
   deleteLead: (id: string) => void;
+  deleteLeads: (ids: string[]) => void;
+  markLeadsInfoGiven: (ids: string[]) => void;
   clearLeads: (status?: LeadStatus) => void;
   exportBackup: () => string;
   importBackup: (json: string) => boolean;
@@ -450,6 +454,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [kvReady, setKvReady] = useState(false);
   const [kvConfigured, setKvConfigured] = useState(false);
 
+  // MUHIM: cheksiz save↔pull↔save siklini to'xtatish uchun.
+  // KV'dan kelgan (yoki boshlang'ich yuklangan) ma'lumotni state'ga qo'yganda,
+  // shu state o'zgarishi natijasida ishga tushadigan scheduleCollectionSave'ni
+  // bir martaga o'tkazib yuboramiz. Aks holda KV'dan o'qilgan data qaytadan
+  // KV'ga yozilib, meta yangilanib, keyingi polling uni "yangi" deb qayta o'qiydi —
+  // bu Vercel'da 178K+ ortiqcha so'rov va 14 GB trafik keltirib chiqargan.
+  const suppressSaveRef = useRef<Record<string, boolean>>({});
+
+  const ALL_COLLECTIONS: CollectionName[] = [
+    'users', 'stages', 'tickets', 'categories', 'announcements', 'branches',
+    'tariff', 'settings', 'templates', 'notifications', 'callLogs', 'cargoShipments', 'leads',
+  ];
+
   useEffect(() => {
     if (backend !== 'local' || !ready || kvLoadedRef.current) return;
     kvLoadedRef.current = true;
@@ -502,6 +519,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       } catch {
         // jim — fallback localStorage
       } finally {
+        // kvReady false→true bo'lganda barcha 13 ta save effekti qayta ishga tushadi.
+        // Boshlang'ich yuklangan data'ni qayta KV'ga yozmaslik uchun hammasini suppress qilamiz.
+        ALL_COLLECTIONS.forEach((n) => { suppressSaveRef.current[n] = true; });
         setKvReady(true);
       }
     })();
@@ -523,6 +543,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   function scheduleCollectionSave(name: CollectionName, value: unknown) {
     if (backend !== 'local' || !kvReady || !kvConfigured) return;
+    // Agar bu state o'zgarishi KV'dan kelgan (pull/initial) bo'lsa — qayta saqlamaymiz.
+    // Bu cheksiz save↔pull siklini uzadi.
+    if (suppressSaveRef.current[name]) {
+      suppressSaveRef.current[name] = false;
+      return;
+    }
     const timers = collectionTimersRef.current;
     if (timers[name]) clearTimeout(timers[name]);
     timers[name] = window.setTimeout(() => {
@@ -702,6 +728,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       toFetch.map(async (name) => {
         const res = await loadCollectionFromKV(name);
         if (!res) return;
+        // KV'dan kelgan data'ni qayta KV'ga yozmaymiz — siklni uzamiz
+        suppressSaveRef.current[name] = true;
         setterFor(name)(res.data);
         lastSyncMetaRef.current[name] = res.updatedAt;
       })
@@ -1024,14 +1052,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const next = exists ? users.map((u) => (u.id === user.id ? user : u)) : [...users, user];
       setUsers(next);
       await writeDoc('users', user.id, user);
-      const ok = await flushCollectionSave('users', next);
-      // Saqlash tugagandan keyin yana belgilash — race window davom etadi
-      lastLocalChangeRef.current.users = Date.now();
-      // KV'dagi updatedAt'ni biz hozir yozgan qiymatga moslab qo'yamiz — keyingi
-      // polling KV'dan o'zimiz yozganlarini qaytib yuklab kelmasin
-      lastSyncMetaRef.current.users = Date.now();
-      if (!ok && backend === 'local' && kvConfigured) {
-        throw new Error('Bazaga saqlanmadi — internetni tekshiring');
+      // ATOMIK saqlash: faqat bitta user yoziladi (HSET), boshqalarni o'zgartirmaydi.
+      // 30+ xodim bo'lganda ham har biri mustaqil va xavfsiz saqlanadi.
+      if (backend === 'local' && kvConfigured && kvReady) {
+        // Photo strip — KV'ga foto yuborilmaydi
+        const stripped = (() => {
+          if (!user.photo) return user;
+          const { photo: _photo, ...rest } = user;
+          return rest as typeof user;
+        })();
+        const r = await saveUserToKV(stripped as unknown as { id: string } & Record<string, unknown>);
+        lastLocalChangeRef.current.users = Date.now();
+        lastSyncMetaRef.current.users = Date.now();
+        if (!r.ok) {
+          throw new Error(r.error || 'Bazaga saqlanmadi — internetni tekshiring');
+        }
+      } else {
+        // Fallback — KV ulanmagan bo'lsa lokal localStorage yetarli
+        lastLocalChangeRef.current.users = Date.now();
       }
     },
     [users, writeDoc, backend, kvConfigured, kvReady]
@@ -1043,9 +1081,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const next = users.filter((u) => u.id !== id);
       setUsers(next);
       await removeDoc('users', id);
-      await flushCollectionSave('users', next);
-      lastLocalChangeRef.current.users = Date.now();
-      lastSyncMetaRef.current.users = Date.now();
+      if (backend === 'local' && kvConfigured && kvReady) {
+        await deleteUserFromKV(id);
+        lastLocalChangeRef.current.users = Date.now();
+        lastSyncMetaRef.current.users = Date.now();
+      }
     },
     [users, removeDoc, backend, kvConfigured, kvReady]
   );
@@ -1318,6 +1358,40 @@ export function AppProvider({ children }: { children: ReactNode }) {
       void flushCollectionSave('leads', next);
     },
     [leads, backend, kvConfigured, kvReady]
+  );
+
+  // Ommaviy o'chirish — bittalab emas, belgilangan barchasini bir saqlash bilan
+  const deleteLeads = useCallback<AppState['deleteLeads']>(
+    (ids) => {
+      const idSet = new Set(ids);
+      const next = leads.filter((l) => !idSet.has(l.id));
+      setLeads(next);
+      void flushCollectionSave('leads', next);
+    },
+    [leads, backend, kvConfigured, kvReady]
+  );
+
+  // Ommaviy "Info berildi" belgilash
+  const markLeadsInfoGiven = useCallback<AppState['markLeadsInfoGiven']>(
+    (ids) => {
+      if (!currentUser) return;
+      const now = Date.now();
+      const idSet = new Set(ids);
+      const next = leads.map((l) =>
+        idSet.has(l.id)
+          ? {
+              ...l,
+              status: 'info_given' as LeadStatus,
+              calledAt: l.calledAt ?? now,
+              calledBy: l.calledBy ?? currentUser.id,
+              calledByName: l.calledByName ?? (currentUser.fullName ?? currentUser.username),
+            }
+          : l
+      );
+      setLeads(next);
+      void flushCollectionSave('leads', next);
+    },
+    [leads, currentUser, backend, kvConfigured, kvReady]
   );
 
   const clearLeads = useCallback<AppState['clearLeads']>(
@@ -1643,6 +1717,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       updateLead,
       markLeadInfoGiven,
       deleteLead,
+      deleteLeads,
+      markLeadsInfoGiven,
       clearLeads,
       exportBackup,
       importBackup,
@@ -1714,6 +1790,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       updateLead,
       markLeadInfoGiven,
       deleteLead,
+      deleteLeads,
+      markLeadsInfoGiven,
       clearLeads,
       exportBackup,
       importBackup,

@@ -5,7 +5,7 @@ import toast from 'react-hot-toast';
 import PageHeader from '../components/PageHeader';
 import { useApp } from '../context/AppContext';
 import type { AppSettings } from '../types';
-import { checkKVStatus, loadFromKV, saveToKV, resetKVStatus, type KVStatus } from '../utils/vercelKV';
+import { checkKVStatus, loadFromKV, saveToKV, resetKVStatus, cleanupLegacyKV, type KVStatus } from '../utils/vercelKV';
 import { formatDateTime } from '../utils/format';
 
 const PRIORITIES: Array<keyof AppSettings['slaMinutes']> = ['low', 'normal', 'high', 'urgent'];
@@ -109,6 +109,26 @@ export default function SettingsPage() {
       }
     } catch (err) {
       toast.error('Xato: ' + (err as Error).message, { id: 'kv-load' });
+    } finally {
+      setKvBusy(false);
+    }
+  }
+
+  async function cleanupLegacy() {
+    if (!confirm("Vercel KV'dagi eski snapshot (ipost:state:v1) o'chiriladi. Joriy ma'lumotlarga ta'sir qilmaydi. Davom etamiz?")) {
+      return;
+    }
+    setKvBusy(true);
+    toast.loading('Eski snapshot tozalanmoqda...', { id: 'kv-cleanup' });
+    try {
+      const r = await cleanupLegacyKV();
+      if (r.ok) {
+        toast.success(r.message || "Tozalandi", { id: 'kv-cleanup' });
+      } else {
+        toast.error(r.error || 'Xato', { id: 'kv-cleanup' });
+      }
+    } catch (err) {
+      toast.error('Xato: ' + (err as Error).message, { id: 'kv-cleanup' });
     } finally {
       setKvBusy(false);
     }
@@ -396,7 +416,14 @@ export default function SettingsPage() {
                 <button onClick={pullFromVercel} disabled={kvBusy} className="btn-ghost disabled:opacity-50">
                   <Download className="h-4 w-4" /> Vercel'dan tiklash
                 </button>
+                <button onClick={cleanupLegacy} disabled={kvBusy} className="btn-danger text-xs disabled:opacity-50">
+                  <Trash2 className="h-4 w-4" /> Eski snapshot'ni tozalash
+                </button>
               </div>
+              <p className="text-[11px] text-slate-500 mt-2">
+                "Eski snapshot'ni tozalash" — Vercel KV'dagi eski katta <code>ipost:state:v1</code> blokini
+                o'chiradi (joy bo'shatadi). Joriy ma'lumotlarga ta'sir qilmaydi.
+              </p>
             </>
           ) : (
             <>
