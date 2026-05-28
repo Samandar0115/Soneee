@@ -278,6 +278,7 @@ export default function UsersPage() {
                     disabled={roleLocked}
                     onChange={(e) => setEditing({ ...editing, role: e.target.value as User['role'] })}
                   >
+                    <option value="learner">O'quvchi (darslik)</option>
                     <option value="operator">Operator</option>
                     <option value="admin">Admin</option>
                   </select>

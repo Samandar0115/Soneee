@@ -41,6 +41,13 @@ function AdminOnly({ children }: { children: JSX.Element }) {
   return children;
 }
 
+// O'quvchi faqat O'quv markazidan foydalanadi — CRM sahifalariga kira olmaydi
+function NonLearner({ children }: { children: JSX.Element }) {
+  const { currentUser } = useApp();
+  if (currentUser?.role === 'learner') return <Navigate to="/learn" replace />;
+  return children;
+}
+
 export default function App() {
   return (
     <>
@@ -57,14 +64,14 @@ export default function App() {
             </Protected>
           }
         >
-          <Route index element={<Dashboard />} />
-          <Route path="leads" element={<LeadsPage />} />
-          <Route path="pipeline" element={<Pipeline />} />
-          <Route path="tickets" element={<Tickets />} />
-          <Route path="calls" element={<CallLogsPage />} />
-          <Route path="cargo" element={<CargoPage />} />
-          <Route path="warehouse" element={<WarehousePage />} />
-          <Route path="knowledge" element={<Knowledge />} />
+          <Route index element={<NonLearner><Dashboard /></NonLearner>} />
+          <Route path="leads" element={<NonLearner><LeadsPage /></NonLearner>} />
+          <Route path="pipeline" element={<NonLearner><Pipeline /></NonLearner>} />
+          <Route path="tickets" element={<NonLearner><Tickets /></NonLearner>} />
+          <Route path="calls" element={<NonLearner><CallLogsPage /></NonLearner>} />
+          <Route path="cargo" element={<NonLearner><CargoPage /></NonLearner>} />
+          <Route path="warehouse" element={<NonLearner><WarehousePage /></NonLearner>} />
+          <Route path="knowledge" element={<NonLearner><Knowledge /></NonLearner>} />
           <Route path="learn" element={<LearnPage />} />
           <Route
             path="users"

@@ -1,4 +1,4 @@
-export type Role = 'admin' | 'operator';
+export type Role = 'admin' | 'operator' | 'learner';
 
 export interface Category {
   id: string;
@@ -115,6 +115,7 @@ export interface AppDataSnapshot {
   callLogs?: CallLog[];
   cargoShipments?: CargoShipment[];
   leads?: Lead[];
+  tracks?: Track[];
   lessons?: Lesson[];
   learnerProgress?: LearnerProgress[];
 }
@@ -137,15 +138,41 @@ export interface QuizQuestion {
   explanation?: string;
 }
 
-// Bitta "kun" / modul — chiziqli yo'lda ketma-ket ochiladi
+// Yo'nalish — darslar guruhi (masalan: "Call Center Operator", "Sklad")
+export interface Track {
+  id: string;
+  name: string;
+  description?: string;
+  color?: string;
+  order: number;
+  active: boolean;
+  createdAt: number;
+}
+
+// O'qitish case'i — vaziyat va to'g'ri/noto'g'ri yondashuv
+export interface LessonCase {
+  id: string;
+  situation: string;       // vaziyat tavsifi
+  goodResponse: string;    // to'g'ri yondashuv
+  badResponse?: string;    // noto'g'ri yondashuv (taqqoslash uchun)
+  note?: string;
+}
+
+// Bitta dars/modul — yo'nalish ichida ketma-ket ochiladi
 export interface Lesson {
   id: string;
-  day: number;            // Kun raqami (1, 2, 3 ...) — tartib va qulflash uchun
+  trackId: string;        // qaysi yo'nalishga tegishli
+  day: number;            // ko'rsatiladigan tartib raqami
+  order: number;          // yo'nalish ichidagi tartib (qulflash uchun)
   title: string;
   summary?: string;       // qisqa tavsif
   content?: string;       // skript / bilim bazasi matni (ko'p qatorli)
   videoUrl?: string;      // mp4 to'g'ridan-to'g'ri yoki YouTube/embed havola
+  videoUploaded?: boolean; // shu qurilmada yuklangan video bormi (IndexedDB)
+  videoFileName?: string;
   videoDurationSec?: number;
+  tips: string[];         // tip & trick ro'yxati
+  cases: LessonCase[];    // o'qitish case'lari
   quiz: QuizQuestion[];
   passScorePct: number;   // o'tish foizi (default 100)
   active: boolean;

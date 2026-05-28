@@ -1,4 +1,4 @@
-import type { Announcement, AppSettings, Branch, Category, Lesson, ResponseTemplate, Stage, TariffSettings, User } from '../types';
+import type { Announcement, AppSettings, Branch, Category, Lesson, Track, ResponseTemplate, Stage, TariffSettings, User } from '../types';
 
 export const seedTemplates: ResponseTemplate[] = [
   { id: 'tpl-greeting', title: 'Salomlashish', body: 'Assalomu alaykum, iPOST Cargo. Sizga qanday yordam berishimiz mumkin?', category: 'salomlashish', order: 0, active: true, createdAt: Date.now() },
@@ -189,20 +189,40 @@ export const seedStages: Stage[] = [
 // Admin har bir kunga video havola qo'sha oladi (Sozlamalar yonidagi "Darslik").
 const T0 = Date.parse('2026-01-01T00:00:00Z');
 
+export const TRACK_OPERATOR_ID = 'track-operator';
+
+export const seedTracks: Track[] = [
+  {
+    id: TRACK_OPERATOR_ID,
+    name: 'Call Center Operator',
+    description: 'Yangi operatorni 1-2 hafta ichida tayyor mutaxassisga aylantiruvchi asosiy yo\'nalish.',
+    color: '#2f66ff',
+    order: 0,
+    active: true,
+    createdAt: T0,
+  },
+];
+
 function L(
   day: number,
   title: string,
   summary: string,
   content: string,
-  quiz: Lesson['quiz']
+  quiz: Lesson['quiz'],
+  tips: string[] = [],
+  cases: Lesson['cases'] = []
 ): Lesson {
   return {
     id: `lesson-day-${day}`,
+    trackId: TRACK_OPERATOR_ID,
     day,
+    order: day,
     title,
     summary,
     content,
     videoUrl: '',
+    tips,
+    cases,
     quiz,
     passScorePct: 100,
     active: true,
@@ -239,6 +259,14 @@ export const seedLessons: Lesson[] = [
         { id: 'b', text: 'Sokin ohangda tinglash va yechim taklif qilish' },
         { id: 'c', text: 'Telefonni qo\'yish' },
       ], correctOptionId: 'b' },
+    ],
+    [
+      'Mijoz ismini eshitganda yozib oling va suhbat davomida ism bilan murojaat qiling.',
+      'Pauza qiling — mijoz gapini tugatmaguncha javob bermang.',
+      'Tabassum bilan gapiring, ovozdan ham bilinadi.',
+    ],
+    [
+      { id: 'case-d2-1', situation: 'Mijoz: "Necha kundan beri javob yo\'q, bu qanaqasi!"', goodResponse: 'Uzr so\'rayman, kechikish uchun. Hozir trekingizni tekshirib, aniq holatni aytaman.', badResponse: 'Men aybdor emasman, bu omborning ishi.', note: 'Aybni boshqaga ag\'darmang, mas\'uliyatni o\'z zimmangizga oling.' },
     ]),
   L(3, 'CRM tizimi bilan ishlash', 'Murojaat ochish, trek qidirish, bosqichlar.',
     'iPOST CRM — barcha murojaatlar shu yerda yuritiladi.\n\n• "Yangi murojaatlar" — kelgan raqamlar navbati.\n• Murojaat ochilganda trek raqami, mijoz ismi va telefoni kiritiladi.\n• Har bir murojaat bosqichlardan o\'tadi: Yangi → Jarayonda → Hal etildi.\n• Trek raqamini qidiruv orqali tez topish mumkin (Ctrl+K).',
@@ -285,6 +313,15 @@ export const seedLessons: Lesson[] = [
         { id: 'b', text: 'Aybni kuryerga ag\'darish' },
         { id: 'c', text: 'E\'tiborsiz qoldirish' },
       ], correctOptionId: 'a' },
+    ],
+    [
+      'E\'tirozni shaxsiy qabul qilmang — mijoz vaziyatdan norozi, sizdan emas.',
+      'LAST qoidasi: Listen (tingla), Apologize (uzr), Solve (yech), Thank (rahmat).',
+      'Hech qachon "bu mening ishim emas" demang.',
+    ],
+    [
+      { id: 'case-d6-1', situation: 'Mijoz pulini qaytarishni talab qilmoqda.', goodResponse: 'Sizni tushunaman. Holatni ko\'rib chiqib, qoidalarga muvofiq eng yaxshi yechimni topamiz. Bir daqiqa, ma\'lumotlarni tekshiraman.', badResponse: 'Pul qaytmaydi, qoida shunaqa.', note: 'Avval hamdardlik, keyin yechim. Quruq rad etish mijozni yo\'qotadi.' },
+      { id: 'case-d6-2', situation: 'Mijoz baqirmoqda va so\'kinmoqda.', goodResponse: 'Sokin ohangda: "Sizga yordam berishni juda xohlayman. Iltimos, birga yechim topaylik."', badResponse: 'Javoban baqirish yoki telefonni qo\'yish.', note: 'Sizning sokin ohangingiz mijozni ham tinchlantiradi.' },
     ]),
   L(7, '1-hafta yakuniy testi', 'O\'tilgan 6 kunlik bilimni mustahkamlash.',
     'Birinchi haftani yakunladingiz! Quyidagi savollar o\'tilgan mavzularni qamrab oladi. 100% to\'g\'ri javob bersangiz 2-haftaga o\'tasiz.',

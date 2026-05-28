@@ -103,17 +103,20 @@ export default function Layout() {
     localStorage.setItem(COLLAPSE_KEY, collapsed ? '1' : '0');
   }, [collapsed]);
 
-  const links = [
-    { to: '/', label: t('nav.dashboard'), icon: LayoutDashboard, end: true },
-    { to: '/leads', label: 'Yangi murojaatlar', icon: Inbox },
-    { to: '/pipeline', label: t('nav.pipeline'), icon: KanbanSquare },
-    { to: '/tickets', label: t('nav.tickets'), icon: TicketIcon },
-    { to: '/calls', label: "Qo'ng'iroqlar", icon: Phone },
-    { to: '/cargo', label: 'Vozvrat yuklar', icon: Package },
-    { to: '/warehouse', label: 'Sklad navbati', icon: Warehouse },
-    { to: '/knowledge', label: t('nav.knowledge'), icon: BookOpen },
-    { to: '/learn', label: "O'quv markazi", icon: GraduationCap },
-  ];
+  const isLearner = currentUser?.role === 'learner';
+  const links = isLearner
+    ? [{ to: '/learn', label: "O'quv markazi", icon: GraduationCap, end: false }]
+    : [
+        { to: '/', label: t('nav.dashboard'), icon: LayoutDashboard, end: true },
+        { to: '/leads', label: 'Yangi murojaatlar', icon: Inbox },
+        { to: '/pipeline', label: t('nav.pipeline'), icon: KanbanSquare },
+        { to: '/tickets', label: t('nav.tickets'), icon: TicketIcon },
+        { to: '/calls', label: "Qo'ng'iroqlar", icon: Phone },
+        { to: '/cargo', label: 'Vozvrat yuklar', icon: Package },
+        { to: '/warehouse', label: 'Sklad navbati', icon: Warehouse },
+        { to: '/knowledge', label: t('nav.knowledge'), icon: BookOpen },
+        { to: '/learn', label: "O'quv markazi", icon: GraduationCap },
+      ];
   const adminLinks = [
     { to: '/analytics', label: 'Analitika', icon: BarChart3 },
     { to: '/curriculum', label: 'Darslik boshqaruvi', icon: GraduationCap },

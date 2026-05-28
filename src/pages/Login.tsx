@@ -8,9 +8,14 @@ import {
   computeDescriptorBoth, findBestMatchMulti, loadFaceModels,
   areFaceModelsFailed,
 } from '../utils/face';
-import type { User } from '../types';
+import type { Role, User } from '../types';
 
 type Mode = 'face' | 'password';
+
+// Rolga qarab kirgandan keyin qayerga yo'naltirish
+function landingFor(role: Role): string {
+  return role === 'learner' ? '/learn' : '/';
+}
 
 const IPostLogo = () => (
   <svg viewBox="0 0 640 640" className="h-28 w-28 rounded-2xl shadow-lg shadow-brand-500/30 mb-3">
@@ -65,7 +70,7 @@ export default function Login() {
     return () => { cancelled = true; };
   }, [hasFaceUsers]);
 
-  if (currentUser) return <Navigate to="/" replace />;
+  if (currentUser) return <Navigate to={landingFor(currentUser.role)} replace />;
 
   function onFaceFail() {
     const next = failedAttempts + 1;
@@ -83,7 +88,7 @@ export default function Login() {
     setLoading(false);
     if (u) {
       toast.success(`Xush kelibsiz, ${u.fullName ?? u.username}`);
-      nav('/');
+      nav(landingFor(u.role));
     } else {
       toast.error("Login yoki parol noto'g'ri");
     }
@@ -92,7 +97,7 @@ export default function Login() {
   function onFaceSuccess(u: User) {
     login(u.username, u.password);
     toast.success(`Xush kelibsiz, ${u.fullName ?? u.username}`);
-    nav('/');
+    nav(landingFor(u.role));
   }
 
   return (

@@ -28,6 +28,7 @@ import type {
   Lead,
   LeadSource,
   LeadStatus,
+  Track,
   Lesson,
   LearnerProgress,
   LessonProgress,
@@ -54,6 +55,7 @@ import {
   seedTemplates,
   seedUsers,
   seedLessons,
+  seedTracks,
 } from '../api/seed';
 import { handleFirestoreError } from '../utils/errors';
 import { generateTrackingNumber, randomId } from '../utils/format';
@@ -88,6 +90,7 @@ interface AppState {
   callLogs: CallLog[];
   cargoShipments: CargoShipment[];
   leads: Lead[];
+  tracks: Track[];
   lessons: Lesson[];
   learnerProgress: LearnerProgress[];
   kvConfigured: boolean;
@@ -142,6 +145,8 @@ interface AppState {
   deleteLeads: (ids: string[]) => void;
   markLeadsInfoGiven: (ids: string[]) => void;
   clearLeads: (status?: LeadStatus) => void;
+  saveTrack: (track: Track) => Promise<void>;
+  deleteTrack: (id: string) => Promise<void>;
   saveLesson: (lesson: Lesson) => Promise<void>;
   deleteLesson: (id: string) => Promise<void>;
   recordVideoWatched: (lessonId: string) => void;
@@ -169,6 +174,7 @@ const STORAGE_KEYS = {
   callLogs: 'ipost.callLogs',
   cargoShipments: 'ipost.cargoShipments',
   leads: 'ipost.leads',
+  tracks: 'ipost.tracks',
   lessons: 'ipost.lessons',
   learnerProgress: 'ipost.learnerProgress',
   userPhotos: 'ipost.userPhotos',
@@ -235,6 +241,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [callLogs, setCallLogs] = useState<CallLog[]>([]);
   const [cargoShipments, setCargoShipments] = useState<CargoShipment[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
+  const [tracks, setTracks] = useState<Track[]>([]);
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [learnerProgress, setLearnerProgress] = useState<LearnerProgress[]>([]);
   const [lang, setLangState] = useState<Lang>(() => (localStorage.getItem(STORAGE_KEYS.lang) as Lang) || 'uz');
@@ -368,8 +375,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setCallLogs(loadLocal<CallLog[]>(STORAGE_KEYS.callLogs, []));
     setCargoShipments(loadLocal<CargoShipment[]>(STORAGE_KEYS.cargoShipments, []));
     setLeads(loadLocal<Lead[]>(STORAGE_KEYS.leads, []));
+    setTracks(loadLocal<Track[]>(STORAGE_KEYS.tracks, seedTracks));
     setLessons(loadLocal<Lesson[]>(STORAGE_KEYS.lessons, seedLessons));
     setLearnerProgress(loadLocal<LearnerProgress[]>(STORAGE_KEYS.learnerProgress, []));
+    if (!localStorage.getItem(STORAGE_KEYS.tracks)) saveLocal(STORAGE_KEYS.tracks, seedTracks);
     if (!localStorage.getItem(STORAGE_KEYS.lessons)) saveLocal(STORAGE_KEYS.lessons, seedLessons);
     if (!localStorage.getItem(STORAGE_KEYS.users)) saveLocal(STORAGE_KEYS.users, seedUsers);
     if (!localStorage.getItem(STORAGE_KEYS.stages)) saveLocal(STORAGE_KEYS.stages, seedStages);
@@ -456,6 +465,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [leads, backend, ready]);
 
   useEffect(() => {
+    if (backend === 'local' && ready) saveLocal(STORAGE_KEYS.tracks, tracks);
+  }, [tracks, backend, ready]);
+
+  useEffect(() => {
     if (backend === 'local' && ready) saveLocal(STORAGE_KEYS.lessons, lessons);
   }, [lessons, backend, ready]);
 
@@ -492,7 +505,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const ALL_COLLECTIONS: CollectionName[] = [
     'users', 'stages', 'tickets', 'categories', 'announcements', 'branches',
     'tariff', 'settings', 'templates', 'notifications', 'callLogs', 'cargoShipments', 'leads',
-    'lessons', 'learnerProgress',
+    'tracks', 'lessons', 'learnerProgress',
   ];
 
   useEffect(() => {
@@ -543,6 +556,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           if (Array.isArray(d.callLogs)) setCallLogs(d.callLogs);
           if (Array.isArray(d.cargoShipments)) setCargoShipments(d.cargoShipments);
           if (Array.isArray(d.leads)) setLeads(d.leads);
+          if (Array.isArray(d.tracks) && d.tracks.length > 0) setTracks(d.tracks);
           if (Array.isArray(d.lessons) && d.lessons.length > 0) setLessons(d.lessons);
           if (Array.isArray(d.learnerProgress)) setLearnerProgress(d.learnerProgress);
         }
@@ -651,6 +665,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => { scheduleCollectionSave('callLogs', callLogs); }, [callLogs, backend, kvReady, kvConfigured]);
   useEffect(() => { scheduleCollectionSave('cargoShipments', cargoShipments); }, [cargoShipments, backend, kvReady, kvConfigured]);
   useEffect(() => { scheduleCollectionSave('leads', leads); }, [leads, backend, kvReady, kvConfigured]);
+  useEffect(() => { scheduleCollectionSave('tracks', tracks); }, [tracks, backend, kvReady, kvConfigured]);
   useEffect(() => { scheduleCollectionSave('lessons', lessons); }, [lessons, backend, kvReady, kvConfigured]);
   useEffect(() => { scheduleCollectionSave('learnerProgress', learnerProgress); }, [learnerProgress, backend, kvReady, kvConfigured]);
 
@@ -677,6 +692,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => { pendingStateRef.current.callLogs = callLogs; }, [callLogs]);
   useEffect(() => { pendingStateRef.current.cargoShipments = cargoShipments; }, [cargoShipments]);
   useEffect(() => { pendingStateRef.current.leads = leads; }, [leads]);
+  useEffect(() => { pendingStateRef.current.tracks = tracks; }, [tracks]);
   useEffect(() => { pendingStateRef.current.lessons = lessons; }, [lessons]);
   useEffect(() => { pendingStateRef.current.learnerProgress = learnerProgress; }, [learnerProgress]);
 
@@ -765,6 +781,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       case 'callLogs': return (v) => Array.isArray(v) && setCallLogs(v);
       case 'cargoShipments': return (v) => Array.isArray(v) && setCargoShipments(v);
       case 'leads': return (v) => Array.isArray(v) && setLeads(v);
+      case 'tracks': return (v) => Array.isArray(v) && v.length > 0 && setTracks(v);
       case 'lessons': return (v) => Array.isArray(v) && v.length > 0 && setLessons(v);
       case 'learnerProgress': return (v) => Array.isArray(v) && setLearnerProgress(v);
     }
@@ -812,6 +829,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => { lastLocalChangeRef.current.callLogs = Date.now(); }, [callLogs]);
   useEffect(() => { lastLocalChangeRef.current.cargoShipments = Date.now(); }, [cargoShipments]);
   useEffect(() => { lastLocalChangeRef.current.leads = Date.now(); }, [leads]);
+  useEffect(() => { lastLocalChangeRef.current.tracks = Date.now(); }, [tracks]);
   useEffect(() => { lastLocalChangeRef.current.lessons = Date.now(); }, [lessons]);
   useEffect(() => { lastLocalChangeRef.current.learnerProgress = Date.now(); }, [learnerProgress]);
 
@@ -1467,6 +1485,31 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [leads, backend, kvConfigured, kvReady]
   );
 
+  // === LMS — Yo'nalishlar (admin) ===
+  const saveTrack = useCallback<AppState['saveTrack']>(
+    async (track) => {
+      const exists = tracks.some((t) => t.id === track.id);
+      const merged = exists ? tracks.map((t) => (t.id === track.id ? track : t)) : [...tracks, track];
+      const next = merged.sort((a, b) => a.order - b.order);
+      setTracks(next);
+      const ok = await flushCollectionSave('tracks', next);
+      if (!ok && backend === 'local' && kvConfigured) throw new Error('Yo\'nalish saqlanmadi');
+    },
+    [tracks, backend, kvConfigured, kvReady]
+  );
+
+  const deleteTrack = useCallback<AppState['deleteTrack']>(
+    async (id) => {
+      const nextTracks = tracks.filter((t) => t.id !== id);
+      const nextLessons = lessons.filter((l) => l.trackId !== id);
+      setTracks(nextTracks);
+      setLessons(nextLessons);
+      await flushCollectionSave('tracks', nextTracks);
+      await flushCollectionSave('lessons', nextLessons);
+    },
+    [tracks, lessons, backend, kvConfigured, kvReady]
+  );
+
   // === LMS — Darslar (admin) ===
   const saveLesson = useCallback<AppState['saveLesson']>(
     async (lesson) => {
@@ -1910,8 +1953,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       deleteLeads,
       markLeadsInfoGiven,
       clearLeads,
+      tracks,
       lessons,
       learnerProgress,
+      saveTrack,
+      deleteTrack,
       saveLesson,
       deleteLesson,
       recordVideoWatched,
@@ -1991,8 +2037,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       deleteLeads,
       markLeadsInfoGiven,
       clearLeads,
+      tracks,
       lessons,
       learnerProgress,
+      saveTrack,
+      deleteTrack,
       saveLesson,
       deleteLesson,
       recordVideoWatched,
