@@ -16,6 +16,8 @@ import CallLogsPage from './pages/CallLogs';
 import CargoPage from './pages/Cargo';
 import WarehousePage from './pages/Warehouse';
 import LeadsPage from './pages/Leads';
+import LearnPage from './pages/Learn';
+import CurriculumPage from './pages/Curriculum';
 import Track from './pages/Track';
 import GlobalSearch from './components/GlobalSearch';
 import KeyboardShortcuts from './components/KeyboardShortcuts';
@@ -63,6 +65,7 @@ export default function App() {
           <Route path="cargo" element={<CargoPage />} />
           <Route path="warehouse" element={<WarehousePage />} />
           <Route path="knowledge" element={<Knowledge />} />
+          <Route path="learn" element={<LearnPage />} />
           <Route
             path="users"
             element={
@@ -108,6 +111,14 @@ export default function App() {
             element={
               <AdminOnly>
                 <TemplatesPage />
+              </AdminOnly>
+            }
+          />
+          <Route
+            path="curriculum"
+            element={
+              <AdminOnly>
+                <CurriculumPage />
               </AdminOnly>
             }
           />

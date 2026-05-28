@@ -28,6 +28,9 @@ import type {
   Lead,
   LeadSource,
   LeadStatus,
+  Lesson,
+  LearnerProgress,
+  LessonProgress,
   CustomerRating,
   Lang,
   NotificationType,
@@ -50,6 +53,7 @@ import {
   seedTariff,
   seedTemplates,
   seedUsers,
+  seedLessons,
 } from '../api/seed';
 import { handleFirestoreError } from '../utils/errors';
 import { generateTrackingNumber, randomId } from '../utils/format';
@@ -84,6 +88,8 @@ interface AppState {
   callLogs: CallLog[];
   cargoShipments: CargoShipment[];
   leads: Lead[];
+  lessons: Lesson[];
+  learnerProgress: LearnerProgress[];
   kvConfigured: boolean;
   kvReady: boolean;
   lang: Lang;
@@ -136,6 +142,12 @@ interface AppState {
   deleteLeads: (ids: string[]) => void;
   markLeadsInfoGiven: (ids: string[]) => void;
   clearLeads: (status?: LeadStatus) => void;
+  saveLesson: (lesson: Lesson) => Promise<void>;
+  deleteLesson: (id: string) => Promise<void>;
+  recordVideoWatched: (lessonId: string) => void;
+  recordQuizResult: (lessonId: string, scorePct: number, passScorePct: number, addSeconds?: number) => boolean;
+  setLearnerRevoked: (userId: string, revoked: boolean) => void;
+  myProgress: () => LearnerProgress | undefined;
   exportBackup: () => string;
   importBackup: (json: string) => boolean;
   runTestScenario: () => Promise<Ticket | null>;
@@ -157,6 +169,8 @@ const STORAGE_KEYS = {
   callLogs: 'ipost.callLogs',
   cargoShipments: 'ipost.cargoShipments',
   leads: 'ipost.leads',
+  lessons: 'ipost.lessons',
+  learnerProgress: 'ipost.learnerProgress',
   userPhotos: 'ipost.userPhotos',
   lang: 'ipost.lang',
   theme: 'ipost.theme',
@@ -221,6 +235,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [callLogs, setCallLogs] = useState<CallLog[]>([]);
   const [cargoShipments, setCargoShipments] = useState<CargoShipment[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
+  const [lessons, setLessons] = useState<Lesson[]>([]);
+  const [learnerProgress, setLearnerProgress] = useState<LearnerProgress[]>([]);
   const [lang, setLangState] = useState<Lang>(() => (localStorage.getItem(STORAGE_KEYS.lang) as Lang) || 'uz');
   const [theme, setThemeState] = useState<'light' | 'dark'>(
     () => (localStorage.getItem(STORAGE_KEYS.theme) as 'light' | 'dark') || 'light'
@@ -352,6 +368,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setCallLogs(loadLocal<CallLog[]>(STORAGE_KEYS.callLogs, []));
     setCargoShipments(loadLocal<CargoShipment[]>(STORAGE_KEYS.cargoShipments, []));
     setLeads(loadLocal<Lead[]>(STORAGE_KEYS.leads, []));
+    setLessons(loadLocal<Lesson[]>(STORAGE_KEYS.lessons, seedLessons));
+    setLearnerProgress(loadLocal<LearnerProgress[]>(STORAGE_KEYS.learnerProgress, []));
+    if (!localStorage.getItem(STORAGE_KEYS.lessons)) saveLocal(STORAGE_KEYS.lessons, seedLessons);
     if (!localStorage.getItem(STORAGE_KEYS.users)) saveLocal(STORAGE_KEYS.users, seedUsers);
     if (!localStorage.getItem(STORAGE_KEYS.stages)) saveLocal(STORAGE_KEYS.stages, seedStages);
     if (!localStorage.getItem(STORAGE_KEYS.categories)) saveLocal(STORAGE_KEYS.categories, seedCategories);
@@ -436,6 +455,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (backend === 'local' && ready) saveLocal(STORAGE_KEYS.leads, leads);
   }, [leads, backend, ready]);
 
+  useEffect(() => {
+    if (backend === 'local' && ready) saveLocal(STORAGE_KEYS.lessons, lessons);
+  }, [lessons, backend, ready]);
+
+  useEffect(() => {
+    if (backend === 'local' && ready) saveLocal(STORAGE_KEYS.learnerProgress, learnerProgress);
+  }, [learnerProgress, backend, ready]);
+
   /* ---------------- Session restore ---------------- */
   useEffect(() => {
     if (!ready) return;
@@ -465,6 +492,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const ALL_COLLECTIONS: CollectionName[] = [
     'users', 'stages', 'tickets', 'categories', 'announcements', 'branches',
     'tariff', 'settings', 'templates', 'notifications', 'callLogs', 'cargoShipments', 'leads',
+    'lessons', 'learnerProgress',
   ];
 
   useEffect(() => {
@@ -515,6 +543,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
           if (Array.isArray(d.callLogs)) setCallLogs(d.callLogs);
           if (Array.isArray(d.cargoShipments)) setCargoShipments(d.cargoShipments);
           if (Array.isArray(d.leads)) setLeads(d.leads);
+          if (Array.isArray(d.lessons) && d.lessons.length > 0) setLessons(d.lessons);
+          if (Array.isArray(d.learnerProgress)) setLearnerProgress(d.learnerProgress);
         }
       } catch {
         // jim — fallback localStorage
@@ -621,6 +651,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => { scheduleCollectionSave('callLogs', callLogs); }, [callLogs, backend, kvReady, kvConfigured]);
   useEffect(() => { scheduleCollectionSave('cargoShipments', cargoShipments); }, [cargoShipments, backend, kvReady, kvConfigured]);
   useEffect(() => { scheduleCollectionSave('leads', leads); }, [leads, backend, kvReady, kvConfigured]);
+  useEffect(() => { scheduleCollectionSave('lessons', lessons); }, [lessons, backend, kvReady, kvConfigured]);
+  useEffect(() => { scheduleCollectionSave('learnerProgress', learnerProgress); }, [learnerProgress, backend, kvReady, kvConfigured]);
 
   useEffect(() => {
     return () => {
@@ -645,6 +677,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => { pendingStateRef.current.callLogs = callLogs; }, [callLogs]);
   useEffect(() => { pendingStateRef.current.cargoShipments = cargoShipments; }, [cargoShipments]);
   useEffect(() => { pendingStateRef.current.leads = leads; }, [leads]);
+  useEffect(() => { pendingStateRef.current.lessons = lessons; }, [lessons]);
+  useEffect(() => { pendingStateRef.current.learnerProgress = learnerProgress; }, [learnerProgress]);
 
   useEffect(() => {
     if (backend !== 'local' || !kvReady || !kvConfigured) return;
@@ -731,6 +765,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       case 'callLogs': return (v) => Array.isArray(v) && setCallLogs(v);
       case 'cargoShipments': return (v) => Array.isArray(v) && setCargoShipments(v);
       case 'leads': return (v) => Array.isArray(v) && setLeads(v);
+      case 'lessons': return (v) => Array.isArray(v) && v.length > 0 && setLessons(v);
+      case 'learnerProgress': return (v) => Array.isArray(v) && setLearnerProgress(v);
     }
   }
 
@@ -776,6 +812,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => { lastLocalChangeRef.current.callLogs = Date.now(); }, [callLogs]);
   useEffect(() => { lastLocalChangeRef.current.cargoShipments = Date.now(); }, [cargoShipments]);
   useEffect(() => { lastLocalChangeRef.current.leads = Date.now(); }, [leads]);
+  useEffect(() => { lastLocalChangeRef.current.lessons = Date.now(); }, [lessons]);
+  useEffect(() => { lastLocalChangeRef.current.learnerProgress = Date.now(); }, [learnerProgress]);
 
   // Meta polling — visibility-aware: tab aktiv bo'lganda har 15 sek, yashirin bo'lsa to'xtaydi.
   // Bu Vercel Fast Origin Transfer'ni ~80% kamaytiradi (avval 5s × doimiy edi).
@@ -1429,6 +1467,132 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [leads, backend, kvConfigured, kvReady]
   );
 
+  // === LMS — Darslar (admin) ===
+  const saveLesson = useCallback<AppState['saveLesson']>(
+    async (lesson) => {
+      const stamped: Lesson = { ...lesson, updatedAt: Date.now() };
+      const exists = lessons.some((l) => l.id === stamped.id);
+      const merged = exists ? lessons.map((l) => (l.id === stamped.id ? stamped : l)) : [...lessons, stamped];
+      const next = merged.sort((a, b) => a.day - b.day);
+      setLessons(next);
+      const ok = await flushCollectionSave('lessons', next);
+      if (!ok && backend === 'local' && kvConfigured) throw new Error('Dars bazaga saqlanmadi');
+    },
+    [lessons, backend, kvConfigured, kvReady]
+  );
+
+  const deleteLesson = useCallback<AppState['deleteLesson']>(
+    async (id) => {
+      const next = lessons.filter((l) => l.id !== id);
+      setLessons(next);
+      await flushCollectionSave('lessons', next);
+    },
+    [lessons, backend, kvConfigured, kvReady]
+  );
+
+  // === LMS — O'quvchi progressi ===
+  const myProgress = useCallback<AppState['myProgress']>(() => {
+    if (!currentUser) return undefined;
+    return learnerProgress.find((p) => p.userId === currentUser.id);
+  }, [learnerProgress, currentUser]);
+
+  // Joriy foydalanuvchi progressini xavfsiz yangilash (upsert) — bitta saqlash bilan
+  const mutateMyProgress = useCallback(
+    (fn: (p: LearnerProgress) => LearnerProgress) => {
+      if (!currentUser) return;
+      const now = Date.now();
+      const existing = learnerProgress.find((p) => p.userId === currentUser.id);
+      const base: LearnerProgress = existing ?? {
+        id: currentUser.id,
+        userId: currentUser.id,
+        userName: currentUser.fullName ?? currentUser.username,
+        lessons: {},
+        revoked: false,
+        startedAt: now,
+        updatedAt: now,
+      };
+      const updated = { ...fn({ ...base, lessons: { ...base.lessons } }), updatedAt: now };
+      const next = existing
+        ? learnerProgress.map((p) => (p.userId === currentUser.id ? updated : p))
+        : [...learnerProgress, updated];
+      setLearnerProgress(next);
+      void flushCollectionSave('learnerProgress', next);
+    },
+    [learnerProgress, currentUser, backend, kvConfigured, kvReady]
+  );
+
+  const getLessonProgress = (p: LearnerProgress, lessonId: string): LessonProgress =>
+    p.lessons[lessonId] ?? {
+      lessonId,
+      videoWatched: false,
+      quizPassed: false,
+      bestScorePct: 0,
+      attempts: 0,
+      timeSpentSec: 0,
+    };
+
+  const recordVideoWatched = useCallback<AppState['recordVideoWatched']>(
+    (lessonId) => {
+      mutateMyProgress((p) => {
+        const lp = getLessonProgress(p, lessonId);
+        p.lessons[lessonId] = { ...lp, videoWatched: true };
+        return p;
+      });
+    },
+    [mutateMyProgress]
+  );
+
+  const recordQuizResult = useCallback<AppState['recordQuizResult']>(
+    (lessonId, scorePct, passScorePct, addSeconds = 0) => {
+      const passed = scorePct >= passScorePct;
+      mutateMyProgress((p) => {
+        const lp = getLessonProgress(p, lessonId);
+        const best = Math.max(lp.bestScorePct, scorePct);
+        const nowPassed = lp.quizPassed || passed;
+        p.lessons[lessonId] = {
+          ...lp,
+          attempts: lp.attempts + 1,
+          bestScorePct: best,
+          quizPassed: nowPassed,
+          timeSpentSec: lp.timeSpentSec + Math.max(0, Math.round(addSeconds)),
+          completedAt: nowPassed && lp.videoWatched ? (lp.completedAt ?? Date.now()) : lp.completedAt,
+        };
+        return p;
+      });
+      return passed;
+    },
+    [mutateMyProgress]
+  );
+
+  // Admin kill switch — o'quvchining kirishini bekor qilish / qaytarish
+  const setLearnerRevoked = useCallback<AppState['setLearnerRevoked']>(
+    (userId, revoked) => {
+      const now = Date.now();
+      const existing = learnerProgress.find((p) => p.userId === userId);
+      let next: LearnerProgress[];
+      if (existing) {
+        next = learnerProgress.map((p) => (p.userId === userId ? { ...p, revoked, updatedAt: now } : p));
+      } else {
+        const u = users.find((x) => x.id === userId);
+        next = [
+          ...learnerProgress,
+          {
+            id: userId,
+            userId,
+            userName: u?.fullName ?? u?.username,
+            lessons: {},
+            revoked,
+            startedAt: now,
+            updatedAt: now,
+          },
+        ];
+      }
+      setLearnerProgress(next);
+      void flushCollectionSave('learnerProgress', next);
+    },
+    [learnerProgress, users, backend, kvConfigured, kvReady]
+  );
+
   // Mijoz qayta aloqaga chiqdi — boshqa operatorga eslatma
   const notifyCallback = useCallback<AppState['notifyCallback']>((ticket) => {
     if (!currentUser) return;
@@ -1746,6 +1910,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
       deleteLeads,
       markLeadsInfoGiven,
       clearLeads,
+      lessons,
+      learnerProgress,
+      saveLesson,
+      deleteLesson,
+      recordVideoWatched,
+      recordQuizResult,
+      setLearnerRevoked,
+      myProgress,
       exportBackup,
       importBackup,
       runTestScenario,
@@ -1819,6 +1991,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
       deleteLeads,
       markLeadsInfoGiven,
       clearLeads,
+      lessons,
+      learnerProgress,
+      saveLesson,
+      deleteLesson,
+      recordVideoWatched,
+      recordQuizResult,
+      setLearnerRevoked,
+      myProgress,
       exportBackup,
       importBackup,
       runTestScenario,

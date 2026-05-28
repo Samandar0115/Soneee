@@ -115,6 +115,63 @@ export interface AppDataSnapshot {
   callLogs?: CallLog[];
   cargoShipments?: CargoShipment[];
   leads?: Lead[];
+  lessons?: Lesson[];
+  learnerProgress?: LearnerProgress[];
+}
+
+/* ===================== LMS — O'quv markazi ===================== */
+
+export type QuizQuestionType = 'single' | 'situational';
+
+export interface QuizOption {
+  id: string;
+  text: string;
+}
+
+export interface QuizQuestion {
+  id: string;
+  type: QuizQuestionType;
+  question: string;
+  options: QuizOption[];
+  correctOptionId: string;
+  explanation?: string;
+}
+
+// Bitta "kun" / modul — chiziqli yo'lda ketma-ket ochiladi
+export interface Lesson {
+  id: string;
+  day: number;            // Kun raqami (1, 2, 3 ...) — tartib va qulflash uchun
+  title: string;
+  summary?: string;       // qisqa tavsif
+  content?: string;       // skript / bilim bazasi matni (ko'p qatorli)
+  videoUrl?: string;      // mp4 to'g'ridan-to'g'ri yoki YouTube/embed havola
+  videoDurationSec?: number;
+  quiz: QuizQuestion[];
+  passScorePct: number;   // o'tish foizi (default 100)
+  active: boolean;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface LessonProgress {
+  lessonId: string;
+  videoWatched: boolean;
+  quizPassed: boolean;
+  bestScorePct: number;
+  attempts: number;
+  timeSpentSec: number;
+  completedAt?: number;
+}
+
+// Har bir o'quvchi (operator) uchun bitta progress yozuvi. id == userId
+export interface LearnerProgress {
+  id: string;
+  userId: string;
+  userName?: string;
+  lessons: Record<string, LessonProgress>;
+  revoked: boolean;       // Admin "kirishni bekor qilish" tugmasi (kill switch)
+  startedAt: number;
+  updatedAt: number;
 }
 
 export type LeadSource = 'instagram' | 'telegram' | 'phone' | 'missed';

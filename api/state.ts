@@ -27,7 +27,7 @@ const USERS_HASH_KEY = 'ipost:hash:users:v3';
 const COLLECTIONS = [
   'users', 'stages', 'tickets', 'categories', 'announcements',
   'branches', 'tariff', 'settings', 'templates', 'notifications',
-  'callLogs', 'cargoShipments', 'leads',
+  'callLogs', 'cargoShipments', 'leads', 'lessons', 'learnerProgress',
 ] as const;
 
 type Collection = typeof COLLECTIONS[number];

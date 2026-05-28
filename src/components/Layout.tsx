@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import {
   BarChart3,
   BookOpen,
+  GraduationCap,
   ChevronLeft,
   ChevronRight,
   Headphones,
@@ -111,9 +112,11 @@ export default function Layout() {
     { to: '/cargo', label: 'Vozvrat yuklar', icon: Package },
     { to: '/warehouse', label: 'Sklad navbati', icon: Warehouse },
     { to: '/knowledge', label: t('nav.knowledge'), icon: BookOpen },
+    { to: '/learn', label: "O'quv markazi", icon: GraduationCap },
   ];
   const adminLinks = [
     { to: '/analytics', label: 'Analitika', icon: BarChart3 },
+    { to: '/curriculum', label: 'Darslik boshqaruvi', icon: GraduationCap },
     { to: '/users', label: t('nav.users'), icon: Users },
     { to: '/stages', label: t('nav.stages'), icon: Settings2 },
     { to: '/categories', label: t('nav.categories'), icon: Tags },

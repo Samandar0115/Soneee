@@ -1,4 +1,4 @@
-import type { Announcement, AppSettings, Branch, Category, ResponseTemplate, Stage, TariffSettings, User } from '../types';
+import type { Announcement, AppSettings, Branch, Category, Lesson, ResponseTemplate, Stage, TariffSettings, User } from '../types';
 
 export const seedTemplates: ResponseTemplate[] = [
   { id: 'tpl-greeting', title: 'Salomlashish', body: 'Assalomu alaykum, iPOST Cargo. Sizga qanday yordam berishimiz mumkin?', category: 'salomlashish', order: 0, active: true, createdAt: Date.now() },
@@ -182,4 +182,210 @@ export const seedStages: Stage[] = [
       { key: 'rating', label: 'Mijoz bahosi (1-5)', type: 'number' },
     ],
   },
+];
+
+/* ===================== LMS — 14 kunlik o'quv dasturi ===================== */
+// Yangi operator 1-2 hafta ichida tayyor mutaxassisga aylanadi.
+// Admin har bir kunga video havola qo'sha oladi (Sozlamalar yonidagi "Darslik").
+const T0 = Date.parse('2026-01-01T00:00:00Z');
+
+function L(
+  day: number,
+  title: string,
+  summary: string,
+  content: string,
+  quiz: Lesson['quiz']
+): Lesson {
+  return {
+    id: `lesson-day-${day}`,
+    day,
+    title,
+    summary,
+    content,
+    videoUrl: '',
+    quiz,
+    passScorePct: 100,
+    active: true,
+    createdAt: T0 + day,
+    updatedAt: T0 + day,
+  };
+}
+
+export const seedLessons: Lesson[] = [
+  L(1, 'Kompaniya bilan tanishuv', 'iPOST Cargo nima qiladi, qadriyatlar va xizmatlar.',
+    'iPOST Cargo — Xitoy va O\'zbekiston o\'rtasida yuk tashish hamda ichki yetkazib berish kompaniyasi.\n\n• Asosiy xizmatlar: aviadan/quruqlikdan yuk olib kelish, filiallarga yetkazish, mijozga dostavka.\n• Qadriyatlar: ishonch, tezkorlik, mijozga hurmat.\n• Operator — kompaniyaning ovozi. Mijoz birinchi bo\'lib siz bilan gaplashadi.',
+    [
+      { id: 'q1d1', type: 'single', question: 'iPOST Cargo asosan qaysi yo\'nalishda ishlaydi?', options: [
+        { id: 'a', text: 'Xitoy ↔ O\'zbekiston yuk tashish' },
+        { id: 'b', text: 'Faqat ichki taksi xizmati' },
+        { id: 'c', text: 'Bank xizmatlari' },
+      ], correctOptionId: 'a' },
+      { id: 'q2d1', type: 'single', question: 'Operatorning kompaniyadagi roli nima?', options: [
+        { id: 'a', text: 'Faqat hujjat to\'ldirish' },
+        { id: 'b', text: 'Kompaniyaning ovozi — mijoz bilan birinchi aloqa' },
+        { id: 'c', text: 'Omborda yuk ko\'tarish' },
+      ], correctOptionId: 'b' },
+    ]),
+  L(2, 'Mijoz bilan muloqot odobi', 'Salomlashish, ohang, hurmat va tinglash.',
+    'Har bir qo\'ng\'iroq quyidagicha boshlanadi: "Assalomu alaykum, iPOST Cargo. Sizga qanday yordam bera olaman?"\n\n• Doim xushmuomala va sokin ohangda gapiring.\n• Mijozni bo\'lmang — avval to\'liq tinglang.\n• Ismini bilib oling va ism bilan murojaat qiling.\n• Hech qachon baqirmang yoki asabiylashmang.',
+    [
+      { id: 'q1d2', type: 'single', question: 'Qo\'ng\'iroqni qanday boshlash to\'g\'ri?', options: [
+        { id: 'a', text: '"Ha, eshitaman"' },
+        { id: 'b', text: '"Assalomu alaykum, iPOST Cargo. Sizga qanday yordam bera olaman?"' },
+        { id: 'c', text: 'Jim turish' },
+      ], correctOptionId: 'b' },
+      { id: 'q2d2', type: 'situational', question: 'Mijoz asabiy gapirmoqda. Eng to\'g\'ri xatti-harakat?', options: [
+        { id: 'a', text: 'Javoban baqirish' },
+        { id: 'b', text: 'Sokin ohangda tinglash va yechim taklif qilish' },
+        { id: 'c', text: 'Telefonni qo\'yish' },
+      ], correctOptionId: 'b' },
+    ]),
+  L(3, 'CRM tizimi bilan ishlash', 'Murojaat ochish, trek qidirish, bosqichlar.',
+    'iPOST CRM — barcha murojaatlar shu yerda yuritiladi.\n\n• "Yangi murojaatlar" — kelgan raqamlar navbati.\n• Murojaat ochilganda trek raqami, mijoz ismi va telefoni kiritiladi.\n• Har bir murojaat bosqichlardan o\'tadi: Yangi → Jarayonda → Hal etildi.\n• Trek raqamini qidiruv orqali tez topish mumkin (Ctrl+K).',
+    [
+      { id: 'q1d3', type: 'single', question: 'Yangi kelgan raqamlar qaysi bo\'limda turadi?', options: [
+        { id: 'a', text: 'Sklad navbati' },
+        { id: 'b', text: 'Yangi murojaatlar' },
+        { id: 'c', text: 'Analitika' },
+      ], correctOptionId: 'b' },
+      { id: 'q2d3', type: 'single', question: 'Tez qidiruv tugmasi qaysi?', options: [
+        { id: 'a', text: 'Ctrl+K' },
+        { id: 'b', text: 'Ctrl+P' },
+        { id: 'c', text: 'Alt+F4' },
+      ], correctOptionId: 'a' },
+    ]),
+  L(4, 'Trek raqami va yuk holati', 'Trekni tekshirish va mijozga holatni tushuntirish.',
+    'Trek raqami — yukni kuzatish kaliti.\n\n• Mijozdan trek raqamini so\'rang.\n• CRM\'da qidirib yuk holatini ko\'ring: yo\'lda, omborda, yetkazilgan, vozvrat.\n• Holatni sodda tilda tushuntiring, taxminiy muddatni ayting.\n• Noaniq bo\'lsa — "tekshirib, qayta aloqaga chiqaman" deng va qayta qo\'ng\'iroqni belgilang.',
+    [
+      { id: 'q1d4', type: 'single', question: 'Yuk holatini bilish uchun mijozdan nima so\'raysiz?', options: [
+        { id: 'a', text: 'Pasport raqami' },
+        { id: 'b', text: 'Trek raqami' },
+        { id: 'c', text: 'Bank kartasi' },
+      ], correctOptionId: 'b' },
+      { id: 'q2d4', type: 'situational', question: 'Yuk holati noaniq bo\'lsa nima qilasiz?', options: [
+        { id: 'a', text: 'Taxminan javob berib qo\'ya qolish' },
+        { id: 'b', text: 'Tekshirib qayta aloqaga chiqishni va\'da qilish' },
+        { id: 'c', text: 'Mijozni boshqa raqamga yuborish' },
+      ], correctOptionId: 'b' },
+    ]),
+  L(5, 'Tariflar va to\'lov', 'Narx hisoblash, to\'lov usullari.',
+    'Tarif m³ va kg asosida hisoblanadi (CRM\'da tarif kalkulyatori bor).\n\n• To\'lov usullari: Click, Payme, naqd (filialda).\n• Mijozga aniq summa va to\'lov usulini tushuntiring.\n• Kvitansiyani saqlashni eslating.',
+    [
+      { id: 'q1d5', type: 'single', question: 'Qaysi to\'lov usullari mavjud?', options: [
+        { id: 'a', text: 'Faqat naqd' },
+        { id: 'b', text: 'Click, Payme, naqd' },
+        { id: 'c', text: 'Faqat valyuta' },
+      ], correctOptionId: 'b' },
+    ]),
+  L(6, 'E\'tirozlar bilan ishlash', 'Norozi mijoz, kechikish, shikoyat.',
+    'E\'tiroz — rivojlanish imkoniyati.\n\n• Avval uzr so\'rang va muammoni tan oling.\n• Aybni mijozga ag\'darmang.\n• Aniq yechim va muddat taklif qiling.\n• Kerak bo\'lsa murojaatni yuqori bosqichga o\'tkazing.',
+    [
+      { id: 'q1d6', type: 'situational', question: 'Yuk kechikkani uchun mijoz norozi. Birinchi qadam?', options: [
+        { id: 'a', text: 'Uzr so\'rab, muammoni tan olish' },
+        { id: 'b', text: 'Aybni kuryerga ag\'darish' },
+        { id: 'c', text: 'E\'tiborsiz qoldirish' },
+      ], correctOptionId: 'a' },
+    ]),
+  L(7, '1-hafta yakuniy testi', 'O\'tilgan 6 kunlik bilimni mustahkamlash.',
+    'Birinchi haftani yakunladingiz! Quyidagi savollar o\'tilgan mavzularni qamrab oladi. 100% to\'g\'ri javob bersangiz 2-haftaga o\'tasiz.',
+    [
+      { id: 'q1d7', type: 'single', question: 'Operator — bu...', options: [
+        { id: 'a', text: 'kompaniyaning ovozi' },
+        { id: 'b', text: 'omborchi' },
+        { id: 'c', text: 'haydovchi' },
+      ], correctOptionId: 'a' },
+      { id: 'q2d7', type: 'single', question: 'Murojaat bosqichlari to\'g\'ri ketma-ketligi?', options: [
+        { id: 'a', text: 'Hal etildi → Yangi → Jarayonda' },
+        { id: 'b', text: 'Yangi → Jarayonda → Hal etildi' },
+        { id: 'c', text: 'Jarayonda → Yangi → Hal etildi' },
+      ], correctOptionId: 'b' },
+      { id: 'q3d7', type: 'situational', question: 'Asabiy mijoz bilan ohang qanday bo\'ladi?', options: [
+        { id: 'a', text: 'Sokin va hurmatli' },
+        { id: 'b', text: 'Qattiq va tez' },
+        { id: 'c', text: 'Befarq' },
+      ], correctOptionId: 'a' },
+    ]),
+  L(8, 'Instagram va Telegram murojaatlari', 'Ijtimoiy tarmoq murojaatlarini boshqarish.',
+    'Murojaatlar telefondan tashqari Instagram va Telegram\'dan ham keladi.\n\n• Instagram\'dan kelganlarda odatda faqat raqam qoladi — "Yangi murojaatlar"ga qo\'shiladi.\n• Telegram va oddiy raqamlar ham shu navbatga tushadi.\n• Qo\'ng\'iroq qilgach: murojaat bo\'lsa "Murojaat ochish", bo\'lmasa "Info berildi".',
+    [
+      { id: 'q1d8', type: 'single', question: 'Instagram murojaatlarida odatda nima qoladi?', options: [
+        { id: 'a', text: 'To\'liq buyurtma' },
+        { id: 'b', text: 'Faqat telefon raqami' },
+        { id: 'c', text: 'Bank ma\'lumotlari' },
+      ], correctOptionId: 'b' },
+      { id: 'q2d8', type: 'single', question: 'Qo\'ng\'iroqdan keyin murojaat bo\'lmasa nima bosiladi?', options: [
+        { id: 'a', text: 'Info berildi' },
+        { id: 'b', text: 'Murojaat ochish' },
+        { id: 'c', text: 'O\'chirish' },
+      ], correctOptionId: 'a' },
+    ]),
+  L(9, 'Vozvrat va sklad navbati', 'Qaytgan yuklar va skladdan chiqarish.',
+    'Ba\'zi yuklar vozvrat bo\'ladi yoki skladda ushlab qolinadi.\n\n• Sklad navbatiga trek va sabab kerak.\n• 3 sabab: vozvrat bo\'lgan, to\'lovi endi qilingan, qaysidur sababga ko\'ra ushlab qolingan.\n• Ushlab qolingan bo\'lsa — sababni izoh qilib yozish shart.',
+    [
+      { id: 'q1d9', type: 'single', question: 'Sklad navbatiga qo\'shish uchun nima shart?', options: [
+        { id: 'a', text: 'Faqat ism' },
+        { id: 'b', text: 'Trek va sabab' },
+        { id: 'c', text: 'Hech narsa' },
+      ], correctOptionId: 'b' },
+    ]),
+  L(10, 'Qo\'ng\'iroqlarni yuritish', 'Qo\'ng\'iroq jurnali, davomiylik, natija.',
+    'Har bir qo\'ng\'iroq qayd etiladi.\n\n• Qo\'ng\'iroq boshlanganda jurnalga yoziladi.\n• "Bog\'landi" bosilganda gaplashish vaqti hisoblanadi.\n• Natija belgilanadi: javob berildi, javob yo\'q, band.\n• Sifatli xizmat — qisqa kutish, aniq javob.',
+    [
+      { id: 'q1d10', type: 'single', question: 'Qo\'ng\'iroq natijasiga nima kirmaydi?', options: [
+        { id: 'a', text: 'Javob berildi' },
+        { id: 'b', text: 'Javob yo\'q' },
+        { id: 'c', text: 'Ob-havo' },
+      ], correctOptionId: 'c' },
+    ]),
+  L(11, 'Skriptlar va shablonlar', 'Tayyor javoblardan to\'g\'ri foydalanish.',
+    'CRM\'da tayyor javob shablonlari bor (salomlashish, uzr, holat, to\'lov, xayrlashish).\n\n• Shablonni asos qiling, lekin jonli gapiring.\n• Mijoz ismini qo\'shing.\n• Robotdek emas, samimiy bo\'ling.',
+    [
+      { id: 'q1d11', type: 'situational', question: 'Shablondan qanday foydalanish to\'g\'ri?', options: [
+        { id: 'a', text: 'So\'zma-so\'z robotdek o\'qish' },
+        { id: 'b', text: 'Asos qilib, jonli va samimiy gapirish' },
+        { id: 'c', text: 'Umuman ishlatmaslik' },
+      ], correctOptionId: 'b' },
+    ]),
+  L(12, 'Maxfiylik va xavfsizlik', 'Mijoz ma\'lumotlarini himoya qilish.',
+    'Mijoz ma\'lumotlari maxfiy.\n\n• Login/parolni hech kimga bermang.\n• Mijoz ma\'lumotlarini tashqariga chiqarmang.\n• Faqat ish uchun zarur ma\'lumotni so\'rang.\n• Shubhali holatni rahbarga xabar qiling.',
+    [
+      { id: 'q1d12', type: 'single', question: 'Login/parolni kim bilan bo\'lishish mumkin?', options: [
+        { id: 'a', text: 'Hech kim bilan' },
+        { id: 'b', text: 'Hamkasblar bilan' },
+        { id: 'c', text: 'Mijoz bilan' },
+      ], correctOptionId: 'a' },
+    ]),
+  L(13, 'Amaliy simulyatsiya', 'Haqiqiy ssenariylarni mashq qilish.',
+    'Endi bilimni amalda sinab ko\'ramiz.\n\n• Mijoz qo\'ng\'iroq qilib trek holatini so\'raydi — to\'liq muloqotni o\'ynab ko\'ring.\n• Norozi mijoz ssenariysi.\n• Yangi murojaatdan ticket ochish.\nMashqdan keyin yakuniy imtihonga tayyor bo\'lasiz.',
+    [
+      { id: 'q1d13', type: 'situational', question: 'Mijoz trek holatini so\'radi. To\'g\'ri ketma-ketlik?', options: [
+        { id: 'a', text: 'Salomlashish → trek so\'rash → holatni tekshirish → tushuntirish' },
+        { id: 'b', text: 'Darhol telefonni qo\'yish' },
+        { id: 'c', text: 'To\'lov so\'rash' },
+      ], correctOptionId: 'a' },
+    ]),
+  L(14, 'Yakuniy imtihon', 'Barcha bilimni qamrovchi yakuniy test.',
+    'Tabriklaymiz — oxirgi bosqichdasiz! Ushbu imtihonni 100% topshirsangiz, to\'liq tayyor operator bo\'lasiz.',
+    [
+      { id: 'q1d14', type: 'single', question: 'iPOST CRM\'da murojaatlar qayerda yuritiladi?', options: [
+        { id: 'a', text: 'Daftarchada' },
+        { id: 'b', text: 'CRM tizimida' },
+        { id: 'c', text: 'Faqat boshda' },
+      ], correctOptionId: 'b' },
+      { id: 'q2d14', type: 'single', question: 'Sklad navbati uchun nima kerak?', options: [
+        { id: 'a', text: 'Trek va sabab' },
+        { id: 'b', text: 'Faqat ism' },
+        { id: 'c', text: 'Hech narsa' },
+      ], correctOptionId: 'a' },
+      { id: 'q3d14', type: 'situational', question: 'Norozi mijoz bilan birinchi qadam?', options: [
+        { id: 'a', text: 'Uzr so\'rab tan olish' },
+        { id: 'b', text: 'Bahslashish' },
+        { id: 'c', text: 'Telefonni qo\'yish' },
+      ], correctOptionId: 'a' },
+      { id: 'q4d14', type: 'single', question: 'Login/parol maxfiyligi qanchalik muhim?', options: [
+        { id: 'a', text: 'Juda muhim — hech kimga berilmaydi' },
+        { id: 'b', text: 'Muhim emas' },
+        { id: 'c', text: 'Faqat dushanba kuni' },
+      ], correctOptionId: 'a' },
+    ]),
 ];
