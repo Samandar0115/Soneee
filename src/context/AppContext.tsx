@@ -532,6 +532,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // Bir vaqtning o'zida bir nechta kolleksiya o'zgarsa ham hammasi parallel saqlanadi.
   const collectionTimersRef = useRef<Record<string, number>>({});
 
+  // Oxirgi muvaffaqiyatli KV'ga yuborilgan ma'lumotning "barmoq izi" (hash).
+  // Agar yangi qiymat aynan shu bo'lsa — tarmoqqa umuman chiqmaymiz.
+  // Bu cheksiz siklga MUTLAQ kafolat: bir xil data hech qachon ikki marta yuborilmaydi.
+  const lastSentHashRef = useRef<Record<string, string>>({});
+
+  // Tez, yengil hash (djb2) — katta JSON uchun ham O(n), lekin saqlash kamdan-kam bo'ladi
+  function cheapHash(s: string): string {
+    let h = 5381;
+    for (let i = 0; i < s.length; i++) {
+      h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+    }
+    return `${s.length}:${h}`;
+  }
+
   // KV'ga yuborilayotgan ma'lumotni filtrlash: foydalanuvchi rasmlari faqat
   // lokal bo'lib qoladi (joy ekonomiyasi uchun)
   function valueForKV(name: CollectionName, value: unknown): unknown {
@@ -552,9 +566,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const timers = collectionTimersRef.current;
     if (timers[name]) clearTimeout(timers[name]);
     timers[name] = window.setTimeout(() => {
-      saveCollectionToKV(name, valueForKV(name, value))
+      const payload = valueForKV(name, value);
+      const hash = cheapHash(JSON.stringify(payload ?? null));
+      // MUTLAQ himoya: bir xil ma'lumot allaqachon yuborilgan bo'lsa — tarmoqqa chiqmaymiz
+      if (lastSentHashRef.current[name] === hash) return;
+      saveCollectionToKV(name, payload)
         .then((r) => {
           if (r.ok) {
+            lastSentHashRef.current[name] = hash;
             broadcastChange(name);
           }
         })
@@ -572,8 +591,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       delete timers[name];
     }
     try {
-      const r = await saveCollectionToKV(name, valueForKV(name, value));
+      const payload = valueForKV(name, value);
+      const hash = cheapHash(JSON.stringify(payload ?? null));
+      // Bir xil ma'lumot allaqachon yuborilgan bo'lsa — qayta yubormaymiz (lekin ok qaytaramiz)
+      if (lastSentHashRef.current[name] === hash) return true;
+      const r = await saveCollectionToKV(name, payload);
       if (r.ok) {
+        lastSentHashRef.current[name] = hash;
         broadcastChange(name);
         return true;
       }
@@ -728,8 +752,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       toFetch.map(async (name) => {
         const res = await loadCollectionFromKV(name);
         if (!res) return;
-        // KV'dan kelgan data'ni qayta KV'ga yozmaymiz — siklni uzamiz
+        // KV'dan kelgan data'ni qayta KV'ga yozmaymiz — siklni uzamiz.
+        // Hash'ni ham yangilaymiz: aynan shu data hech qachon qaytib yuborilmaydi.
         suppressSaveRef.current[name] = true;
+        lastSentHashRef.current[name] = cheapHash(JSON.stringify(valueForKV(name, res.data) ?? null));
         setterFor(name)(res.data);
         lastSyncMetaRef.current[name] = res.updatedAt;
       })
