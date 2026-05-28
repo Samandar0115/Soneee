@@ -7,8 +7,7 @@ name: Build Desktop (Windows + macOS)
 # Sozlamalar (Settings → Secrets and variables → Actions → Variables):
 #   VITE_API_BASE  — bulutdagi Vercel manzili (masalan https://soneee.vercel.app).
 #                    .exe va .dmg shu manzil orqali bir xil ma'lumotga ulanadi.
-#   MICROSIP_URL   — (ixtiyoriy, faqat Windows) MicroSIP portable ZIP havolasi.
-#                    Berilsa, yuklab olinib .exe ichiga bundle qilinadi.
+# Telefon liniyasi ilovaga o'rnatilgan (SIP/WebRTC) — tashqi dastur shart emas.
 
 on:
   workflow_dispatch:
@@ -50,15 +49,6 @@ jobs:
       - uses: swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
-
-      - name: Download & bundle MicroSIP (faqat Windows, ixtiyoriy)
-        if: ${{ matrix.os == 'windows-latest' && vars.MICROSIP_URL != '' }}
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force -Path src-tauri/microsip | Out-Null
-          Invoke-WebRequest -Uri "${{ vars.MICROSIP_URL }}" -OutFile microsip.zip
-          Expand-Archive -Path microsip.zip -DestinationPath src-tauri/microsip -Force
-          Get-ChildItem -Recurse src-tauri/microsip
 
       - name: Build Tauri (setup fayl)
         env:

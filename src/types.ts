@@ -20,6 +20,8 @@ export interface User {
   createdAt: number;
   photo?: string;
   faceDescriptor?: number[];
+  sipExtension?: string;   // operatorning shaxsiy SIP raqami (ixtiyoriy)
+  sipPassword?: string;    // shaxsiy SIP paroli (ixtiyoriy)
 }
 
 export type StageFieldType = 'text' | 'textarea' | 'number' | 'phone' | 'select';
@@ -331,7 +333,22 @@ export interface AppSettings {
   idleTimeoutMin: number;
   archiveAfterDays: number;
   faceMatchThreshold: number;
+  sip?: SipConfig;
   updatedAt: number;
+}
+
+// O'rnatilgan SIP telefon liniyasi sozlamalari (WebRTC orqali, dastur ichida)
+export interface SipConfig {
+  enabled: boolean;
+  wsUrl: string;        // wss://pbx.example.com:7443 (SIP-over-WebSocket)
+  domain: string;       // pbx.example.com (SIP domen/realm)
+  username: string;     // umumiy/standart SIP foydalanuvchi (raqam)
+  password: string;     // umumiy/standart SIP parol
+  displayName?: string;
+  stunUrl?: string;     // masalan stun:stun.l.google.com:19302
+  turnUrl?: string;     // masalan turn:turn.example.com:3478
+  turnUsername?: string;
+  turnPassword?: string;
 }
 
 export type NotificationType = 'callback' | 'mention' | 'assigned' | 'sla' | 'system';

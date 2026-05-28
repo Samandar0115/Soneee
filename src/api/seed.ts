@@ -18,6 +18,15 @@ export const seedAppSettings: AppSettings = {
   idleTimeoutMin: 30,
   archiveAfterDays: 365,
   faceMatchThreshold: 50,
+  sip: {
+    enabled: false,
+    wsUrl: '',
+    domain: '',
+    username: '',
+    password: '',
+    displayName: '',
+    stunUrl: 'stun:stun.l.google.com:19302',
+  },
   updatedAt: Date.now(),
 };
 

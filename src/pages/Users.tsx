@@ -293,6 +293,34 @@ export default function UsersPage() {
                 </div>
               </div>
 
+              {editing.role !== 'learner' && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="label">SIP raqam (ichki, ixtiyoriy)</label>
+                    <input
+                      className="input mt-1"
+                      placeholder="masalan 1001"
+                      value={editing.sipExtension ?? ''}
+                      onChange={(e) => setEditing({ ...editing, sipExtension: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label className="label">SIP parol (ixtiyoriy)</label>
+                    <input
+                      type="password"
+                      className="input mt-1"
+                      placeholder="shaxsiy parol"
+                      autoComplete="new-password"
+                      value={editing.sipPassword ?? ''}
+                      onChange={(e) => setEditing({ ...editing, sipPassword: e.target.value })}
+                    />
+                  </div>
+                  <p className="col-span-2 text-[11px] text-slate-400 -mt-1">
+                    Bo'sh qoldirilsa, Sozlamalardagi umumiy SIP raqam ishlatiladi.
+                  </p>
+                </div>
+              )}
+
               <div className="border-t border-slate-200 dark:border-slate-700 pt-3">
                 <label className="label flex items-center gap-2 mb-2">
                   <ScanFace className="h-4 w-4" /> Face ID (xodimning yuzini qayd qilish)

@@ -37,7 +37,6 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "resources": ["microsip/**/*"],
     "windows": {
       "nsis": {
         "installMode": "currentUser",

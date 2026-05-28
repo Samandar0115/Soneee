@@ -1,8 +1,3 @@
 # Rust build chiqishi
 /target/
 /gen/
-
-# MicroSIP binar fayllari git'ga qo'shilmaydi (katta, litsenziya).
-# Build qiladigan mashinada microsip/ ichiga joylanadi.
-/microsip/*
-!/microsip/README.txt

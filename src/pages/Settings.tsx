@@ -1,10 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
-import { Save, Settings as SettingsIcon, Zap, Clock, Languages, Download, Upload, Archive, Cloud, CloudOff, ShieldCheck, RefreshCw, Timer, ScanFace, Trash2 } from 'lucide-react';
+import { Save, Settings as SettingsIcon, Zap, Clock, Languages, Download, Upload, Archive, Cloud, CloudOff, ShieldCheck, RefreshCw, Timer, ScanFace, Trash2, PhoneCall, Wifi, WifiOff } from 'lucide-react';
 import { Loader2, CheckCircle2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import PageHeader from '../components/PageHeader';
 import { useApp } from '../context/AppContext';
-import type { AppSettings } from '../types';
+import { sipManager, type SipState } from '../utils/sip';
+import type { AppSettings, SipConfig } from '../types';
+
+const DEFAULT_SIP: SipConfig = {
+  enabled: false, wsUrl: '', domain: '', username: '', password: '', displayName: '',
+  stunUrl: 'stun:stun.l.google.com:19302',
+};
 import { checkKVStatus, loadFromKV, saveToKV, resetKVStatus, cleanupLegacyKV, type KVStatus } from '../utils/vercelKV';
 import { formatDateTime } from '../utils/format';
 
@@ -22,6 +28,11 @@ export default function SettingsPage() {
   const fileRef = useRef<HTMLInputElement | null>(null);
   const [kv, setKV] = useState<KVStatus | null>(null);
   const [kvBusy, setKvBusy] = useState(false);
+  const [sip, setSip] = useState<SipState>(sipManager.state);
+  useEffect(() => sipManager.subscribe(setSip), []);
+  const sipCfg = draft.sip ?? DEFAULT_SIP;
+  const setSipCfg = (patch: Partial<SipConfig>) =>
+    setDraft({ ...draft, sip: { ...sipCfg, ...patch } });
 
   const oldResolvedCount = (() => {
     const cutoff = Date.now() - (draft.archiveAfterDays || 365) * 86_400_000;
@@ -381,6 +392,59 @@ export default function SettingsPage() {
         <div className="card p-6 lg:col-span-2">
           <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
             <div className="flex items-center gap-2">
+              <PhoneCall className="h-5 w-5 text-brand-600" />
+              <h3 className="font-bold">Telefon liniyasi (o'rnatilgan SIP)</h3>
+            </div>
+            {sipCfg.enabled && (
+              <span className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full font-semibold ${
+                sip.reg === 'registered'
+                  ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400'
+                  : sip.reg === 'failed'
+                    ? 'bg-rose-50 dark:bg-rose-900/20 text-rose-700 dark:text-rose-400'
+                    : 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400'
+              }`}>
+                {sip.reg === 'registered' ? <Wifi className="h-3.5 w-3.5" /> : <WifiOff className="h-3.5 w-3.5" />}
+                {sip.reg === 'registered' ? 'Ulangan' : sip.reg === 'failed' ? 'Xato' : 'Ulanmoqda...'}
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-slate-500 mb-3">
+            CRM ichidan to'g'ridan-to'g'ri qo'ng'iroq qilish (tashqi dastur kerak emas). SIP-over-WebSocket
+            qo'llab-quvvatlaydigan PBX kerak (Asterisk/FreeSWITCH WSS yoki SIP provayder).
+            Har bir operatorga shaxsiy raqam — Foydalanuvchilar bo'limida beriladi.
+          </p>
+
+          <label className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 dark:border-slate-700 cursor-pointer mb-3">
+            <input type="checkbox" checked={sipCfg.enabled} onChange={(e) => setSipCfg({ enabled: e.target.checked })} />
+            <div>
+              <div className="font-semibold text-sm">Telefon liniyasini yoqish</div>
+              <div className="text-xs text-slate-500">Yoqilganda pastdagi telefon tugmasi to'g'ridan-to'g'ri qo'ng'iroq qiladi</div>
+            </div>
+          </label>
+
+          {sipCfg.enabled && (
+            <div className="grid sm:grid-cols-2 gap-3">
+              <SipField label="WebSocket manzili (WSS)" placeholder="wss://pbx.example.com:7443" value={sipCfg.wsUrl} onChange={(v) => setSipCfg({ wsUrl: v })} />
+              <SipField label="SIP domen" placeholder="pbx.example.com" value={sipCfg.domain} onChange={(v) => setSipCfg({ domain: v })} />
+              <SipField label="Umumiy SIP raqam (standart)" placeholder="1001" value={sipCfg.username} onChange={(v) => setSipCfg({ username: v })} />
+              <SipField label="Umumiy SIP parol (standart)" type="password" placeholder="•••••" value={sipCfg.password} onChange={(v) => setSipCfg({ password: v })} />
+              <SipField label="Ko'rinadigan nom (ixtiyoriy)" placeholder="iPOST Operator" value={sipCfg.displayName ?? ''} onChange={(v) => setSipCfg({ displayName: v })} />
+              <SipField label="STUN server" placeholder="stun:stun.l.google.com:19302" value={sipCfg.stunUrl ?? ''} onChange={(v) => setSipCfg({ stunUrl: v })} />
+              <SipField label="TURN server (ixtiyoriy)" placeholder="turn:turn.example.com:3478" value={sipCfg.turnUrl ?? ''} onChange={(v) => setSipCfg({ turnUrl: v })} />
+              <div className="grid grid-cols-2 gap-3">
+                <SipField label="TURN login" placeholder="user" value={sipCfg.turnUsername ?? ''} onChange={(v) => setSipCfg({ turnUsername: v })} />
+                <SipField label="TURN parol" type="password" placeholder="•••" value={sipCfg.turnPassword ?? ''} onChange={(v) => setSipCfg({ turnPassword: v })} />
+              </div>
+            </div>
+          )}
+          {sipCfg.enabled && sip.reg === 'failed' && sip.lastError && (
+            <p className="text-xs text-rose-600 dark:text-rose-400 mt-2">Xato: {sip.lastError}</p>
+          )}
+        </div>
+
+        <div className="card p-6 lg:col-span-2">
+          <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+            <div className="flex items-center gap-2">
               {kv?.configured ? (
                 <ShieldCheck className="h-5 w-5 text-emerald-600" />
               ) : kv?.available ? (
@@ -481,5 +545,29 @@ export default function SettingsPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+function SipField({
+  label, value, onChange, placeholder, type = 'text',
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  type?: string;
+}) {
+  return (
+    <label className="block">
+      <span className="block text-xs font-medium text-slate-500 mb-1">{label}</span>
+      <input
+        type={type}
+        className="input"
+        value={value}
+        placeholder={placeholder}
+        onChange={(e) => onChange(e.target.value)}
+        autoComplete="off"
+      />
+    </label>
   );
 }

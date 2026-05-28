@@ -5,13 +5,18 @@ import {
   PhoneOff,
   Minus,
   Delete,
-  ExternalLink,
   CheckCircle2,
   XCircle,
   Pause,
+  Mic,
+  MicOff,
+  PhoneIncoming,
+  Wifi,
+  WifiOff,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { detectOS } from '../utils/platform';
+import { sipManager, type SipState } from '../utils/sip';
 import type { CallLog, CallOutcome } from '../types';
 
 function launchExternalCall(number: string) {
@@ -44,16 +49,38 @@ function formatDuration(sec: number) {
 }
 
 export default function Softphone() {
-  const { currentUser, startCallLog, updateCallLog, tickets } = useApp();
+  const { currentUser, settings, startCallLog, updateCallLog, tickets } = useApp();
   const [open, setOpen] = useState(false);
   const [dialer, setDialer] = useState('');
   const [activeCall, setActiveCall] = useState<CallLog | null>(null);
+  const [sipCall, setSipCall] = useState(false); // joriy qo'ng'iroq SIP orqalimi
+  const [sip, setSip] = useState<SipState>(sipManager.state);
   const [now, setNow] = useState(Date.now());
   const tickRef = useRef<number | null>(null);
+  const activeRef = useRef<CallLog | null>(null);
+  const prevSipCallRef = useRef(sip.call);
+  activeRef.current = activeCall;
+
+  const sipReady = sip.reg === 'registered';
+  const sipConfigured = !!settings.sip?.enabled;
+
+  // SIP UA ni sozlash — sozlama yoki foydalanuvchi o'zgarsa qayta ulanadi
+  useEffect(() => {
+    if (!currentUser) return;
+    sipManager.configure(settings.sip, {
+      extension: currentUser.sipExtension,
+      password: currentUser.sipPassword,
+      displayName: currentUser.fullName ?? currentUser.username,
+    });
+  }, [settings.sip, currentUser]);
+
+  // SIP holatini kuzatish
+  useEffect(() => sipManager.subscribe(setSip), []);
 
   // Aktiv qo'ng'iroq paytida har sekund yangilash
   useEffect(() => {
-    if (!activeCall) {
+    const hasActive = !!activeCall || sip.call === 'connected' || sip.call === 'outgoing';
+    if (!hasActive) {
       if (tickRef.current) clearInterval(tickRef.current);
       tickRef.current = null;
       return;
@@ -62,9 +89,36 @@ export default function Softphone() {
     return () => {
       if (tickRef.current) clearInterval(tickRef.current);
     };
-  }, [activeCall?.id]);
+  }, [activeCall?.id, sip.call]);
 
-  // ipost:dial hodisasi — istalgan komponentdan qo'ng'iroq
+  // SIP qo'ng'iroq hayot tsikli → call log
+  useEffect(() => {
+    const prev = prevSipCallRef.current;
+    const cur = sip.call;
+    prevSipCallRef.current = cur;
+    const ac = activeRef.current;
+
+    // Bog'landi
+    if (cur === 'connected' && ac && sipCall && !ac.connectedAt) {
+      const t = Date.now();
+      updateCallLog(ac.id, { connectedAt: t });
+      setActiveCall({ ...ac, connectedAt: t });
+    }
+    // Tugadi
+    if (cur === 'none' && prev !== 'none' && ac && sipCall) {
+      const endedAt = Date.now();
+      const durationSec = Math.floor((endedAt - ac.startedAt) / 1000);
+      const talkSec = ac.connectedAt ? Math.floor((endedAt - ac.connectedAt) / 1000) : 0;
+      const outcome: CallOutcome = ac.connectedAt ? 'answered' : sip.lastError ? 'failed' : 'no_answer';
+      updateCallLog(ac.id, { outcome, endedAt, durationSec, talkSec });
+      setActiveCall(null);
+      setSipCall(false);
+      setDialer('');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sip.call]);
+
+  // ipost:dial hodisasi
   useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail as { number?: string; ticketId?: string; customerName?: string };
@@ -74,60 +128,88 @@ export default function Softphone() {
     window.addEventListener('ipost:dial', handler);
     return () => window.removeEventListener('ipost:dial', handler);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUser]);
+  }, [currentUser, sipReady, tickets]);
 
   if (!currentUser) return null;
 
-  function initiateCall(number: string, ticketId?: string, customerName?: string) {
-    const cleaned = number.replace(/[^\d+*#]/g, '');
-    if (!cleaned) return;
-    // Tracking & customer ma'lumotini ticket'dan topishga harakat
+  function buildLog(number: string, direction: 'inbound' | 'outbound', ticketId?: string, customerName?: string) {
+    const cleaned = number.replace(/[^\d+*#]/g, '') || number;
     let tNum: string | undefined;
     let cName = customerName;
     if (ticketId) {
       const t = tickets.find((x) => x.id === ticketId);
-      if (t) {
-        tNum = t.trackingNumber;
-        if (!cName) cName = t.customerName;
-      }
+      if (t) { tNum = t.trackingNumber; if (!cName) cName = t.customerName; }
     }
-    const log = startCallLog({
+    return startCallLog({
       operatorId: currentUser!.id,
       operatorName: currentUser!.fullName ?? currentUser!.username,
       number: cleaned,
       customerName: cName,
       ticketId,
       trackingNumber: tNum,
-      direction: 'outbound',
+      direction,
     });
+  }
+
+  function initiateCall(number: string, ticketId?: string, customerName?: string) {
+    const cleaned = number.replace(/[^\d+*#]/g, '');
+    if (!cleaned) return;
+    const log = buildLog(cleaned, 'outbound', ticketId, customerName);
     setActiveCall(log);
     setOpen(true);
     setDialer(cleaned);
-    launchExternalCall(cleaned);
+    // SIP ulangan bo'lsa — ichki qo'ng'iroq; aks holda tashqi softphone
+    if (sipReady) {
+      const ok = sipManager.call(cleaned);
+      setSipCall(ok);
+      if (!ok) launchExternalCall(cleaned);
+    } else {
+      setSipCall(false);
+      launchExternalCall(cleaned);
+    }
   }
 
+  function acceptIncoming() {
+    const log = buildLog(sip.number || 'Noma\'lum', 'inbound');
+    setActiveCall(log);
+    setSipCall(true);
+    setOpen(true);
+    sipManager.answer();
+  }
+
+  function rejectIncoming() {
+    sipManager.hangup();
+  }
+
+  // Manual rejim (tashqi qo'ng'iroq) uchun — eski tugmalar
   function markOutcome(outcome: CallOutcome) {
     if (!activeCall) return;
     const endedAt = Date.now();
     const durationSec = Math.floor((endedAt - activeCall.startedAt) / 1000);
-    const talkSec = activeCall.connectedAt
-      ? Math.floor((endedAt - activeCall.connectedAt) / 1000)
-      : 0;
-    updateCallLog(activeCall.id, {
-      outcome,
-      endedAt,
-      durationSec,
-      talkSec,
-    });
+    const talkSec = activeCall.connectedAt ? Math.floor((endedAt - activeCall.connectedAt) / 1000) : 0;
+    updateCallLog(activeCall.id, { outcome, endedAt, durationSec, talkSec });
     setActiveCall(null);
     setDialer('');
   }
-
   function markConnected() {
     if (!activeCall || activeCall.connectedAt) return;
     const t = Date.now();
     updateCallLog(activeCall.id, { connectedAt: t });
     setActiveCall({ ...activeCall, connectedAt: t });
+  }
+
+  function hangupSip() {
+    sipManager.hangup();
+  }
+
+  function dialPress(d: string) {
+    // SIP qo'ng'iroq paytida — DTMF; aks holda raqam yig'ish
+    if (sipCall && sip.call === 'connected') {
+      sipManager.sendDtmf(d);
+      setDialer((v) => v + d);
+    } else {
+      setDialer((v) => v + d);
+    }
   }
 
   function dial() {
@@ -138,14 +220,17 @@ export default function Softphone() {
 
   const elapsedSec = activeCall ? Math.floor((now - activeCall.startedAt) / 1000) : 0;
   const talkSec = activeCall?.connectedAt ? Math.floor((now - activeCall.connectedAt) / 1000) : 0;
-  const isConnected = !!activeCall?.connectedAt;
+  const isConnected = sipCall ? sip.call === 'connected' : !!activeCall?.connectedAt;
+  const inCall = !!activeCall;
 
-  // Bubble rangi
-  const bubbleColor = activeCall
+  const bubbleColor = inCall
     ? isConnected
       ? 'bg-gradient-to-br from-emerald-500 to-emerald-600 ring-4 ring-emerald-300/40'
       : 'bg-gradient-to-br from-amber-500 to-orange-600 ring-4 ring-amber-300/40'
     : 'bg-gradient-to-br from-sky-500 to-blue-600';
+
+  // Kiruvchi qo'ng'iroq (hali qabul qilinmagan)
+  const ringingIncoming = sip.call === 'incoming' && !activeCall;
 
   return (
     <>
@@ -155,26 +240,43 @@ export default function Softphone() {
           10%, 30%, 50%, 70%, 90% { transform: rotate(-14deg); }
           20%, 40%, 60%, 80% { transform: rotate(14deg); }
         }
-        .phone-jingle-hover:hover .phone-icon-inner {
-          animation: phone-jingle 0.7s ease-in-out infinite;
-          transform-origin: center;
-        }
-        .phone-jingle-hover:hover {
-          box-shadow:
-            0 0 0 8px rgba(56, 189, 248, 0.18),
-            0 0 0 16px rgba(56, 189, 248, 0.10),
-            0 12px 30px rgba(2, 132, 199, 0.45);
-        }
-        @keyframes pulse-ring-call {
-          0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
-          70% { box-shadow: 0 0 0 14px rgba(16, 185, 129, 0); }
-          100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
-        }
+        .phone-jingle-hover:hover .phone-icon-inner { animation: phone-jingle 0.7s ease-in-out infinite; transform-origin: center; }
+        .phone-jingle-hover:hover { box-shadow: 0 0 0 8px rgba(56,189,248,0.18), 0 0 0 16px rgba(56,189,248,0.10), 0 12px 30px rgba(2,132,199,0.45); }
+        @keyframes pulse-ring-call { 0% { box-shadow: 0 0 0 0 rgba(16,185,129,0.4); } 70% { box-shadow: 0 0 0 14px rgba(16,185,129,0); } 100% { box-shadow: 0 0 0 0 rgba(16,185,129,0); } }
         .pulse-active { animation: pulse-ring-call 1.8s infinite; }
       `}</style>
 
+      {/* KIRUVCHI QO'NG'IROQ OYNASI */}
       <AnimatePresence>
-        {!open && (
+        {ringingIncoming && (
+          <motion.div
+            initial={{ opacity: 0, y: 24, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 12, scale: 0.95 }}
+            className="fixed right-4 bottom-20 md:bottom-4 z-[60] w-80 max-w-[calc(100vw-2rem)] rounded-3xl shadow-2xl overflow-hidden text-white bg-gradient-to-br from-emerald-500 to-emerald-700"
+          >
+            <div className="p-5 text-center">
+              <div className="mx-auto h-14 w-14 rounded-full bg-white/20 flex items-center justify-center mb-3 pulse-active">
+                <PhoneIncoming className="h-7 w-7" />
+              </div>
+              <div className="text-xs uppercase tracking-wider text-white/80">Kiruvchi qo'ng'iroq</div>
+              <div className="text-2xl font-bold font-mono mt-1">{sip.number}</div>
+              {sip.displayName && <div className="text-sm text-white/85">{sip.displayName}</div>}
+              <div className="grid grid-cols-2 gap-3 mt-5">
+                <button onClick={rejectIncoming} className="py-3 rounded-2xl bg-rose-600 hover:bg-rose-500 font-bold flex items-center justify-center gap-2 shadow-lg">
+                  <PhoneOff className="h-5 w-5" /> Rad etish
+                </button>
+                <button onClick={acceptIncoming} className="py-3 rounded-2xl bg-white text-emerald-700 hover:bg-emerald-50 font-bold flex items-center justify-center gap-2 shadow-lg">
+                  <Phone className="h-5 w-5" /> Javob berish
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {!open && !ringingIncoming && (
           <motion.button
             layoutId="softphone-bubble"
             initial={{ opacity: 0, scale: 0.6 }}
@@ -182,16 +284,18 @@ export default function Softphone() {
             exit={{ opacity: 0, scale: 0.6 }}
             whileTap={{ scale: 0.92 }}
             onClick={() => setOpen(true)}
-            className={`fixed right-4 bottom-20 md:bottom-4 z-50 h-14 w-14 rounded-full shadow-2xl text-white flex items-center justify-center relative phone-jingle-hover transition-shadow ${bubbleColor} ${activeCall ? 'pulse-active' : ''}`}
-            title={activeCall ? "Qo'ng'iroqda — bosing" : 'Telefon'}
+            className={`fixed right-4 bottom-20 md:bottom-4 z-50 h-14 w-14 rounded-full shadow-2xl text-white flex items-center justify-center relative phone-jingle-hover transition-shadow ${bubbleColor} ${inCall ? 'pulse-active' : ''}`}
+            title={inCall ? "Qo'ng'iroqda — bosing" : 'Telefon'}
           >
-            <span className="phone-icon-inner inline-flex">
-              <Phone className="h-6 w-6" />
-            </span>
-            {activeCall && (
+            <span className="phone-icon-inner inline-flex"><Phone className="h-6 w-6" /></span>
+            {inCall && (
               <span className="absolute -top-1 -right-1 px-1.5 h-5 min-w-5 rounded-full bg-white text-emerald-700 text-[10px] font-bold flex items-center justify-center shadow">
                 {formatDuration(elapsedSec)}
               </span>
+            )}
+            {/* Registratsiya holati nuqtasi */}
+            {sipConfigured && !inCall && (
+              <span className={`absolute -bottom-0.5 -right-0.5 h-4 w-4 rounded-full border-2 border-white flex items-center justify-center ${sipReady ? 'bg-emerald-400' : 'bg-slate-400'}`} title={sipReady ? 'Liniya ulangan' : 'Liniya ulanmagan'} />
             )}
           </motion.button>
         )}
@@ -210,89 +314,89 @@ export default function Softphone() {
             <div className="flex items-center justify-between px-4 py-3 border-b border-white/15">
               <div className="flex items-center gap-2 text-sm font-bold">
                 <Phone className="h-4 w-4" />
-                {activeCall ? (isConnected ? 'Qo\'ng\'iroqda' : 'Qo\'ng\'iroq qilinmoqda...') : 'Telefon'}
+                {inCall ? (isConnected ? 'Qo\'ng\'iroqda' : 'Qo\'ng\'iroq...') : 'Telefon'}
               </div>
-              <button
-                onClick={() => setOpen(false)}
-                className="p-1.5 rounded-lg hover:bg-white/20"
-                title="Minimallashtirish"
-              >
-                <Minus className="h-4 w-4" />
-              </button>
+              <div className="flex items-center gap-2">
+                {sipConfigured && (
+                  <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-white/15" title={sipReady ? 'Liniya ulangan' : 'Liniya ulanmagan'}>
+                    {sipReady ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
+                    {sipReady ? 'Liniya' : 'Ulanmoqda'}
+                  </span>
+                )}
+                <button onClick={() => setOpen(false)} className="p-1.5 rounded-lg hover:bg-white/20" title="Minimallashtirish">
+                  <Minus className="h-4 w-4" />
+                </button>
+              </div>
             </div>
 
             <div className="p-4">
-              {activeCall ? (
-                /* AKTIV QO'NG'IROQ PANELI */
+              {inCall ? (
                 <div className="space-y-3">
                   <div className="text-center py-3 border-b border-white/15">
                     <div className="text-xs text-white/80 uppercase tracking-wider">
                       {isConnected ? 'Bog\'landi' : "Bog'lanmoqda..."}
                     </div>
                     <div className="text-2xl font-bold mt-1 font-mono">{activeCall.number}</div>
-                    {activeCall.customerName && (
-                      <div className="text-sm text-white/85 mt-0.5">{activeCall.customerName}</div>
-                    )}
-                    {activeCall.trackingNumber && (
-                      <div className="text-[11px] text-white/70 mt-0.5 font-mono">
-                        Trek: {activeCall.trackingNumber}
-                      </div>
-                    )}
+                    {activeCall.customerName && <div className="text-sm text-white/85 mt-0.5">{activeCall.customerName}</div>}
+                    {activeCall.trackingNumber && <div className="text-[11px] text-white/70 mt-0.5 font-mono">Trek: {activeCall.trackingNumber}</div>}
                     <div className="mt-2 text-3xl font-mono font-bold tracking-wider">
                       {formatDuration(isConnected ? talkSec : elapsedSec)}
                     </div>
-                    {isConnected && (
-                      <div className="text-[10px] text-white/60 mt-0.5">
-                        jami: {formatDuration(elapsedSec)}
-                      </div>
-                    )}
+                    {isConnected && <div className="text-[10px] text-white/60 mt-0.5">jami: {formatDuration(elapsedSec)}</div>}
                   </div>
 
-                  {!isConnected ? (
+                  {sipCall ? (
+                    /* SIP REJIM — haqiqiy qo'ng'iroq */
                     <>
-                      <div className="text-[11px] text-white/85 text-center mb-2">
-                        Qabul qiluvchi javob berdimi?
-                      </div>
+                      {isConnected && (
+                        <div className="grid grid-cols-3 gap-1.5">
+                          {['1','2','3','4','5','6','7','8','9','*','0','#'].map((d) => (
+                            <button key={d} onClick={() => dialPress(d)} className="py-2 rounded-xl bg-white/15 hover:bg-white/25 font-bold text-white">
+                              {d}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                       <div className="grid grid-cols-2 gap-2">
-                        <button
-                          onClick={markConnected}
-                          className="py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-white font-semibold flex items-center justify-center gap-1.5 shadow-lg"
-                        >
-                          <CheckCircle2 className="h-5 w-5" /> Bog'landi
+                        <button onClick={() => sipManager.toggleMute()} className="py-3 rounded-2xl bg-white/15 hover:bg-white/25 font-semibold flex items-center justify-center gap-2">
+                          {sip.muted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
+                          {sip.muted ? 'Yoqish' : 'Mikrofon'}
                         </button>
-                        <button
-                          onClick={() => markOutcome('no_answer')}
-                          className="py-3 rounded-2xl bg-white/15 hover:bg-white/25 text-white font-semibold flex items-center justify-center gap-1.5"
-                        >
-                          <XCircle className="h-5 w-5" /> Javob yo'q
-                        </button>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2 mt-2">
-                        <button
-                          onClick={() => markOutcome('busy')}
-                          className="py-2.5 rounded-2xl bg-white/15 hover:bg-white/25 text-white text-sm font-semibold flex items-center justify-center gap-1.5"
-                        >
-                          <Pause className="h-4 w-4" /> Band
-                        </button>
-                        <button
-                          onClick={() => markOutcome('failed')}
-                          className="py-2.5 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white text-sm font-semibold flex items-center justify-center gap-1.5"
-                        >
-                          <PhoneOff className="h-4 w-4" /> Bekor
+                        <button onClick={hangupSip} className="py-3 rounded-2xl bg-rose-600 hover:bg-rose-500 font-bold flex items-center justify-center gap-2 shadow-lg">
+                          <PhoneOff className="h-5 w-5" /> Tugatish
                         </button>
                       </div>
                     </>
                   ) : (
-                    <button
-                      onClick={() => markOutcome('answered')}
-                      className="w-full py-3 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-bold flex items-center justify-center gap-2 shadow-lg"
-                    >
-                      <PhoneOff className="h-5 w-5" /> Qo'ng'iroqni tugatish
-                    </button>
+                    /* MANUAL REJIM — tashqi softphone */
+                    !activeCall.connectedAt ? (
+                      <>
+                        <div className="text-[11px] text-white/85 text-center mb-2">Qabul qiluvchi javob berdimi?</div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button onClick={markConnected} className="py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-400 font-semibold flex items-center justify-center gap-1.5 shadow-lg">
+                            <CheckCircle2 className="h-5 w-5" /> Bog'landi
+                          </button>
+                          <button onClick={() => markOutcome('no_answer')} className="py-3 rounded-2xl bg-white/15 hover:bg-white/25 font-semibold flex items-center justify-center gap-1.5">
+                            <XCircle className="h-5 w-5" /> Javob yo'q
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 mt-2">
+                          <button onClick={() => markOutcome('busy')} className="py-2.5 rounded-2xl bg-white/15 hover:bg-white/25 text-sm font-semibold flex items-center justify-center gap-1.5">
+                            <Pause className="h-4 w-4" /> Band
+                          </button>
+                          <button onClick={() => markOutcome('failed')} className="py-2.5 rounded-2xl bg-rose-600 hover:bg-rose-500 text-sm font-semibold flex items-center justify-center gap-1.5">
+                            <PhoneOff className="h-4 w-4" /> Bekor
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <button onClick={() => markOutcome('answered')} className="w-full py-3 rounded-2xl bg-rose-600 hover:bg-rose-500 font-bold flex items-center justify-center gap-2 shadow-lg">
+                        <PhoneOff className="h-5 w-5" /> Qo'ng'iroqni tugatish
+                      </button>
+                    )
                   )}
                 </div>
               ) : (
-                /* DIALER */
                 <>
                   <div className="flex gap-1 mb-2">
                     <input
@@ -303,35 +407,26 @@ export default function Softphone() {
                       onChange={(e) => setDialer(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && dial()}
                     />
-                    <button
-                      onClick={() => setDialer(dialer.slice(0, -1))}
-                      className="px-3 rounded-xl bg-white/15 hover:bg-white/25 text-white"
-                      title="O'chirish"
-                      disabled={!dialer}
-                    >
+                    <button onClick={() => setDialer(dialer.slice(0, -1))} className="px-3 rounded-xl bg-white/15 hover:bg-white/25" title="O'chirish" disabled={!dialer}>
                       <Delete className="h-4 w-4" />
                     </button>
                   </div>
                   <div className="grid grid-cols-3 gap-1.5 mb-3">
-                    {['1', '2', '3', '4', '5', '6', '7', '8', '9', '*', '0', '#'].map((d) => (
-                      <button
-                        key={d}
-                        onClick={() => setDialer((v) => v + d)}
-                        className="py-2.5 rounded-xl bg-white/15 hover:bg-white/25 font-bold text-white text-lg"
-                      >
+                    {['1','2','3','4','5','6','7','8','9','*','0','#'].map((d) => (
+                      <button key={d} onClick={() => dialPress(d)} className="py-2.5 rounded-xl bg-white/15 hover:bg-white/25 font-bold text-white text-lg">
                         {d}
                       </button>
                     ))}
                   </div>
-                  <button
-                    onClick={dial}
-                    disabled={!dialer.trim()}
-                    className="w-full py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-white font-bold flex items-center justify-center gap-2 disabled:opacity-50 shadow-lg"
-                  >
+                  <button onClick={dial} disabled={!dialer.trim()} className="w-full py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-400 font-bold flex items-center justify-center gap-2 disabled:opacity-50 shadow-lg">
                     <Phone className="h-5 w-5" /> Qo'ng'iroq qilish
                   </button>
-                  <p className="text-[10px] text-white/70 mt-2 text-center flex items-center justify-center gap-1">
-                    <ExternalLink className="h-3 w-3" /> Tashqi softphone (MicroSIP/Linphone) avtomatik ochiladi
+                  <p className="text-[10px] text-white/70 mt-2 text-center">
+                    {sipConfigured
+                      ? sipReady
+                        ? 'Liniya ulangan — to\'g\'ridan-to\'g\'ri qo\'ng\'iroq'
+                        : 'Liniyaga ulanmoqda...'
+                      : 'Liniya sozlanmagan — Sozlamalar → Telefon liniyasi'}
                   </p>
                 </>
               )}
@@ -345,7 +440,5 @@ export default function Softphone() {
 
 // Boshqa komponentlardan qo'ng'iroq qilish uchun helper
 export function dialNumber(number: string, opts?: { ticketId?: string; customerName?: string }) {
-  window.dispatchEvent(
-    new CustomEvent('ipost:dial', { detail: { number, ...opts } })
-  );
+  window.dispatchEvent(new CustomEvent('ipost:dial', { detail: { number, ...opts } }));
 }
