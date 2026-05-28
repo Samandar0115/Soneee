@@ -68,6 +68,7 @@ import {
   saveCollectionToKV,
   saveUserToKV,
   deleteUserFromKV,
+  apiUrl,
   type CollectionName,
 } from '../utils/vercelKV';
 import { broadcastChange, onBroadcast } from '../utils/broadcast';
@@ -713,12 +714,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
           const blob = new Blob([payload], { type: 'application/json' });
           if (navigator.sendBeacon) {
             navigator.sendBeacon(
-              `/api/state?collection=${encodeURIComponent(name)}`,
+              apiUrl(`/api/state?collection=${encodeURIComponent(name)}`),
               blob
             );
           } else {
             // fallback — keepalive fetch (xatolarni jim ushlaymiz)
-            fetch(`/api/state?collection=${encodeURIComponent(name)}`, {
+            fetch(apiUrl(`/api/state?collection=${encodeURIComponent(name)}`), {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: payload,

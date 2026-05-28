@@ -155,6 +155,17 @@ async function loadFullFromCollections(): Promise<{ data: any; updatedAt: number
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // CORS — desktop (.exe / Tauri) ilovasi boshqa origin'dan (tauri://localhost)
+  // shu API'ga ulanishi uchun. Ma'lumotlar baribir ochiq URL'da, shuning uchun
+  // '*' xavfsizlikni kamaytirmaydi.
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  if (req.method === 'OPTIONS') {
+    res.setHeader('Access-Control-Max-Age', '86400');
+    return res.status(204).end();
+  }
+
   // Vercel Edge cache — bir nechta operator bir vaqtda poll qilsa,
   // bitta origin'ga so'rov ketadi. Bu Fast Origin Transfer'ni 80-90% kamaytiradi.
   // Mutation (POST) uchun cache ishlatilmaydi — har doim yangi yoziladi.

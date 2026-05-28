@@ -1,0 +1,57 @@
+name: Build Windows EXE
+
+# Windows .exe (setup) ni avtomatik quradi.
+# Ishga tushirish: GitHub → Actions → "Build Windows EXE" → Run workflow,
+# yoki v* tegi push qilinganda avtomatik.
+#
+# Sozlamalar (Settings → Secrets and variables → Actions → Variables):
+#   VITE_API_BASE  — bulutdagi Vercel manzili (masalan https://soneee.vercel.app)
+#                    .exe shu manzil orqali bir xil ma'lumotga ulanadi.
+#   MICROSIP_URL   — (ixtiyoriy) MicroSIP portable ZIP havolasi. Berilsa,
+#                    yuklab olinib .exe ichiga bundle qilinadi.
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install frontend dependencies
+        run: npm install
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Download & bundle MicroSIP (ixtiyoriy)
+        if: ${{ vars.MICROSIP_URL != '' }}
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path src-tauri/microsip | Out-Null
+          Invoke-WebRequest -Uri "${{ vars.MICROSIP_URL }}" -OutFile microsip.zip
+          Expand-Archive -Path microsip.zip -DestinationPath src-tauri/microsip -Force
+          Get-ChildItem -Recurse src-tauri/microsip
+
+      - name: Build Tauri (.exe setup)
+        env:
+          VITE_API_BASE: ${{ vars.VITE_API_BASE }}
+        run: npm run tauri:build
+
+      - name: Upload setup .exe
+        uses: actions/upload-artifact@v4
+        with:
+          name: ipost-crm-setup
+          path: src-tauri/target/release/bundle/nsis/*.exe
+          if-no-files-found: error

@@ -13,12 +13,23 @@ export type CollectionName =
   | 'branches' | 'tariff' | 'settings' | 'templates' | 'notifications'
   | 'callLogs' | 'cargoShipments' | 'leads' | 'tracks' | 'lessons' | 'learnerProgress';
 
+// API manzili. Web (Vercel) uchun bo'sh — nisbiy '/api/state' ishlatiladi.
+// Desktop (.exe / Tauri) uchun VITE_API_BASE = 'https://<sizning-vercel>.vercel.app'
+// qilib build qilinadi, shunda .exe bulutdagi bir xil ma'lumotga ulanadi.
+export const API_BASE = ((import.meta as any).env?.VITE_API_BASE as string | undefined)?.replace(/\/$/, '') || '';
+export function apiUrl(path: string): string {
+  return `${API_BASE}${path}`;
+}
+function stateUrl(qs = ''): string {
+  return apiUrl('/api/state' + qs);
+}
+
 let cachedStatus: KVStatus | null = null;
 
 export async function checkKVStatus(): Promise<KVStatus> {
   if (cachedStatus) return cachedStatus;
   try {
-    const res = await fetch('/api/state?meta=1', { method: 'GET' });
+    const res = await fetch(stateUrl('?meta=1'), { method: 'GET' });
     if (!res.ok) {
       cachedStatus = { available: false, configured: false };
       return cachedStatus;
@@ -43,7 +54,7 @@ export function resetKVStatus() {
 
 export async function loadFromKV(): Promise<{ data: any; updatedAt?: number } | null> {
   try {
-    const res = await fetch('/api/state', { method: 'GET' });
+    const res = await fetch(stateUrl(), { method: 'GET' });
     if (!res.ok) return null;
     const json = await res.json();
     if (!json.configured || !json.data) return null;
@@ -55,7 +66,7 @@ export async function loadFromKV(): Promise<{ data: any; updatedAt?: number } | 
 
 export async function saveToKV(data: unknown): Promise<{ ok: boolean; configured: boolean; error?: string }> {
   try {
-    const res = await fetch('/api/state', {
+    const res = await fetch(stateUrl(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ data }),
@@ -76,7 +87,7 @@ export async function saveToKV(data: unknown): Promise<{ ok: boolean; configured
 // Faqat metani olish — har bir kolleksiya updatedAt'i. ~200 bayt, polling uchun arzon
 export async function loadMetaFromKV(): Promise<Record<string, number> | null> {
   try {
-    const res = await fetch('/api/state?meta=1', { method: 'GET' });
+    const res = await fetch(stateUrl('?meta=1'), { method: 'GET' });
     if (!res.ok) return null;
     const json = await res.json();
     if (!json.configured) return null;
@@ -91,7 +102,7 @@ export async function loadCollectionFromKV(
   name: CollectionName
 ): Promise<{ data: any; updatedAt: number } | null> {
   try {
-    const res = await fetch(`/api/state?collection=${encodeURIComponent(name)}`, { method: 'GET' });
+    const res = await fetch(stateUrl(`?collection=${encodeURIComponent(name)}`), { method: 'GET' });
     if (!res.ok) return null;
     const json = await res.json();
     if (!json.configured) return null;
@@ -110,7 +121,7 @@ export async function saveUserToKV(
   user: { id: string } & Record<string, unknown>
 ): Promise<{ ok: boolean; configured: boolean; error?: string; updatedAt?: number }> {
   try {
-    const res = await fetch(`/api/state?user=${encodeURIComponent(user.id)}`, {
+    const res = await fetch(stateUrl(`?user=${encodeURIComponent(user.id)}`), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ data: user }),
@@ -130,7 +141,7 @@ export async function deleteUserFromKV(
   userId: string
 ): Promise<{ ok: boolean; configured: boolean; error?: string }> {
   try {
-    const res = await fetch(`/api/state?user=${encodeURIComponent(userId)}`, {
+    const res = await fetch(stateUrl(`?user=${encodeURIComponent(userId)}`), {
       method: 'DELETE',
     });
     if (!res.ok) {
@@ -147,7 +158,7 @@ export async function deleteUserFromKV(
 /* --------------- Admin cleanup --------------- */
 export async function cleanupLegacyKV(): Promise<{ ok: boolean; removed?: number; message?: string; error?: string }> {
   try {
-    const res = await fetch(`/api/state?cleanup=legacy`, { method: 'POST' });
+    const res = await fetch(stateUrl(`?cleanup=legacy`), { method: 'POST' });
     if (!res.ok) {
       const txt = await res.text().catch(() => '');
       return { ok: false, error: txt || `HTTP ${res.status}` };
@@ -165,7 +176,7 @@ export async function saveCollectionToKV(
   data: unknown
 ): Promise<{ ok: boolean; configured: boolean; error?: string; updatedAt?: number }> {
   try {
-    const res = await fetch(`/api/state?collection=${encodeURIComponent(name)}`, {
+    const res = await fetch(stateUrl(`?collection=${encodeURIComponent(name)}`), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ data }),
