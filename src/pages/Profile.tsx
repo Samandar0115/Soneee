@@ -9,6 +9,7 @@ export default function Profile() {
   const fileRef = useRef<HTMLInputElement | null>(null);
   const [photo, setPhoto] = useState<string | undefined>(currentUser?.photo);
   const [fullName, setFullName] = useState(currentUser?.fullName ?? '');
+  const [username, setUsername] = useState(currentUser?.username ?? '');
   const [phone, setPhone] = useState(currentUser?.phone ?? '');
   const [pw1, setPw1] = useState('');
   const [pw2, setPw2] = useState('');
@@ -31,10 +32,13 @@ export default function Profile() {
   }
 
   async function save() {
-    const patch: { photo?: string; password?: string; fullName?: string; phone?: string } = {};
+    const patch: { photo?: string; password?: string; fullName?: string; phone?: string; username?: string } = {};
     if (photo !== currentUser!.photo) patch.photo = photo;
     if (fullName !== (currentUser!.fullName ?? '')) patch.fullName = fullName;
     if (phone !== (currentUser!.phone ?? '')) patch.phone = phone;
+    if (username.trim() && username.trim() !== currentUser!.username) {
+      patch.username = username.trim();
+    }
     if (pw1 || pw2) {
       if (pw1.length < 4) { toast.error('Parol kamida 4 ta belgi'); return; }
       if (pw1 !== pw2) { toast.error('Parollar mos kelmadi'); return; }
@@ -90,11 +94,15 @@ export default function Profile() {
           <p className="text-[11px] text-slate-400 mt-1">Rasm faqat shu kompyuterda saqlanadi (KV'ga yuborilmaydi).</p>
         </div>
 
-        {/* Ism / telefon */}
+        {/* Ism / login / telefon */}
         <div className="grid sm:grid-cols-2 gap-3">
           <div>
             <label className="label">To'liq ism</label>
             <input className="input mt-1" value={fullName} onChange={(e) => setFullName(e.target.value)} />
+          </div>
+          <div>
+            <label className="label">Login (foydalanuvchi nomi)</label>
+            <input className="input mt-1" value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="off" />
           </div>
           <div>
             <label className="label">Telefon</label>

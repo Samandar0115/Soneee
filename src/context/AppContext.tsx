@@ -117,7 +117,7 @@ interface AppState {
   rateTicket: (ticketId: string, rating: CustomerRating) => Promise<void>;
   saveUser: (user: User) => Promise<void>;
   deleteUser: (id: string) => Promise<void>;
-  updateOwnProfile: (patch: { photo?: string; password?: string; fullName?: string; phone?: string }) => Promise<void>;
+  updateOwnProfile: (patch: { photo?: string; password?: string; fullName?: string; phone?: string; username?: string }) => Promise<void>;
   saveStage: (stage: Stage) => Promise<void>;
   deleteStage: (id: string) => Promise<void>;
   saveCategory: (category: Category) => Promise<void>;
@@ -1194,8 +1194,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     async (patch) => {
       if (!currentUser) return;
       const now = Date.now();
-      const fields: Array<['photo' | 'password' | 'fullName' | 'phone', ProfileChange['field']]> = [
-        ['photo', 'photo'], ['password', 'password'], ['fullName', 'name'], ['phone', 'phone'],
+      // Login (username) o'zgartirilsa — boshqa xodimda bormasligini tekshiramiz
+      if (patch.username !== undefined && patch.username !== currentUser.username) {
+        const taken = users.some((u) => u.id !== currentUser.id && u.username.trim().toLowerCase() === patch.username!.trim().toLowerCase());
+        if (taken) throw new Error('Bu login band — boshqasini tanlang');
+      }
+      const fields: Array<['photo' | 'password' | 'fullName' | 'phone' | 'username', ProfileChange['field']]> = [
+        ['photo', 'photo'], ['password', 'password'], ['fullName', 'name'], ['phone', 'phone'], ['username', 'username'],
       ];
       const changes: ProfileChange[] = [];
       for (const [key, field] of fields) {
@@ -1219,7 +1224,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         void flushCollectionSave('profileChanges', next);
       }
     },
-    [currentUser, saveUser, profileChanges, backend, kvConfigured, kvReady]
+    [currentUser, users, saveUser, profileChanges, backend, kvConfigured, kvReady]
   );
 
   const saveStage = useCallback<AppState['saveStage']>(

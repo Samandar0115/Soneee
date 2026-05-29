@@ -128,7 +128,7 @@ export interface ProfileChange {
   id: string;
   userId: string;
   userName?: string;
-  field: 'photo' | 'password' | 'name' | 'phone';
+  field: 'photo' | 'password' | 'name' | 'phone' | 'username';
   changedAt: number;
 }
 

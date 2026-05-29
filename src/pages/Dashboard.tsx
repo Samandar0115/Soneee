@@ -158,6 +158,14 @@ export default function Dashboard() {
     [visibleTickets]
   );
 
+  // Operatorning shaxsiy reytingi — o'ziga biriktirilgan baholangan murojaatlardan
+  const myRating = useMemo(() => {
+    const rated = visibleTickets.filter((t) => t.rating?.score);
+    if (rated.length === 0) return null;
+    const avg = rated.reduce((s, t) => s + (t.rating!.score || 0), 0) / rated.length;
+    return { avg: Math.round(avg * 10) / 10, count: rated.length };
+  }, [visibleTickets]);
+
   return (
     <div className="p-6 max-w-[1600px] mx-auto">
       <PageHeader
@@ -217,6 +225,24 @@ export default function Dashboard() {
         <StatCard label="Kechikkan" value={overdue} icon={AlertTriangle} tone="rose" />
         <StatCard label="Eskirgan" value={stale} icon={Calendar} tone="amber" hint={`>${STALE_DAYS} kun`} />
       </div>
+
+      {/* Operator uchun shaxsiy reyting */}
+      {!isAdmin && (
+        <div className="card p-4 mt-3 flex items-center gap-4">
+          <div className="h-12 w-12 rounded-xl bg-amber-400/15 text-amber-500 flex items-center justify-center text-2xl">★</div>
+          <div className="flex-1">
+            <div className="text-xs uppercase tracking-wider text-slate-500">Mening reytingim</div>
+            {myRating ? (
+              <div className="text-2xl font-bold text-slate-800 dark:text-white">
+                {myRating.avg} <span className="text-base text-slate-400">/ 5</span>
+                <span className="text-sm font-normal text-slate-500 ml-2">({myRating.count} ta baho)</span>
+              </div>
+            ) : (
+              <div className="text-sm text-slate-400 mt-1">Hozircha baho yo'q</div>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-5">
         <motion.div

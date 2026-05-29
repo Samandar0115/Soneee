@@ -236,7 +236,8 @@ export default function UsersPage() {
               const fieldLabel =
                 pc.field === 'photo' ? 'rasm' :
                 pc.field === 'password' ? 'parol' :
-                pc.field === 'name' ? 'ism' : 'telefon';
+                pc.field === 'name' ? 'ism' :
+                pc.field === 'username' ? 'login' : 'telefon';
               return (
                 <div key={pc.id} className="flex items-center justify-between py-2 text-sm">
                   <div>
