@@ -38,12 +38,17 @@ export default function UsersPage() {
       } catch {
         // siqish ishlamasa asl rasmni qoldiramiz
       }
+      // Har bir suratga olish yangi NAMUNA sifatida qo'shiladi (turli sharoit uchun).
+      // Bu Face ID ni qorong'i/soqolli/burchakli holatlarda ham ishonchli qiladi.
+      const prev = editing.faceDescriptors ?? (editing.faceDescriptor ? [editing.faceDescriptor] : []);
+      const nextSamples = [...prev, Array.from(desc)].slice(-6); // ko'pi bilan 6 namuna
       setEditing({
         ...editing,
-        photo: compressed,
+        photo: editing.photo ?? compressed,
         faceDescriptor: Array.from(desc),
+        faceDescriptors: nextSamples,
       });
-      toast.success('Yuz qayd etildi', { id: 'face' });
+      toast.success(`Yuz namunasi qo'shildi (${nextSamples.length} ta)`, { id: 'face' });
     } catch (err) {
       toast.error('Modellar yuklanmadi (internetni tekshiring)', { id: 'face' });
     } finally {
@@ -381,22 +386,26 @@ export default function UsersPage() {
                         {scanning ? '...' : 'Fayldan'}
                       </button>
                     </div>
-                    {editing.faceDescriptor && editing.faceDescriptor.length > 0 && (
-                      <div className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400">
-                        <CheckCircle2 className="h-3.5 w-3.5" />
-                        Yuz tanildi — login Face ID orqali mumkin
-                      </div>
-                    )}
+                    {(() => {
+                      const count = editing.faceDescriptors?.length ?? (editing.faceDescriptor ? 1 : 0);
+                      return count > 0 ? (
+                        <div className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400">
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                          {count} ta yuz namunasi qayd etildi — Face ID tayyor
+                        </div>
+                      ) : null;
+                    })()}
                     {editing.photo && (
                       <button
-                        onClick={() => setEditing({ ...editing, photo: undefined, faceDescriptor: undefined })}
+                        onClick={() => setEditing({ ...editing, photo: undefined, faceDescriptor: undefined, faceDescriptors: undefined })}
                         className="text-xs text-rose-600 hover:underline"
                       >
-                        Rasmni o'chirish
+                        Yuz namunalarini o'chirish
                       </button>
                     )}
                     <p className="text-[10px] text-slate-400">
-                      Aniq yorug'likdagi, faqat bitta yuz ko'rinadigan rasm yuklang
+                      Ishonchli tanish uchun <b>3-4 marta</b> turli sharoitda suratga oling:
+                      yorug'/qorong'i, soqolli/soqolsiz, ko'zoynakli. Har bosish yangi namuna qo'shadi.
                     </p>
                   </div>
                   <input

@@ -19,7 +19,8 @@ export interface User {
   phone?: string;
   createdAt: number;
   photo?: string;
-  faceDescriptor?: number[];
+  faceDescriptor?: number[];        // asosiy namuna (orqaga moslik uchun)
+  faceDescriptors?: number[][];     // ko'p namuna (turli sharoit: yorug'/qorong'i, soqolli/soqolsiz)
   sipExtension?: string;   // operatorning shaxsiy SIP raqami (ixtiyoriy)
   sipPassword?: string;    // shaxsiy SIP paroli (ixtiyoriy)
 }

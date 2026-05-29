@@ -55,7 +55,8 @@ export async function computeDescriptor(
   source: HTMLImageElement | HTMLVideoElement | HTMLCanvasElement
 ): Promise<Float32Array | null> {
   await loadFaceModels();
-  const opt = new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 });
+  // inputSize 416 + pastroq scoreThreshold — qorong'i/burchakli sharoitda ham yuzni topadi
+  const opt = new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.4 });
   const result = await faceapi
     .detectSingleFace(source, opt)
     .withFaceLandmarks(true)
@@ -138,18 +139,31 @@ export async function imageDataUrlToDescriptor(dataUrl: string): Promise<Float32
   });
 }
 
-// Eng yaqin user'ni topish (faceDescriptor ko'rsatilgan)
-export function findBestMatch<T extends { faceDescriptor?: number[] }>(
+// Foydalanuvchining barcha yuz namunalarini bitta ro'yxatga yig'ish
+// (ko'p namuna — turli sharoit; eski yagona faceDescriptor ham qo'shiladi)
+function userSamples(u: { faceDescriptor?: number[]; faceDescriptors?: number[][] }): number[][] {
+  const list: number[][] = [];
+  if (u.faceDescriptors && u.faceDescriptors.length) {
+    for (const d of u.faceDescriptors) if (d && d.length) list.push(d);
+  }
+  if (u.faceDescriptor && u.faceDescriptor.length) {
+    // dublikat bo'lmasligi uchun faqat namunalar bo'sh bo'lsa qo'shamiz
+    if (list.length === 0) list.push(u.faceDescriptor);
+  }
+  return list;
+}
+
+// Eng yaqin user'ni topish (barcha namunalardan eng yaqini)
+export function findBestMatch<T extends { faceDescriptor?: number[]; faceDescriptors?: number[][] }>(
   candidates: T[],
   probe: Float32Array,
   maxDistance = 0.5
 ): { user: T; distance: number; similarity: number } | null {
   let best: { user: T; distance: number } | null = null;
   for (const u of candidates) {
-    if (!u.faceDescriptor || u.faceDescriptor.length === 0) continue;
-    const d = descriptorDistance(probe, u.faceDescriptor);
-    if (!best || d < best.distance) {
-      best = { user: u, distance: d };
+    for (const sample of userSamples(u)) {
+      const d = descriptorDistance(probe, sample);
+      if (!best || d < best.distance) best = { user: u, distance: d };
     }
   }
   if (best && best.distance <= maxDistance) {
@@ -162,20 +176,23 @@ export function findBestMatch<T extends { faceDescriptor?: number[] }>(
  * Bir nechta probe (normal + mirror) bilan har bir candidate uchun eng yaxshi
  * mosligini topish. minSimilarity foizidan past bo'lsa null qaytaradi.
  */
-export function findBestMatchMulti<T extends { faceDescriptor?: number[] }>(
+export function findBestMatchMulti<T extends { faceDescriptor?: number[]; faceDescriptors?: number[][] }>(
   candidates: T[],
   probes: (Float32Array | null)[],
   minSimilarity = 50
 ): { user: T; distance: number; similarity: number; mirrored: boolean } | null {
   let best: { user: T; distance: number; mirrored: boolean } | null = null;
   for (const u of candidates) {
-    if (!u.faceDescriptor || u.faceDescriptor.length === 0) continue;
+    const samples = userSamples(u);
+    if (samples.length === 0) continue;
     for (let i = 0; i < probes.length; i++) {
       const p = probes[i];
       if (!p) continue;
-      const d = descriptorDistance(p, u.faceDescriptor);
-      if (!best || d < best.distance) {
-        best = { user: u, distance: d, mirrored: i === 1 };
+      for (const sample of samples) {
+        const d = descriptorDistance(p, sample);
+        if (!best || d < best.distance) {
+          best = { user: u, distance: d, mirrored: i === 1 };
+        }
       }
     }
   }

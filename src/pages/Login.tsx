@@ -45,7 +45,7 @@ export default function Login() {
   const { login, currentUser, users } = useApp();
   const nav = useNavigate();
   // Face ID — faqat ro'yxatdan o'tgan foydalanuvchi mavjud bo'lsa VA modellar yuklab olinsa
-  const hasFaceUsers = users.some((u) => u.faceDescriptor && u.faceDescriptor.length > 0);
+  const hasFaceUsers = users.some((u) => (u.faceDescriptor?.length ?? 0) > 0 || (u.faceDescriptors?.length ?? 0) > 0);
   const [faceAvailable, setFaceAvailable] = useState(false);
   const [mode, setMode] = useState<Mode>('password');
   const [username, setUsername] = useState('');
@@ -329,7 +329,7 @@ function FaceLoginPanel({
         // hisoblab, eng yaqin mosligini olamiz
         const { normal, mirrored } = await computeDescriptorBoth(videoRef.current);
         if (!normal && !mirrored) return;
-        const candidates = users.filter((u) => u.faceDescriptor && u.faceDescriptor.length > 0);
+        const candidates = users.filter((u) => (u.faceDescriptor?.length ?? 0) > 0 || (u.faceDescriptors?.length ?? 0) > 0);
         if (candidates.length === 0) return;
         const match = findBestMatchMulti(candidates, [normal, mirrored], minSim);
         if (match) {
@@ -470,7 +470,7 @@ function FaceLoginPanel({
               <div className="absolute inset-x-0 top-0 h-0.5 bg-brand-400 animate-scan shadow-[0_0_12px_rgba(47,102,255,0.8)]" />
             </div>
             <div className="absolute bottom-3 left-0 right-0 text-center text-white text-xs font-semibold bg-slate-900/60 mx-6 py-1 rounded-lg">
-              {users.filter((u) => u.faceDescriptor && u.faceDescriptor.length > 0).length === 0
+              {users.filter((u) => (u.faceDescriptor?.length ?? 0) > 0 || (u.faceDescriptors?.length ?? 0) > 0).length === 0
                 ? "Hech bir xodim Face ID ro'yxatdan o'tmagan — parol bilan kiring"
                 : "Yuzingizni kameraga yo'naltiring"}
             </div>
