@@ -32,6 +32,7 @@ import type {
   Lesson,
   LearnerProgress,
   LessonProgress,
+  ProfileChange,
   CustomerRating,
   Lang,
   NotificationType,
@@ -94,6 +95,7 @@ interface AppState {
   tracks: Track[];
   lessons: Lesson[];
   learnerProgress: LearnerProgress[];
+  profileChanges: ProfileChange[];
   kvConfigured: boolean;
   kvReady: boolean;
   lang: Lang;
@@ -115,6 +117,7 @@ interface AppState {
   rateTicket: (ticketId: string, rating: CustomerRating) => Promise<void>;
   saveUser: (user: User) => Promise<void>;
   deleteUser: (id: string) => Promise<void>;
+  updateOwnProfile: (patch: { photo?: string; password?: string; fullName?: string; phone?: string }) => Promise<void>;
   saveStage: (stage: Stage) => Promise<void>;
   deleteStage: (id: string) => Promise<void>;
   saveCategory: (category: Category) => Promise<void>;
@@ -142,6 +145,7 @@ interface AppState {
   addLeads: (phones: string[], source: LeadSource, notes?: string) => number;
   updateLead: (id: string, patch: Partial<Lead>) => void;
   markLeadInfoGiven: (id: string) => void;
+  setLeadOutcome: (id: string, status: LeadStatus, note?: string) => void;
   deleteLead: (id: string) => void;
   deleteLeads: (ids: string[]) => void;
   markLeadsInfoGiven: (ids: string[]) => void;
@@ -178,6 +182,7 @@ const STORAGE_KEYS = {
   tracks: 'ipost.tracks',
   lessons: 'ipost.lessons',
   learnerProgress: 'ipost.learnerProgress',
+  profileChanges: 'ipost.profileChanges',
   userPhotos: 'ipost.userPhotos',
   lang: 'ipost.lang',
   theme: 'ipost.theme',
@@ -245,6 +250,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [tracks, setTracks] = useState<Track[]>([]);
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [learnerProgress, setLearnerProgress] = useState<LearnerProgress[]>([]);
+  const [profileChanges, setProfileChanges] = useState<ProfileChange[]>([]);
   const [lang, setLangState] = useState<Lang>(() => (localStorage.getItem(STORAGE_KEYS.lang) as Lang) || 'uz');
   const [theme, setThemeState] = useState<'light' | 'dark'>(
     () => (localStorage.getItem(STORAGE_KEYS.theme) as 'light' | 'dark') || 'light'
@@ -379,6 +385,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setTracks(loadLocal<Track[]>(STORAGE_KEYS.tracks, seedTracks));
     setLessons(loadLocal<Lesson[]>(STORAGE_KEYS.lessons, seedLessons));
     setLearnerProgress(loadLocal<LearnerProgress[]>(STORAGE_KEYS.learnerProgress, []));
+    setProfileChanges(loadLocal<ProfileChange[]>(STORAGE_KEYS.profileChanges, []));
     if (!localStorage.getItem(STORAGE_KEYS.tracks)) saveLocal(STORAGE_KEYS.tracks, seedTracks);
     if (!localStorage.getItem(STORAGE_KEYS.lessons)) saveLocal(STORAGE_KEYS.lessons, seedLessons);
     if (!localStorage.getItem(STORAGE_KEYS.users)) saveLocal(STORAGE_KEYS.users, seedUsers);
@@ -477,6 +484,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (backend === 'local' && ready) saveLocal(STORAGE_KEYS.learnerProgress, learnerProgress);
   }, [learnerProgress, backend, ready]);
 
+  useEffect(() => {
+    if (backend === 'local' && ready) saveLocal(STORAGE_KEYS.profileChanges, profileChanges);
+  }, [profileChanges, backend, ready]);
+
   /* ---------------- Session restore ---------------- */
   useEffect(() => {
     if (!ready) return;
@@ -506,7 +517,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const ALL_COLLECTIONS: CollectionName[] = [
     'users', 'stages', 'tickets', 'categories', 'announcements', 'branches',
     'tariff', 'settings', 'templates', 'notifications', 'callLogs', 'cargoShipments', 'leads',
-    'tracks', 'lessons', 'learnerProgress',
+    'tracks', 'lessons', 'learnerProgress', 'profileChanges',
   ];
 
   useEffect(() => {
@@ -560,6 +571,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           if (Array.isArray(d.tracks) && d.tracks.length > 0) setTracks(d.tracks);
           if (Array.isArray(d.lessons) && d.lessons.length > 0) setLessons(d.lessons);
           if (Array.isArray(d.learnerProgress)) setLearnerProgress(d.learnerProgress);
+          if (Array.isArray(d.profileChanges)) setProfileChanges(d.profileChanges);
         }
       } catch {
         // jim — fallback localStorage
@@ -669,6 +681,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => { scheduleCollectionSave('tracks', tracks); }, [tracks, backend, kvReady, kvConfigured]);
   useEffect(() => { scheduleCollectionSave('lessons', lessons); }, [lessons, backend, kvReady, kvConfigured]);
   useEffect(() => { scheduleCollectionSave('learnerProgress', learnerProgress); }, [learnerProgress, backend, kvReady, kvConfigured]);
+  useEffect(() => { scheduleCollectionSave('profileChanges', profileChanges); }, [profileChanges, backend, kvReady, kvConfigured]);
 
   useEffect(() => {
     return () => {
@@ -696,6 +709,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => { pendingStateRef.current.tracks = tracks; }, [tracks]);
   useEffect(() => { pendingStateRef.current.lessons = lessons; }, [lessons]);
   useEffect(() => { pendingStateRef.current.learnerProgress = learnerProgress; }, [learnerProgress]);
+  useEffect(() => { pendingStateRef.current.profileChanges = profileChanges; }, [profileChanges]);
 
   useEffect(() => {
     if (backend !== 'local' || !kvReady || !kvConfigured) return;
@@ -785,6 +799,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       case 'tracks': return (v) => Array.isArray(v) && v.length > 0 && setTracks(v);
       case 'lessons': return (v) => Array.isArray(v) && v.length > 0 && setLessons(v);
       case 'learnerProgress': return (v) => Array.isArray(v) && setLearnerProgress(v);
+      case 'profileChanges': return (v) => Array.isArray(v) && setProfileChanges(v);
     }
   }
 
@@ -833,6 +848,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => { lastLocalChangeRef.current.tracks = Date.now(); }, [tracks]);
   useEffect(() => { lastLocalChangeRef.current.lessons = Date.now(); }, [lessons]);
   useEffect(() => { lastLocalChangeRef.current.learnerProgress = Date.now(); }, [learnerProgress]);
+  useEffect(() => { lastLocalChangeRef.current.profileChanges = Date.now(); }, [profileChanges]);
 
   // Meta polling — visibility-aware: tab aktiv bo'lganda har 15 sek, yashirin bo'lsa to'xtaydi.
   // Bu Vercel Fast Origin Transfer'ni ~80% kamaytiradi (avval 5s × doimiy edi).
@@ -1173,6 +1189,39 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [users, removeDoc, backend, kvConfigured, kvReady]
   );
 
+  // Xodim o'z profilini o'zgartiradi (rasm/parol/ism/telefon) — admin jurnalga yoziladi
+  const updateOwnProfile = useCallback<AppState['updateOwnProfile']>(
+    async (patch) => {
+      if (!currentUser) return;
+      const now = Date.now();
+      const fields: Array<['photo' | 'password' | 'fullName' | 'phone', ProfileChange['field']]> = [
+        ['photo', 'photo'], ['password', 'password'], ['fullName', 'name'], ['phone', 'phone'],
+      ];
+      const changes: ProfileChange[] = [];
+      for (const [key, field] of fields) {
+        const v = patch[key];
+        if (v !== undefined && v !== (currentUser as unknown as Record<string, unknown>)[key]) {
+          changes.push({
+            id: randomId('pc'),
+            userId: currentUser.id,
+            userName: currentUser.fullName ?? currentUser.username,
+            field,
+            changedAt: now,
+          });
+        }
+      }
+      const updated: User = { ...currentUser, ...patch };
+      await saveUser(updated);
+      setCurrentUser(updated);
+      if (changes.length) {
+        const next = [...changes, ...profileChanges].slice(0, 3000);
+        setProfileChanges(next);
+        void flushCollectionSave('profileChanges', next);
+      }
+    },
+    [currentUser, saveUser, profileChanges, backend, kvConfigured, kvReady]
+  );
+
   const saveStage = useCallback<AppState['saveStage']>(
     async (stage) => {
       const exists = stages.some((s) => s.id === stage.id);
@@ -1276,8 +1325,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
           handleFirestoreError('tariff:set', err);
         }
       }
+      // Darhol KV'ga — tarif o'zgarishi ishonchli saqlanadi
+      await flushCollectionSave('tariff', next);
     },
-    [backend]
+    [backend, kvConfigured, kvReady]
   );
 
   const saveSettings = useCallback<AppState['saveSettings']>(
@@ -1425,6 +1476,29 @@ export function AppProvider({ children }: { children: ReactNode }) {
               calledAt: now,
               calledBy: currentUser.id,
               calledByName: currentUser.fullName ?? currentUser.username,
+            }
+          : l
+      );
+      setLeads(next);
+      void flushCollectionSave('leads', next);
+    },
+    [leads, currentUser, backend, kvConfigured, kvReady]
+  );
+
+  // Qo'ng'iroq natijasi/kategoriya + izoh: info berildi, kechroq bog'lanish, bog'lana olmadi...
+  const setLeadOutcome = useCallback<AppState['setLeadOutcome']>(
+    (id, status, note) => {
+      if (!currentUser) return;
+      const now = Date.now();
+      const next = leads.map((l) =>
+        l.id === id
+          ? {
+              ...l,
+              status,
+              notes: note !== undefined ? note : l.notes,
+              calledAt: l.calledAt ?? now,
+              calledBy: l.calledBy ?? currentUser.id,
+              calledByName: l.calledByName ?? (currentUser.fullName ?? currentUser.username),
             }
           : l
       );
@@ -1920,6 +1994,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       rateTicket,
       saveUser,
       deleteUser,
+      updateOwnProfile,
       saveStage,
       deleteStage,
       saveCategory,
@@ -1950,6 +2025,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       addLeads,
       updateLead,
       markLeadInfoGiven,
+      setLeadOutcome,
       deleteLead,
       deleteLeads,
       markLeadsInfoGiven,
@@ -1957,6 +2033,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       tracks,
       lessons,
       learnerProgress,
+      profileChanges,
       saveTrack,
       deleteTrack,
       saveLesson,
@@ -2004,6 +2081,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       rateTicket,
       saveUser,
       deleteUser,
+      updateOwnProfile,
       saveStage,
       deleteStage,
       saveCategory,
@@ -2034,6 +2112,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       addLeads,
       updateLead,
       markLeadInfoGiven,
+      setLeadOutcome,
       deleteLead,
       deleteLeads,
       markLeadsInfoGiven,
@@ -2041,6 +2120,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       tracks,
       lessons,
       learnerProgress,
+      profileChanges,
       saveTrack,
       deleteTrack,
       saveLesson,

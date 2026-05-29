@@ -41,6 +41,16 @@ function launchExternalCall(number: string) {
   }
 }
 
+// Qo'ng'iroq uchun raqamni bir xil formatga keltirish:
+// +998 yoki 998 davlat kodi bo'lsa olib tashlanadi, bo'lmasa shundayligicha.
+function normalizeDial(number: string): string {
+  let s = number.replace(/[^\d+]/g, '');
+  if (s.startsWith('+998')) s = s.slice(4);
+  else if (s.startsWith('998') && s.length > 9) s = s.slice(3);
+  s = s.replace(/^\+/, '');
+  return s;
+}
+
 function formatDuration(sec: number) {
   const s = Math.max(0, Math.floor(sec));
   const mm = Math.floor(s / 60).toString().padStart(2, '0');
@@ -152,20 +162,21 @@ export default function Softphone() {
   }
 
   function initiateCall(number: string, ticketId?: string, customerName?: string) {
-    const cleaned = number.replace(/[^\d+*#]/g, '');
-    if (!cleaned) return;
-    const log = buildLog(cleaned, 'outbound', ticketId, customerName);
+    // Bir xil format: +998/998 olib tashlanadi
+    const dialNum = normalizeDial(number);
+    if (!dialNum) return;
+    const log = buildLog(dialNum, 'outbound', ticketId, customerName);
     setActiveCall(log);
     setOpen(true);
-    setDialer(cleaned);
+    setDialer(dialNum);
     // SIP ulangan bo'lsa — ichki qo'ng'iroq; aks holda tashqi softphone
     if (sipReady) {
-      const ok = sipManager.call(cleaned);
+      const ok = sipManager.call(dialNum);
       setSipCall(ok);
-      if (!ok) launchExternalCall(cleaned);
+      if (!ok) launchExternalCall(dialNum);
     } else {
       setSipCall(false);
-      launchExternalCall(cleaned);
+      launchExternalCall(dialNum);
     }
   }
 

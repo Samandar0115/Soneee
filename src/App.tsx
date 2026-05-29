@@ -18,6 +18,7 @@ import WarehousePage from './pages/Warehouse';
 import LeadsPage from './pages/Leads';
 import LearnPage from './pages/Learn';
 import CurriculumPage from './pages/Curriculum';
+import ProfilePage from './pages/Profile';
 import Track from './pages/Track';
 import GlobalSearch from './components/GlobalSearch';
 import KeyboardShortcuts from './components/KeyboardShortcuts';
@@ -73,6 +74,7 @@ export default function App() {
           <Route path="warehouse" element={<NonLearner><WarehousePage /></NonLearner>} />
           <Route path="knowledge" element={<NonLearner><Knowledge /></NonLearner>} />
           <Route path="learn" element={<LearnPage />} />
+          <Route path="profile" element={<ProfilePage />} />
           <Route
             path="users"
             element={

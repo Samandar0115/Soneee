@@ -278,27 +278,33 @@ export default function Layout() {
             }`}
             title={isCompact ? `${currentUser?.fullName ?? currentUser?.username} (${currentUser?.role})` : undefined}
           >
-            {currentUser?.photo ? (
-              <img
-                src={currentUser.photo}
-                alt={currentUser.username}
-                className="h-9 w-9 rounded-full object-cover flex-shrink-0"
-              />
-            ) : (
-              <div className="h-9 w-9 rounded-full bg-brand-500 flex items-center justify-center text-white font-semibold flex-shrink-0">
-                {currentUser?.username?.[0]?.toUpperCase()}
-              </div>
-            )}
-            {!isCompact && (
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-semibold truncate text-white">
-                  {currentUser?.fullName ?? currentUser?.username}
+            <button
+              onClick={() => nav('/profile')}
+              className="flex items-center gap-3 flex-1 min-w-0 text-left"
+              title="Mening profilim"
+            >
+              {currentUser?.photo ? (
+                <img
+                  src={currentUser.photo}
+                  alt={currentUser.username}
+                  className="h-9 w-9 rounded-full object-cover flex-shrink-0"
+                />
+              ) : (
+                <div className="h-9 w-9 rounded-full bg-brand-500 flex items-center justify-center text-white font-semibold flex-shrink-0">
+                  {currentUser?.username?.[0]?.toUpperCase()}
                 </div>
-                <div className="text-[11px] uppercase tracking-wider text-slate-300">
-                  {currentUser?.role}
+              )}
+              {!isCompact && (
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-semibold truncate text-white">
+                    {currentUser?.fullName ?? currentUser?.username}
+                  </div>
+                  <div className="text-[11px] uppercase tracking-wider text-slate-300">
+                    {currentUser?.role}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+            </button>
             <button
               onClick={() => {
                 logout();

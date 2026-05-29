@@ -120,6 +120,16 @@ export interface AppDataSnapshot {
   tracks?: Track[];
   lessons?: Lesson[];
   learnerProgress?: LearnerProgress[];
+  profileChanges?: ProfileChange[];
+}
+
+// Xodim o'z profilini (rasm/parol) o'zgartirganda admin ko'rishi uchun jurnal
+export interface ProfileChange {
+  id: string;
+  userId: string;
+  userName?: string;
+  field: 'photo' | 'password' | 'name' | 'phone';
+  changedAt: number;
 }
 
 /* ===================== LMS — O'quv markazi ===================== */
@@ -204,7 +214,9 @@ export interface LearnerProgress {
 }
 
 export type LeadSource = 'instagram' | 'telegram' | 'phone' | 'missed';
-export type LeadStatus = 'new' | 'info_given' | 'converted';
+// new — yangi; info_given — info berildi; callback — kechroq bog'lanish kerak;
+// unreachable — bog'lana olmadi/gaplasha olmadi; converted — murojaat ochildi
+export type LeadStatus = 'new' | 'info_given' | 'callback' | 'unreachable' | 'converted';
 
 export interface Lead {
   id: string;

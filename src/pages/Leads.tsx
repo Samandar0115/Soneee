@@ -14,6 +14,8 @@ import {
   Clock,
   CheckSquare,
   Square,
+  MessageSquare,
+  Clock3,
 } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
 import Modal from '../components/Modal';
@@ -34,14 +36,27 @@ const SOURCE_META: Record<LeadSource, { label: string; icon: typeof Phone; color
 const STATUS_META: Record<LeadStatus, { label: string; color: string }> = {
   new:         { label: 'Yangi',        color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' },
   info_given:  { label: 'Info berildi', color: 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200' },
+  callback:    { label: 'Kechroq bog\'lanish', color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' },
+  unreachable: { label: 'Bog\'lana olmadi', color: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300' },
   converted:   { label: 'Murojaat ochildi', color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' },
 };
 
+// Operator tanlaydigan natija kategoriyalari (qo'ng'iroqdan keyin)
+const OUTCOME_OPTIONS: Array<{ status: LeadStatus; label: string; emoji: string }> = [
+  { status: 'info_given', label: 'Info berildi', emoji: 'ℹ️' },
+  { status: 'callback', label: "Kechroq bog'lanaman", emoji: '⏰' },
+  { status: 'unreachable', label: 'Gaplasha olmadim', emoji: '📵' },
+];
+
 export default function LeadsPage() {
   const {
-    leads, addLeads, markLeadInfoGiven, updateLead, deleteLead,
+    leads, addLeads, markLeadInfoGiven, setLeadOutcome, updateLead, deleteLead,
     deleteLeads, markLeadsInfoGiven, clearLeads, currentUser,
   } = useApp();
+  const isAdmin = currentUser?.role === 'admin';
+  const [commentLead, setCommentLead] = useState<Lead | null>(null);
+  const [commentText, setCommentText] = useState('');
+  const [commentStatus, setCommentStatus] = useState<LeadStatus>('callback');
   const [intakeOpen, setIntakeOpen] = useState(false);
   const [intakeSource, setIntakeSource] = useState<LeadSource>('phone');
   const [intakePhones, setIntakePhones] = useState('');
@@ -161,6 +176,20 @@ export default function LeadsPage() {
     deleteLead(lead.id);
   }
 
+  function openComment(lead: Lead) {
+    setCommentLead(lead);
+    setCommentText(lead.notes ?? '');
+    setCommentStatus(lead.status === 'new' ? 'callback' : lead.status);
+  }
+
+  function saveComment() {
+    if (!commentLead) return;
+    setLeadOutcome(commentLead.id, commentStatus, commentText.trim() || undefined);
+    setCommentLead(null);
+    setCommentText('');
+    toast.success('Izoh saqlandi');
+  }
+
   return (
     <div className="p-6 max-w-7xl mx-auto">
       <PageHeader
@@ -244,7 +273,7 @@ export default function LeadsPage() {
             </button>
           );
         })}
-        {filter === 'info_given' && stats.info > 0 && (
+        {isAdmin && filter === 'info_given' && stats.info > 0 && (
           <button
             onClick={() => {
               if (confirm('Barcha "Info berildi" yozuvlarini o\'chirasizmi?')) clearLeads('info_given');
@@ -269,12 +298,14 @@ export default function LeadsPage() {
           >
             <CheckCircle2 className="h-3.5 w-3.5" /> Info berildi (belgilangan)
           </button>
-          <button
-            onClick={bulkDelete}
-            className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-rose-600 text-white hover:bg-rose-700 inline-flex items-center gap-1"
-          >
-            <Trash2 className="h-3.5 w-3.5" /> O'chirish (belgilangan)
-          </button>
+          {isAdmin && (
+            <button
+              onClick={bulkDelete}
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-rose-600 text-white hover:bg-rose-700 inline-flex items-center gap-1"
+            >
+              <Trash2 className="h-3.5 w-3.5" /> O'chirish (belgilangan)
+            </button>
+          )}
           <button
             onClick={clearSelection}
             className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white text-slate-600 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-300 inline-flex items-center gap-1"
@@ -396,6 +427,13 @@ export default function LeadsPage() {
                               >
                                 + Murojaat
                               </button>
+                              <button
+                                onClick={() => openComment(lead)}
+                                title="Izoh / holat (kechroq bog'lanaman, gaplasha olmadim...)"
+                                className="p-1.5 rounded-lg hover:bg-amber-50 text-amber-600 dark:hover:bg-amber-900/30"
+                              >
+                                <MessageSquare className="h-4 w-4" />
+                              </button>
                               {lead.status !== 'info_given' && (
                                 <button
                                   onClick={() => handleInfo(lead)}
@@ -407,13 +445,15 @@ export default function LeadsPage() {
                               )}
                             </>
                           )}
-                          <button
-                            onClick={() => handleDelete(lead)}
-                            title="O'chirish"
-                            className="p-1.5 rounded-lg hover:bg-rose-50 text-rose-600 dark:hover:bg-rose-900/30"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
+                          {isAdmin && (
+                            <button
+                              onClick={() => handleDelete(lead)}
+                              title="O'chirish (faqat admin)"
+                              className="p-1.5 rounded-lg hover:bg-rose-50 text-rose-600 dark:hover:bg-rose-900/30"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -486,6 +526,53 @@ export default function LeadsPage() {
               <Plus className="h-4 w-4" /> Qo'shish
             </button>
             <button onClick={() => setIntakeOpen(false)} className="btn-ghost">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Izoh / holat modali */}
+      <Modal open={!!commentLead} onClose={() => setCommentLead(null)} title="Izoh va holat">
+        <div className="space-y-4">
+          {commentLead && (
+            <div className="text-sm text-slate-500">
+              <span className="font-mono font-semibold text-slate-700 dark:text-slate-200">{commentLead.phone}</span>
+            </div>
+          )}
+          <div>
+            <label className="label">Holat</label>
+            <div className="grid grid-cols-1 gap-2 mt-2">
+              {OUTCOME_OPTIONS.map((o) => (
+                <button
+                  key={o.status}
+                  onClick={() => setCommentStatus(o.status)}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-xl border-2 text-left transition ${
+                    commentStatus === o.status
+                      ? 'border-brand-500 bg-brand-50 dark:bg-brand-900/20 text-brand-700 dark:text-brand-300'
+                      : 'border-slate-200 dark:border-slate-700 hover:border-slate-300'
+                  }`}
+                >
+                  <span>{o.emoji}</span>
+                  <span className="text-sm font-semibold">{o.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label className="label flex items-center gap-1"><MessageSquare className="h-3.5 w-3.5" /> Izoh</label>
+            <textarea
+              className="input mt-1 min-h-[90px]"
+              placeholder="Masalan: Hozir bandman, kechqurun bog'laning dedi"
+              value={commentText}
+              onChange={(e) => setCommentText(e.target.value)}
+            />
+          </div>
+          <div className="flex gap-2">
+            <button onClick={saveComment} className="btn-primary flex-1">
+              <Clock3 className="h-4 w-4" /> Saqlash
+            </button>
+            <button onClick={() => setCommentLead(null)} className="btn-ghost">
               <X className="h-4 w-4" />
             </button>
           </div>

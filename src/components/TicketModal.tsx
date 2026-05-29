@@ -86,6 +86,8 @@ export default function TicketModal({ open, onClose, ticket, prefill, onCreated 
   const [resolution, setResolution] = useState('');
   const [misroute, setMisroute] = useState<MisrouteDetails>(ticket?.misroute ?? {});
   const [warehouseTracks, setWarehouseTracks] = useState<WarehouseTrack[]>(ticket?.warehouseTracks ?? []);
+  // Sklad bo'limi har bir murojaat ostida doim turmaydi — faqat tugma orqali ochiladi
+  const [showWarehouse, setShowWarehouse] = useState<boolean>((ticket?.warehouseTracks?.length ?? 0) > 0);
   const [whTrackDraft, setWhTrackDraft] = useState('');
   const [whAmountDraft, setWhAmountDraft] = useState('');
   const [whReasonDraft, setWhReasonDraft] = useState<WarehouseReason>('paid');
@@ -590,7 +592,16 @@ export default function TicketModal({ open, onClose, ticket, prefill, onCreated 
             </div>
           )}
 
-          {/* Omborga jo'natiladigan treklar */}
+          {/* Omborga jo'natiladigan treklar — doim turmaydi, tugma orqali ochiladi */}
+          {!showWarehouse ? (
+            <button
+              type="button"
+              onClick={() => setShowWarehouse(true)}
+              className="w-full flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-violet-300 dark:border-violet-700 text-violet-700 dark:text-violet-300 py-2.5 text-sm font-semibold hover:bg-violet-50 dark:hover:bg-violet-900/10 transition"
+            >
+              <Warehouse className="h-4 w-4" /> Sklad navbatiga qo'shish (ixtiyoriy)
+            </button>
+          ) : (
           <div className="rounded-xl border-2 border-violet-300 dark:border-violet-700 bg-violet-50/40 dark:bg-violet-900/10 p-4">
             <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
               <div className="flex items-center gap-2">
@@ -814,6 +825,7 @@ export default function TicketModal({ open, onClose, ticket, prefill, onCreated 
               Ombor hodimi chiqarganda belgilaydi va navbatdan o'chadi.
             </div>
           </div>
+          )}
 
           {isEdit && ticket && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
