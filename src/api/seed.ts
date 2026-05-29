@@ -1,4 +1,20 @@
-import type { Announcement, AppSettings, Branch, Category, Lesson, Track, ResponseTemplate, Stage, TariffSettings, User } from '../types';
+import type { Announcement, AppSettings, Branch, Category, Lesson, Track, ResponseTemplate, RoleDef, PageKey, Stage, TariffSettings, User } from '../types';
+
+const ALL_PAGES: PageKey[] = [
+  'dashboard', 'leads', 'pipeline', 'tickets', 'calls', 'cargo', 'warehouse',
+  'knowledge', 'learn', 'analytics', 'users', 'stages', 'categories', 'templates',
+  'curriculum', 'roles', 'settings',
+];
+
+export const seedRoles: RoleDef[] = [
+  { id: 'admin', name: 'Administrator', manage: true, canEdit: true, canDelete: true, pages: ALL_PAGES, isSystem: true, createdAt: 0 },
+  {
+    id: 'operator', name: 'Operator', manage: false, canEdit: false, canDelete: false,
+    pages: ['dashboard', 'leads', 'pipeline', 'tickets', 'calls', 'cargo', 'warehouse', 'knowledge', 'learn'],
+    isSystem: true, createdAt: 0,
+  },
+  { id: 'learner', name: "O'quvchi", manage: false, canEdit: false, canDelete: false, pages: ['learn'], isSystem: true, createdAt: 0 },
+];
 
 export const seedTemplates: ResponseTemplate[] = [
   { id: 'tpl-greeting', title: 'Salomlashish', body: 'Assalomu alaykum, iPOST Cargo. Sizga qanday yordam berishimiz mumkin?', category: 'salomlashish', order: 0, active: true, createdAt: Date.now() },

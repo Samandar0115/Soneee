@@ -19,9 +19,29 @@ import LeadsPage from './pages/Leads';
 import LearnPage from './pages/Learn';
 import CurriculumPage from './pages/Curriculum';
 import ProfilePage from './pages/Profile';
+import RolesPage from './pages/Roles';
 import Track from './pages/Track';
 import GlobalSearch from './components/GlobalSearch';
 import KeyboardShortcuts from './components/KeyboardShortcuts';
+
+import type { PageKey } from './types';
+
+const PAGE_ROUTE: Partial<Record<PageKey, string>> = {
+  dashboard: '/', leads: '/leads', pipeline: '/pipeline', tickets: '/tickets',
+  calls: '/calls', cargo: '/cargo', warehouse: '/warehouse', knowledge: '/knowledge',
+  learn: '/learn', analytics: '/analytics', users: '/users', stages: '/stages',
+  categories: '/categories', templates: '/templates', curriculum: '/curriculum',
+  roles: '/roles', settings: '/settings',
+};
+
+// Rolga qarab birinchi ochiq sahifa (kirish manzili)
+export function landingPath(perms: { manage: boolean; pages: PageKey[] }): string {
+  if (perms.manage || perms.pages.includes('dashboard')) return '/';
+  for (const p of perms.pages) {
+    if (PAGE_ROUTE[p]) return PAGE_ROUTE[p]!;
+  }
+  return '/profile';
+}
 
 function Protected({ children }: { children: JSX.Element }) {
   const { currentUser, ready } = useApp();
@@ -36,16 +56,19 @@ function Protected({ children }: { children: JSX.Element }) {
   return children;
 }
 
-function AdminOnly({ children }: { children: JSX.Element }) {
-  const { currentUser } = useApp();
-  if (currentUser?.role !== 'admin') return <Navigate to="/" replace />;
+// Admin darajasidagi sahifalar (xodimlar, rollar, sozlamalar...)
+function RequireManage({ children }: { children: JSX.Element }) {
+  const { perms } = useApp();
+  if (!perms.manage) return <Navigate to={landingPath(perms)} replace />;
   return children;
 }
 
-// O'quvchi faqat O'quv markazidan foydalanadi — CRM sahifalariga kira olmaydi
-function NonLearner({ children }: { children: JSX.Element }) {
-  const { currentUser } = useApp();
-  if (currentUser?.role === 'learner') return <Navigate to="/learn" replace />;
+// Bo'limga kirish — rol ruxsatiga qarab
+function RequirePage({ page, children }: { page: PageKey; children: JSX.Element }) {
+  const { perms } = useApp();
+  if (!perms.manage && !perms.pages.includes(page)) {
+    return <Navigate to={landingPath(perms)} replace />;
+  }
   return children;
 }
 
@@ -65,72 +88,24 @@ export default function App() {
             </Protected>
           }
         >
-          <Route index element={<NonLearner><Dashboard /></NonLearner>} />
-          <Route path="leads" element={<NonLearner><LeadsPage /></NonLearner>} />
-          <Route path="pipeline" element={<NonLearner><Pipeline /></NonLearner>} />
-          <Route path="tickets" element={<NonLearner><Tickets /></NonLearner>} />
-          <Route path="calls" element={<NonLearner><CallLogsPage /></NonLearner>} />
-          <Route path="cargo" element={<NonLearner><CargoPage /></NonLearner>} />
-          <Route path="warehouse" element={<NonLearner><WarehousePage /></NonLearner>} />
-          <Route path="knowledge" element={<NonLearner><Knowledge /></NonLearner>} />
-          <Route path="learn" element={<LearnPage />} />
+          <Route index element={<RequirePage page="dashboard"><Dashboard /></RequirePage>} />
+          <Route path="leads" element={<RequirePage page="leads"><LeadsPage /></RequirePage>} />
+          <Route path="pipeline" element={<RequirePage page="pipeline"><Pipeline /></RequirePage>} />
+          <Route path="tickets" element={<RequirePage page="tickets"><Tickets /></RequirePage>} />
+          <Route path="calls" element={<RequirePage page="calls"><CallLogsPage /></RequirePage>} />
+          <Route path="cargo" element={<RequirePage page="cargo"><CargoPage /></RequirePage>} />
+          <Route path="warehouse" element={<RequirePage page="warehouse"><WarehousePage /></RequirePage>} />
+          <Route path="knowledge" element={<RequirePage page="knowledge"><Knowledge /></RequirePage>} />
+          <Route path="learn" element={<RequirePage page="learn"><LearnPage /></RequirePage>} />
           <Route path="profile" element={<ProfilePage />} />
-          <Route
-            path="users"
-            element={
-              <AdminOnly>
-                <UsersPage />
-              </AdminOnly>
-            }
-          />
-          <Route
-            path="stages"
-            element={
-              <AdminOnly>
-                <StagesPage />
-              </AdminOnly>
-            }
-          />
-          <Route
-            path="categories"
-            element={
-              <AdminOnly>
-                <CategoriesPage />
-              </AdminOnly>
-            }
-          />
-          <Route
-            path="settings"
-            element={
-              <AdminOnly>
-                <SettingsPage />
-              </AdminOnly>
-            }
-          />
-          <Route
-            path="analytics"
-            element={
-              <AdminOnly>
-                <Analytics />
-              </AdminOnly>
-            }
-          />
-          <Route
-            path="templates"
-            element={
-              <AdminOnly>
-                <TemplatesPage />
-              </AdminOnly>
-            }
-          />
-          <Route
-            path="curriculum"
-            element={
-              <AdminOnly>
-                <CurriculumPage />
-              </AdminOnly>
-            }
-          />
+          <Route path="users" element={<RequireManage><UsersPage /></RequireManage>} />
+          <Route path="roles" element={<RequireManage><RolesPage /></RequireManage>} />
+          <Route path="stages" element={<RequireManage><StagesPage /></RequireManage>} />
+          <Route path="categories" element={<RequireManage><CategoriesPage /></RequireManage>} />
+          <Route path="settings" element={<RequireManage><SettingsPage /></RequireManage>} />
+          <Route path="analytics" element={<RequireManage><Analytics /></RequireManage>} />
+          <Route path="templates" element={<RequireManage><TemplatesPage /></RequireManage>} />
+          <Route path="curriculum" element={<RequireManage><CurriculumPage /></RequireManage>} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

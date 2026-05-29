@@ -11,7 +11,7 @@ import { imageDataUrlToDescriptor, loadFaceModels } from '../utils/face';
 import { compressImageDataUrl } from '../utils/image';
 
 export default function UsersPage() {
-  const { users, tickets, saveUser, deleteUser, currentUser, profileChanges } = useApp();
+  const { users, tickets, saveUser, deleteUser, currentUser, profileChanges, roles } = useApp();
   const [editing, setEditing] = useState<User | null>(null);
   const [open, setOpen] = useState(false);
   const [scanning, setScanning] = useState(false);
@@ -312,9 +312,9 @@ export default function UsersPage() {
                     disabled={roleLocked}
                     onChange={(e) => setEditing({ ...editing, role: e.target.value as User['role'] })}
                   >
-                    <option value="learner">O'quvchi (darslik)</option>
-                    <option value="operator">Operator</option>
-                    <option value="admin">Admin</option>
+                    {roles.map((r) => (
+                      <option key={r.id} value={r.id}>{r.name}</option>
+                    ))}
                   </select>
                 </div>
                 <div>

@@ -8,13 +8,20 @@ import {
   computeDescriptorBoth, findBestMatchMulti, loadFaceModels,
   areFaceModelsFailed,
 } from '../utils/face';
-import type { Role, User } from '../types';
+import type { RoleDef, User } from '../types';
 
 type Mode = 'face' | 'password';
 
-// Rolga qarab kirgandan keyin qayerga yo'naltirish
-function landingFor(role: Role): string {
-  return role === 'learner' ? '/learn' : '/';
+const PAGE_ORDER = ['leads', 'tickets', 'pipeline', 'calls', 'cargo', 'warehouse', 'knowledge', 'learn'] as const;
+
+// Rolga qarab kirgandan keyin qayerga yo'naltirish (ruxsat etilgan birinchi bo'lim)
+function landingForRole(roleId: string, roles: RoleDef[]): string {
+  const def = roles.find((r) => r.id === roleId);
+  if (!def || def.manage || def.pages.includes('dashboard')) return '/';
+  for (const p of PAGE_ORDER) {
+    if (def.pages.includes(p as never)) return `/${p}`;
+  }
+  return '/profile';
 }
 
 const IPostLogo = () => (
@@ -42,7 +49,7 @@ const IPostLogo = () => (
 );
 
 export default function Login() {
-  const { login, currentUser, users } = useApp();
+  const { login, currentUser, users, roles } = useApp();
   const nav = useNavigate();
   // Face ID — faqat ro'yxatdan o'tgan foydalanuvchi mavjud bo'lsa VA modellar yuklab olinsa
   const hasFaceUsers = users.some((u) => (u.faceDescriptor?.length ?? 0) > 0 || (u.faceDescriptors?.length ?? 0) > 0);
@@ -70,7 +77,7 @@ export default function Login() {
     return () => { cancelled = true; };
   }, [hasFaceUsers]);
 
-  if (currentUser) return <Navigate to={landingFor(currentUser.role)} replace />;
+  if (currentUser) return <Navigate to={landingForRole(currentUser.role, roles)} replace />;
 
   function onFaceFail() {
     const next = failedAttempts + 1;
@@ -88,7 +95,7 @@ export default function Login() {
     setLoading(false);
     if (u) {
       toast.success(`Xush kelibsiz, ${u.fullName ?? u.username}`);
-      nav(landingFor(u.role));
+      nav(landingForRole(u.role, roles));
     } else {
       toast.error("Login yoki parol noto'g'ri");
     }
@@ -97,7 +104,7 @@ export default function Login() {
   function onFaceSuccess(u: User) {
     login(u.username, u.password);
     toast.success(`Xush kelibsiz, ${u.fullName ?? u.username}`);
-    nav(landingFor(u.role));
+    nav(landingForRole(u.role, roles));
   }
 
   return (

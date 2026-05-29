@@ -21,6 +21,7 @@ import {
   Search,
   Settings,
   Settings2,
+  ShieldCheck,
   Sun,
   Tags,
   Ticket as TicketIcon,
@@ -39,7 +40,7 @@ import toast from 'react-hot-toast';
 const COLLAPSE_KEY = 'ipost.sidebar.collapsed';
 
 export default function Layout() {
-  const { currentUser, logout, backend, lang, setLang, theme, setTheme, kvConfigured, settings } = useApp();
+  const { currentUser, perms, logout, backend, lang, setLang, theme, setTheme, kvConfigured, settings } = useApp();
 
   // Session timeout — kerakli daqiqalardan keyin avto-logout
   useEffect(() => {
@@ -103,24 +104,24 @@ export default function Layout() {
     localStorage.setItem(COLLAPSE_KEY, collapsed ? '1' : '0');
   }, [collapsed]);
 
-  const isLearner = currentUser?.role === 'learner';
-  const links = isLearner
-    ? [{ to: '/learn', label: "O'quv markazi", icon: GraduationCap, end: false }]
-    : [
-        { to: '/', label: t('nav.dashboard'), icon: LayoutDashboard, end: true },
-        { to: '/leads', label: 'Yangi murojaatlar', icon: Inbox },
-        { to: '/pipeline', label: t('nav.pipeline'), icon: KanbanSquare },
-        { to: '/tickets', label: t('nav.tickets'), icon: TicketIcon },
-        { to: '/calls', label: "Qo'ng'iroqlar", icon: Phone },
-        { to: '/cargo', label: 'Vozvrat yuklar', icon: Package },
-        { to: '/warehouse', label: 'Sklad navbati', icon: Warehouse },
-        { to: '/knowledge', label: t('nav.knowledge'), icon: BookOpen },
-        { to: '/learn', label: "O'quv markazi", icon: GraduationCap },
-      ];
+  const can = (p: string) => perms.manage || perms.pages.includes(p as never);
+  const allLinks = [
+    { to: '/', page: 'dashboard', label: t('nav.dashboard'), icon: LayoutDashboard, end: true },
+    { to: '/leads', page: 'leads', label: 'Yangi murojaatlar', icon: Inbox },
+    { to: '/pipeline', page: 'pipeline', label: t('nav.pipeline'), icon: KanbanSquare },
+    { to: '/tickets', page: 'tickets', label: t('nav.tickets'), icon: TicketIcon },
+    { to: '/calls', page: 'calls', label: "Qo'ng'iroqlar", icon: Phone },
+    { to: '/cargo', page: 'cargo', label: 'Vozvrat yuklar', icon: Package },
+    { to: '/warehouse', page: 'warehouse', label: 'Sklad navbati', icon: Warehouse },
+    { to: '/knowledge', page: 'knowledge', label: t('nav.knowledge'), icon: BookOpen },
+    { to: '/learn', page: 'learn', label: "O'quv markazi", icon: GraduationCap },
+  ];
+  const links = allLinks.filter((l) => can(l.page));
   const adminLinks = [
     { to: '/analytics', label: 'Analitika', icon: BarChart3 },
     { to: '/curriculum', label: 'Darslik boshqaruvi', icon: GraduationCap },
     { to: '/users', label: t('nav.users'), icon: Users },
+    { to: '/roles', label: 'Rollar', icon: ShieldCheck },
     { to: '/stages', label: t('nav.stages'), icon: Settings2 },
     { to: '/categories', label: t('nav.categories'), icon: Tags },
     { to: '/templates', label: 'Javob shablonlari', icon: MessageSquare },
@@ -160,7 +161,7 @@ export default function Layout() {
           {links.map((l) => (
             <NavItem key={l.to} {...l} compact={isCompact} />
           ))}
-          {currentUser?.role === 'admin' && (
+          {perms.manage && (
             <>
               {isCompact ? (
                 <div className="border-t border-white/5 my-3" />

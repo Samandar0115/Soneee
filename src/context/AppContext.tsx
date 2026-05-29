@@ -33,6 +33,7 @@ import type {
   LearnerProgress,
   LessonProgress,
   ProfileChange,
+  RoleDef,
   CustomerRating,
   Lang,
   NotificationType,
@@ -57,6 +58,7 @@ import {
   seedUsers,
   seedLessons,
   seedTracks,
+  seedRoles,
 } from '../api/seed';
 import { handleFirestoreError } from '../utils/errors';
 import { generateTrackingNumber, randomId } from '../utils/format';
@@ -96,6 +98,8 @@ interface AppState {
   lessons: Lesson[];
   learnerProgress: LearnerProgress[];
   profileChanges: ProfileChange[];
+  roles: RoleDef[];
+  perms: RoleDef;
   kvConfigured: boolean;
   kvReady: boolean;
   lang: Lang;
@@ -118,6 +122,8 @@ interface AppState {
   saveUser: (user: User) => Promise<void>;
   deleteUser: (id: string) => Promise<void>;
   updateOwnProfile: (patch: { photo?: string; password?: string; fullName?: string; phone?: string; username?: string }) => Promise<void>;
+  saveRole: (role: RoleDef) => Promise<void>;
+  deleteRole: (id: string) => Promise<void>;
   saveStage: (stage: Stage) => Promise<void>;
   deleteStage: (id: string) => Promise<void>;
   saveCategory: (category: Category) => Promise<void>;
@@ -183,6 +189,7 @@ const STORAGE_KEYS = {
   lessons: 'ipost.lessons',
   learnerProgress: 'ipost.learnerProgress',
   profileChanges: 'ipost.profileChanges',
+  roles: 'ipost.roles',
   userPhotos: 'ipost.userPhotos',
   lang: 'ipost.lang',
   theme: 'ipost.theme',
@@ -251,6 +258,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [learnerProgress, setLearnerProgress] = useState<LearnerProgress[]>([]);
   const [profileChanges, setProfileChanges] = useState<ProfileChange[]>([]);
+  const [roles, setRoles] = useState<RoleDef[]>(seedRoles);
   const [lang, setLangState] = useState<Lang>(() => (localStorage.getItem(STORAGE_KEYS.lang) as Lang) || 'uz');
   const [theme, setThemeState] = useState<'light' | 'dark'>(
     () => (localStorage.getItem(STORAGE_KEYS.theme) as 'light' | 'dark') || 'light'
@@ -386,6 +394,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setLessons(loadLocal<Lesson[]>(STORAGE_KEYS.lessons, seedLessons));
     setLearnerProgress(loadLocal<LearnerProgress[]>(STORAGE_KEYS.learnerProgress, []));
     setProfileChanges(loadLocal<ProfileChange[]>(STORAGE_KEYS.profileChanges, []));
+    setRoles(loadLocal<RoleDef[]>(STORAGE_KEYS.roles, seedRoles));
+    if (!localStorage.getItem(STORAGE_KEYS.roles)) saveLocal(STORAGE_KEYS.roles, seedRoles);
     if (!localStorage.getItem(STORAGE_KEYS.tracks)) saveLocal(STORAGE_KEYS.tracks, seedTracks);
     if (!localStorage.getItem(STORAGE_KEYS.lessons)) saveLocal(STORAGE_KEYS.lessons, seedLessons);
     if (!localStorage.getItem(STORAGE_KEYS.users)) saveLocal(STORAGE_KEYS.users, seedUsers);
@@ -488,6 +498,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (backend === 'local' && ready) saveLocal(STORAGE_KEYS.profileChanges, profileChanges);
   }, [profileChanges, backend, ready]);
 
+  useEffect(() => {
+    if (backend === 'local' && ready) saveLocal(STORAGE_KEYS.roles, roles);
+  }, [roles, backend, ready]);
+
   /* ---------------- Session restore ---------------- */
   useEffect(() => {
     if (!ready) return;
@@ -517,7 +531,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const ALL_COLLECTIONS: CollectionName[] = [
     'users', 'stages', 'tickets', 'categories', 'announcements', 'branches',
     'tariff', 'settings', 'templates', 'notifications', 'callLogs', 'cargoShipments', 'leads',
-    'tracks', 'lessons', 'learnerProgress', 'profileChanges',
+    'tracks', 'lessons', 'learnerProgress', 'profileChanges', 'roles',
   ];
 
   useEffect(() => {
@@ -572,6 +586,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           if (Array.isArray(d.lessons) && d.lessons.length > 0) setLessons(d.lessons);
           if (Array.isArray(d.learnerProgress)) setLearnerProgress(d.learnerProgress);
           if (Array.isArray(d.profileChanges)) setProfileChanges(d.profileChanges);
+          if (Array.isArray(d.roles) && d.roles.length > 0) setRoles(d.roles);
         }
       } catch {
         // jim — fallback localStorage
@@ -682,6 +697,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => { scheduleCollectionSave('lessons', lessons); }, [lessons, backend, kvReady, kvConfigured]);
   useEffect(() => { scheduleCollectionSave('learnerProgress', learnerProgress); }, [learnerProgress, backend, kvReady, kvConfigured]);
   useEffect(() => { scheduleCollectionSave('profileChanges', profileChanges); }, [profileChanges, backend, kvReady, kvConfigured]);
+  useEffect(() => { scheduleCollectionSave('roles', roles); }, [roles, backend, kvReady, kvConfigured]);
 
   useEffect(() => {
     return () => {
@@ -710,6 +726,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => { pendingStateRef.current.lessons = lessons; }, [lessons]);
   useEffect(() => { pendingStateRef.current.learnerProgress = learnerProgress; }, [learnerProgress]);
   useEffect(() => { pendingStateRef.current.profileChanges = profileChanges; }, [profileChanges]);
+  useEffect(() => { pendingStateRef.current.roles = roles; }, [roles]);
 
   useEffect(() => {
     if (backend !== 'local' || !kvReady || !kvConfigured) return;
@@ -800,6 +817,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       case 'lessons': return (v) => Array.isArray(v) && v.length > 0 && setLessons(v);
       case 'learnerProgress': return (v) => Array.isArray(v) && setLearnerProgress(v);
       case 'profileChanges': return (v) => Array.isArray(v) && setProfileChanges(v);
+      case 'roles': return (v) => Array.isArray(v) && v.length > 0 && setRoles(v);
     }
   }
 
@@ -849,6 +867,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => { lastLocalChangeRef.current.lessons = Date.now(); }, [lessons]);
   useEffect(() => { lastLocalChangeRef.current.learnerProgress = Date.now(); }, [learnerProgress]);
   useEffect(() => { lastLocalChangeRef.current.profileChanges = Date.now(); }, [profileChanges]);
+  useEffect(() => { lastLocalChangeRef.current.roles = Date.now(); }, [roles]);
 
   // Meta polling — visibility-aware: tab aktiv bo'lganda har 15 sek, yashirin bo'lsa to'xtaydi.
   // Bu Vercel Fast Origin Transfer'ni ~80% kamaytiradi (avval 5s × doimiy edi).
@@ -1187,6 +1206,29 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
     },
     [users, removeDoc, backend, kvConfigured, kvReady]
+  );
+
+  // === Rollar (admin) ===
+  const saveRole = useCallback<AppState['saveRole']>(
+    async (role) => {
+      const exists = roles.some((r) => r.id === role.id);
+      const next = exists ? roles.map((r) => (r.id === role.id ? role : r)) : [...roles, role];
+      setRoles(next);
+      const ok = await flushCollectionSave('roles', next);
+      if (!ok && backend === 'local' && kvConfigured) throw new Error('Rol saqlanmadi');
+    },
+    [roles, backend, kvConfigured, kvReady]
+  );
+
+  const deleteRole = useCallback<AppState['deleteRole']>(
+    async (id) => {
+      const role = roles.find((r) => r.id === id);
+      if (role?.isSystem) throw new Error('Tizim rolini o\'chirib bo\'lmaydi');
+      const next = roles.filter((r) => r.id !== id);
+      setRoles(next);
+      await flushCollectionSave('roles', next);
+    },
+    [roles, backend, kvConfigured, kvReady]
   );
 
   // Xodim o'z profilini o'zgartiradi (rasm/parol/ism/telefon) — admin jurnalga yoziladi
@@ -1963,11 +2005,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return ticket;
   }, [currentUser, stages, categories, createTicket, updateTicket, moveTicket]);
 
+  // Joriy foydalanuvchi ruxsatlari (rol ta'rifidan). Rol topilmasa — tizim defaultlari.
+  const perms = useMemo<RoleDef>(() => {
+    const rid = currentUser?.role;
+    const empty: RoleDef = { id: 'none', name: '', manage: false, canEdit: false, canDelete: false, pages: [], isSystem: false, createdAt: 0 };
+    if (!rid) return empty;
+    const found = roles.find((r) => r.id === rid);
+    if (found) return found;
+    const sys = seedRoles.find((r) => r.id === rid);
+    return sys ?? empty;
+  }, [currentUser, roles]);
+
   const value = useMemo<AppState>(
     () => ({
       ready,
       backend,
       currentUser,
+      perms,
       users,
       stages,
       tickets,
@@ -2000,6 +2054,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       saveUser,
       deleteUser,
       updateOwnProfile,
+      saveRole,
+      deleteRole,
       saveStage,
       deleteStage,
       saveCategory,
@@ -2039,6 +2095,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       lessons,
       learnerProgress,
       profileChanges,
+      roles,
       saveTrack,
       deleteTrack,
       saveLesson,
@@ -2055,6 +2112,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       ready,
       backend,
       currentUser,
+      perms,
+      roles,
+      saveRole,
+      deleteRole,
       users,
       stages,
       tickets,
@@ -2087,6 +2148,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       saveUser,
       deleteUser,
       updateOwnProfile,
+      saveRole,
+      deleteRole,
       saveStage,
       deleteStage,
       saveCategory,
@@ -2126,6 +2189,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       lessons,
       learnerProgress,
       profileChanges,
+      roles,
       saveTrack,
       deleteTrack,
       saveLesson,

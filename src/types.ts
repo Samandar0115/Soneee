@@ -1,4 +1,23 @@
-export type Role = 'admin' | 'operator' | 'learner';
+// Rol — tizim rollari ('admin'|'operator'|'learner') yoki admin yaratgan maxsus rol id si
+export type Role = string;
+
+// Bo'lim kalitlari — rolga qaysi sahifalar ochilishini belgilash uchun
+export type PageKey =
+  | 'dashboard' | 'leads' | 'pipeline' | 'tickets' | 'calls' | 'cargo'
+  | 'warehouse' | 'knowledge' | 'learn' | 'analytics' | 'users' | 'stages'
+  | 'categories' | 'templates' | 'curriculum' | 'roles' | 'settings';
+
+// Rol ta'rifi — admin nimalar qila olishini belgilaydi
+export interface RoleDef {
+  id: string;
+  name: string;
+  manage: boolean;      // admin darajasi: xodimlar, rollar, sozlamalar, bosqichlar va h.k.
+  canEdit: boolean;     // mavjud yozuvlarni tahrirlash
+  canDelete: boolean;   // yozuvlarni o'chirish
+  pages: PageKey[];     // kirish mumkin bo'lgan bo'limlar
+  isSystem: boolean;    // tizim roli — o'chirib bo'lmaydi
+  createdAt: number;
+}
 
 export interface Category {
   id: string;
@@ -122,6 +141,7 @@ export interface AppDataSnapshot {
   lessons?: Lesson[];
   learnerProgress?: LearnerProgress[];
   profileChanges?: ProfileChange[];
+  roles?: RoleDef[];
 }
 
 // Xodim o'z profilini (rasm/parol) o'zgartirganda admin ko'rishi uchun jurnal
