@@ -6,12 +6,12 @@ import Modal from '../components/Modal';
 import CameraCapture from '../components/CameraCapture';
 import { useApp } from '../context/AppContext';
 import type { User } from '../types';
-import { randomId } from '../utils/format';
+import { randomId, formatDateTime } from '../utils/format';
 import { imageDataUrlToDescriptor, loadFaceModels } from '../utils/face';
 import { compressImageDataUrl } from '../utils/image';
 
 export default function UsersPage() {
-  const { users, tickets, saveUser, deleteUser, currentUser } = useApp();
+  const { users, tickets, saveUser, deleteUser, currentUser, profileChanges } = useApp();
   const [editing, setEditing] = useState<User | null>(null);
   const [open, setOpen] = useState(false);
   const [scanning, setScanning] = useState(false);
@@ -226,6 +226,30 @@ export default function UsersPage() {
           </tbody>
         </table>
       </div>
+
+      {/* Profil o'zgarishlari jurnali (xodimlar o'z rasmi/parolini o'zgartirsa) */}
+      {profileChanges.length > 0 && (
+        <div className="card mt-5 p-5">
+          <h3 className="font-bold text-slate-800 dark:text-white mb-3">Profil o'zgarishlari jurnali</h3>
+          <div className="max-h-80 overflow-y-auto scroll-thin divide-y divide-slate-100 dark:divide-slate-800">
+            {profileChanges.slice(0, 200).map((pc) => {
+              const fieldLabel =
+                pc.field === 'photo' ? 'rasm' :
+                pc.field === 'password' ? 'parol' :
+                pc.field === 'name' ? 'ism' : 'telefon';
+              return (
+                <div key={pc.id} className="flex items-center justify-between py-2 text-sm">
+                  <div>
+                    <span className="font-semibold text-slate-700 dark:text-slate-200">{pc.userName ?? pc.userId}</span>
+                    <span className="text-slate-500"> — {fieldLabel}ni o'zgartirdi</span>
+                  </div>
+                  <span className="text-xs text-slate-400">{formatDateTime(pc.changedAt)}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <Modal open={open} onClose={() => setOpen(false)} title={editing?.username ? 'Xodimni tahrirlash' : 'Yangi xodim'}>
         {editing && (() => {
