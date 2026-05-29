@@ -24,6 +24,21 @@ function landingForRole(roleId: string, roles: RoleDef[]): string {
   return '/profile';
 }
 
+// Bu qurilmada saqlangan loginlar (Google Passwords kabi) — faqat shu kompyuterda
+interface SavedLogin { username: string; password: string; fullName?: string }
+const SAVED_KEY = 'ipost.savedLogins';
+function getSavedLogins(): SavedLogin[] {
+  try { return JSON.parse(localStorage.getItem(SAVED_KEY) || '[]'); } catch { return []; }
+}
+function putSavedLogin(s: SavedLogin) {
+  const list = getSavedLogins().filter((x) => x.username !== s.username);
+  list.unshift(s);
+  localStorage.setItem(SAVED_KEY, JSON.stringify(list.slice(0, 8)));
+}
+function removeSavedLogin(username: string) {
+  localStorage.setItem(SAVED_KEY, JSON.stringify(getSavedLogins().filter((x) => x.username !== username)));
+}
+
 const IPostLogo = () => (
   <svg viewBox="0 0 640 640" className="h-28 w-28 rounded-2xl shadow-lg shadow-brand-500/30 mb-3">
     <rect width="640" height="640" rx="40" fill="#0540D6" />
@@ -59,6 +74,8 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [failedAttempts, setFailedAttempts] = useState(0);
+  const [remember, setRemember] = useState(true);
+  const [saved, setSaved] = useState<SavedLogin[]>(() => getSavedLogins());
 
   // Sahifa ochilganda jim ravishda modellarni yuklab ko'ramiz.
   // Muvaffaqiyatli bo'lsa Face ID tabini ko'rsatamiz, bo'lmasa Parol rejimida qolamiz.
@@ -94,10 +111,25 @@ export default function Login() {
     const u = login(username, password);
     setLoading(false);
     if (u) {
+      if (remember) putSavedLogin({ username: u.username, password: u.password, fullName: u.fullName });
       toast.success(`Xush kelibsiz, ${u.fullName ?? u.username}`);
       nav(landingForRole(u.role, roles));
     } else {
       toast.error("Login yoki parol noto'g'ri");
+    }
+  }
+
+  // Saqlangan logindan bir bosishda kirish
+  function quickLogin(s: SavedLogin) {
+    const u = login(s.username, s.password);
+    if (u) {
+      toast.success(`Xush kelibsiz, ${u.fullName ?? u.username}`);
+      nav(landingForRole(u.role, roles));
+    } else {
+      toast.error('Saqlangan parol eskirgan — qayta kiriting');
+      removeSavedLogin(s.username);
+      setSaved(getSavedLogins());
+      setUsername(s.username);
     }
   }
 
@@ -184,6 +216,37 @@ export default function Login() {
               onSubmit={submitPassword}
               className="space-y-3"
             >
+              {saved.length > 0 && (
+                <div className="space-y-1.5">
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400">Bu qurilmada saqlangan:</div>
+                  {saved.map((s) => (
+                    <div key={s.username} className="flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 p-2">
+                      <button
+                        type="button"
+                        onClick={() => quickLogin(s)}
+                        className="flex items-center gap-2 flex-1 min-w-0 text-left"
+                      >
+                        <div className="h-8 w-8 rounded-full bg-brand-500 text-white flex items-center justify-center text-sm font-bold flex-shrink-0">
+                          {(s.fullName ?? s.username)[0]?.toUpperCase()}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-sm font-semibold truncate text-slate-800 dark:text-slate-100">{s.fullName ?? s.username}</div>
+                          <div className="text-[11px] text-slate-400 truncate">{s.username} · •••••</div>
+                        </div>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { removeSavedLogin(s.username); setSaved(getSavedLogins()); }}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20"
+                        title="O'chirish"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+                  <div className="text-center text-[11px] text-slate-400 py-1">— yoki yangi login —</div>
+                </div>
+              )}
               <div>
                 <label className="label">Foydalanuvchi nomi</label>
                 <input
@@ -204,6 +267,10 @@ export default function Login() {
                   placeholder="•••••••"
                 />
               </div>
+              <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300 cursor-pointer select-none">
+                <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
+                Bu qurilmada eslab qol (keyingi safar bir bosishda kirasiz)
+              </label>
               <button className="btn-primary w-full" disabled={loading}>
                 {loading ? 'Tekshirilmoqda…' : 'Kirish'}
               </button>
