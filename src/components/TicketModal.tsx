@@ -1034,6 +1034,20 @@ export default function TicketModal({ open, onClose, ticket, prefill, onCreated 
 
           {isEdit && ticket && (
             <div className="card p-3 text-xs space-y-1 text-slate-500">
+              <div>
+                <span className="font-semibold text-slate-600 dark:text-slate-300">Qo'shdi:</span>{' '}
+                {users.find((u) => u.id === ticket.createdBy)?.fullName
+                  ?? users.find((u) => u.id === ticket.createdBy)?.username
+                  ?? ticket.createdBy}
+              </div>
+              {ticket.assigneeId && (
+                <div>
+                  <span className="font-semibold text-slate-600 dark:text-slate-300">Mas'ul:</span>{' '}
+                  {users.find((u) => u.id === ticket.assigneeId)?.fullName
+                    ?? users.find((u) => u.id === ticket.assigneeId)?.username
+                    ?? '—'}
+                </div>
+              )}
               <div>Yaratilgan: {formatDateTime(ticket.createdAt)}</div>
               <div>Oxirgi o'zgarish: {formatDateTime(ticket.updatedAt)}</div>
               {ticket.resolvedAt && <div>Hal etilgan: {formatDateTime(ticket.resolvedAt)}</div>}
