@@ -142,6 +142,20 @@ export interface AppDataSnapshot {
   learnerProgress?: LearnerProgress[];
   profileChanges?: ProfileChange[];
   roles?: RoleDef[];
+  trash?: TrashItem[];
+}
+
+// O'chirilgan yozuvlar — hech narsa butunlay yo'qolmaydi. Admin tiklaydi yoki
+// Excel/CSV qilib yuklab, keyin bazadan butunlay o'chiradi.
+export type TrashType = 'ticket' | 'lead' | 'cargo' | 'callLog' | 'user';
+export interface TrashItem {
+  id: string;
+  type: TrashType;
+  label: string;          // ko'rsatish uchun (trek / ism / raqam)
+  data: unknown;          // asl obyekt — tiklash uchun
+  deletedAt: number;
+  deletedBy?: string;
+  deletedByName?: string;
 }
 
 // Xodim o'z profilini (rasm/parol) o'zgartirganda admin ko'rishi uchun jurnal

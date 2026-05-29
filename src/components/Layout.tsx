@@ -24,6 +24,7 @@ import {
   ShieldCheck,
   Sun,
   Tags,
+  Trash2,
   Ticket as TicketIcon,
   Users,
   Database,
@@ -33,6 +34,7 @@ import {
 import { useApp } from '../context/AppContext';
 import { tFn } from '../i18n';
 import { searchShortcutLabel } from '../utils/platform';
+import { initCurrentEntry, checkForUpdate } from '../utils/updateCheck';
 import NotificationsButton from './NotificationsButton';
 import Softphone from './Softphone';
 import toast from 'react-hot-toast';
@@ -77,6 +79,37 @@ export default function Layout() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser, settings.idleTimeoutMin]);
+  // Yangi versiya (deploy) kelganini aniqlab, "Yangilash" taklif qilamiz
+  useEffect(() => {
+    initCurrentEntry();
+    let shown = false;
+    const run = async () => {
+      if (shown || document.hidden) return;
+      if (await checkForUpdate()) {
+        shown = true;
+        toast(
+          (tt) => (
+            <span className="flex items-center gap-3">
+              <span>Yangi versiya tayyor 🎉</span>
+              <button
+                onClick={() => window.location.reload()}
+                className="px-2.5 py-1 rounded-lg bg-brand-600 text-white text-xs font-semibold"
+              >
+                Yangilash
+              </button>
+              <button onClick={() => toast.dismiss(tt.id)} className="text-xs text-slate-400">Keyin</button>
+            </span>
+          ),
+          { duration: Infinity, id: 'app-update' }
+        );
+      }
+    };
+    const iv = window.setInterval(run, 5 * 60_000);
+    const onFocus = () => run();
+    window.addEventListener('focus', onFocus);
+    return () => { clearInterval(iv); window.removeEventListener('focus', onFocus); };
+  }, []);
+
   const t = tFn(lang);
   const nav = useNavigate();
   const location = useLocation();
@@ -125,6 +158,7 @@ export default function Layout() {
     { to: '/stages', label: t('nav.stages'), icon: Settings2 },
     { to: '/categories', label: t('nav.categories'), icon: Tags },
     { to: '/templates', label: 'Javob shablonlari', icon: MessageSquare },
+    { to: '/trash', label: "Korzina (o'chirilganlar)", icon: Trash2 },
     { to: '/settings', label: t('nav.settings'), icon: Settings },
   ];
 

@@ -34,6 +34,8 @@ import type {
   LessonProgress,
   ProfileChange,
   RoleDef,
+  TrashItem,
+  TrashType,
   CustomerRating,
   Lang,
   NotificationType,
@@ -100,6 +102,9 @@ interface AppState {
   profileChanges: ProfileChange[];
   roles: RoleDef[];
   perms: RoleDef;
+  trash: TrashItem[];
+  restoreFromTrash: (id: string) => void;
+  purgeTrash: (ids: string[]) => void;
   kvConfigured: boolean;
   kvReady: boolean;
   lang: Lang;
@@ -190,6 +195,7 @@ const STORAGE_KEYS = {
   learnerProgress: 'ipost.learnerProgress',
   profileChanges: 'ipost.profileChanges',
   roles: 'ipost.roles',
+  trash: 'ipost.trash',
   userPhotos: 'ipost.userPhotos',
   lang: 'ipost.lang',
   theme: 'ipost.theme',
@@ -259,6 +265,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [learnerProgress, setLearnerProgress] = useState<LearnerProgress[]>([]);
   const [profileChanges, setProfileChanges] = useState<ProfileChange[]>([]);
   const [roles, setRoles] = useState<RoleDef[]>(seedRoles);
+  const [trash, setTrash] = useState<TrashItem[]>([]);
   const [lang, setLangState] = useState<Lang>(() => (localStorage.getItem(STORAGE_KEYS.lang) as Lang) || 'uz');
   const [theme, setThemeState] = useState<'light' | 'dark'>(
     () => (localStorage.getItem(STORAGE_KEYS.theme) as 'light' | 'dark') || 'light'
@@ -395,6 +402,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setLearnerProgress(loadLocal<LearnerProgress[]>(STORAGE_KEYS.learnerProgress, []));
     setProfileChanges(loadLocal<ProfileChange[]>(STORAGE_KEYS.profileChanges, []));
     setRoles(loadLocal<RoleDef[]>(STORAGE_KEYS.roles, seedRoles));
+    setTrash(loadLocal<TrashItem[]>(STORAGE_KEYS.trash, []));
     if (!localStorage.getItem(STORAGE_KEYS.roles)) saveLocal(STORAGE_KEYS.roles, seedRoles);
     if (!localStorage.getItem(STORAGE_KEYS.tracks)) saveLocal(STORAGE_KEYS.tracks, seedTracks);
     if (!localStorage.getItem(STORAGE_KEYS.lessons)) saveLocal(STORAGE_KEYS.lessons, seedLessons);
@@ -502,6 +510,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (backend === 'local' && ready) saveLocal(STORAGE_KEYS.roles, roles);
   }, [roles, backend, ready]);
 
+  useEffect(() => {
+    if (backend === 'local' && ready) saveLocal(STORAGE_KEYS.trash, trash);
+  }, [trash, backend, ready]);
+
   /* ---------------- Session restore ---------------- */
   useEffect(() => {
     if (!ready) return;
@@ -531,7 +543,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const ALL_COLLECTIONS: CollectionName[] = [
     'users', 'stages', 'tickets', 'categories', 'announcements', 'branches',
     'tariff', 'settings', 'templates', 'notifications', 'callLogs', 'cargoShipments', 'leads',
-    'tracks', 'lessons', 'learnerProgress', 'profileChanges', 'roles',
+    'tracks', 'lessons', 'learnerProgress', 'profileChanges', 'roles', 'trash',
   ];
 
   useEffect(() => {
@@ -587,6 +599,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           if (Array.isArray(d.learnerProgress)) setLearnerProgress(d.learnerProgress);
           if (Array.isArray(d.profileChanges)) setProfileChanges(d.profileChanges);
           if (Array.isArray(d.roles) && d.roles.length > 0) setRoles(d.roles);
+          if (Array.isArray(d.trash)) setTrash(d.trash);
         }
       } catch {
         // jim — fallback localStorage
@@ -698,6 +711,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => { scheduleCollectionSave('learnerProgress', learnerProgress); }, [learnerProgress, backend, kvReady, kvConfigured]);
   useEffect(() => { scheduleCollectionSave('profileChanges', profileChanges); }, [profileChanges, backend, kvReady, kvConfigured]);
   useEffect(() => { scheduleCollectionSave('roles', roles); }, [roles, backend, kvReady, kvConfigured]);
+  useEffect(() => { scheduleCollectionSave('trash', trash); }, [trash, backend, kvReady, kvConfigured]);
 
   useEffect(() => {
     return () => {
@@ -727,6 +741,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => { pendingStateRef.current.learnerProgress = learnerProgress; }, [learnerProgress]);
   useEffect(() => { pendingStateRef.current.profileChanges = profileChanges; }, [profileChanges]);
   useEffect(() => { pendingStateRef.current.roles = roles; }, [roles]);
+  useEffect(() => { pendingStateRef.current.trash = trash; }, [trash]);
 
   useEffect(() => {
     if (backend !== 'local' || !kvReady || !kvConfigured) return;
@@ -818,6 +833,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       case 'learnerProgress': return (v) => Array.isArray(v) && setLearnerProgress(v);
       case 'profileChanges': return (v) => Array.isArray(v) && setProfileChanges(v);
       case 'roles': return (v) => Array.isArray(v) && v.length > 0 && setRoles(v);
+      case 'trash': return (v) => Array.isArray(v) && setTrash(v);
     }
   }
 
@@ -868,6 +884,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => { lastLocalChangeRef.current.learnerProgress = Date.now(); }, [learnerProgress]);
   useEffect(() => { lastLocalChangeRef.current.profileChanges = Date.now(); }, [profileChanges]);
   useEffect(() => { lastLocalChangeRef.current.roles = Date.now(); }, [roles]);
+  useEffect(() => { lastLocalChangeRef.current.trash = Date.now(); }, [trash]);
 
   // Meta polling — visibility-aware: tab aktiv bo'lganda har 15 sek, yashirin bo'lsa to'xtaydi.
   // Bu Vercel Fast Origin Transfer'ni ~80% kamaytiradi (avval 5s × doimiy edi).
@@ -983,6 +1000,37 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
     },
     [backend]
+  );
+
+  // === Korzina (soft-delete) — o'chirilgan yozuv hech qachon yo'qolmaydi ===
+  const moveToTrash = useCallback(
+    (type: TrashType, entries: { label: string; data: unknown }[]) => {
+      if (entries.length === 0) return;
+      const now = Date.now();
+      const items: TrashItem[] = entries.map((e, i) => ({
+        id: `trash-${now}-${i}-${Math.random().toString(36).slice(2, 7)}`,
+        type,
+        label: e.label,
+        data: e.data,
+        deletedAt: now,
+        deletedBy: currentUser?.id,
+        deletedByName: currentUser?.fullName ?? currentUser?.username,
+      }));
+      const next = [...items, ...trash].slice(0, 50000);
+      setTrash(next);
+      void flushCollectionSave('trash', next);
+    },
+    [trash, currentUser, backend, kvConfigured, kvReady]
+  );
+
+  const purgeTrash = useCallback<AppState['purgeTrash']>(
+    (ids) => {
+      const idSet = new Set(ids);
+      const next = trash.filter((t) => !idSet.has(t.id));
+      setTrash(next);
+      void flushCollectionSave('trash', next);
+    },
+    [trash, backend, kvConfigured, kvReady]
   );
 
   const createTicket = useCallback<AppState['createTicket']>(
@@ -1154,12 +1202,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const deleteTicket = useCallback<AppState['deleteTicket']>(
     async (id) => {
-      const next = tickets.filter((t) => t.id !== id);
+      const t = tickets.find((x) => x.id === id);
+      if (t) moveToTrash('ticket', [{ label: `${t.trackingNumber} — ${t.customerName}`, data: t }]);
+      const next = tickets.filter((x) => x.id !== id);
       setTickets(next);
       await removeDoc('tickets', id);
       await flushCollectionSave('tickets', next);
     },
-    [tickets, removeDoc, backend, kvConfigured, kvReady]
+    [tickets, removeDoc, moveToTrash, backend, kvConfigured, kvReady]
   );
 
   const saveUser = useCallback<AppState['saveUser']>(
@@ -1196,6 +1246,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const deleteUser = useCallback<AppState['deleteUser']>(
     async (id) => {
       lastLocalChangeRef.current.users = Date.now();
+      const u = users.find((x) => x.id === id);
+      if (u) moveToTrash('user', [{ label: u.fullName ?? u.username, data: u }]);
       const next = users.filter((u) => u.id !== id);
       setUsers(next);
       await removeDoc('users', id);
@@ -1205,7 +1257,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
         lastSyncMetaRef.current.users = Date.now();
       }
     },
-    [users, removeDoc, backend, kvConfigured, kvReady]
+    [users, removeDoc, moveToTrash, backend, kvConfigured, kvReady]
+  );
+
+  const restoreFromTrash = useCallback<AppState['restoreFromTrash']>(
+    (id) => {
+      const item = trash.find((t) => t.id === id);
+      if (!item) return;
+      switch (item.type) {
+        case 'ticket': { const n = [item.data as Ticket, ...tickets]; setTickets(n); void flushCollectionSave('tickets', n); break; }
+        case 'lead': { const n = [item.data as Lead, ...leads]; setLeads(n); void flushCollectionSave('leads', n); break; }
+        case 'cargo': { const n = [item.data as CargoShipment, ...cargoShipments]; setCargoShipments(n); void flushCollectionSave('cargoShipments', n); break; }
+        case 'callLog': { const n = [item.data as CallLog, ...callLogs]; setCallLogs(n); void flushCollectionSave('callLogs', n); break; }
+        case 'user': { void saveUser(item.data as User); break; }
+      }
+      const restTrash = trash.filter((t) => t.id !== id);
+      setTrash(restTrash);
+      void flushCollectionSave('trash', restTrash);
+    },
+    [trash, tickets, leads, cargoShipments, callLogs, saveUser, backend, kvConfigured, kvReady]
   );
 
   // === Rollar (admin) ===
@@ -1454,8 +1524,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const deleteCallLog = useCallback<AppState['deleteCallLog']>((id) => {
-    setCallLogs((prev) => prev.filter((c) => c.id !== id));
-  }, []);
+    const c = callLogs.find((x) => x.id === id);
+    if (c) moveToTrash('callLog', [{ label: `${c.number}${c.customerName ? ' — ' + c.customerName : ''}`, data: c }]);
+    setCallLogs((prev) => prev.filter((x) => x.id !== id));
+  }, [callLogs, moveToTrash]);
 
   // === Cargo Shipments (admin yuklaydi Excel'dan) ===
   const importCargoShipments = useCallback<AppState['importCargoShipments']>((shipments) => {
@@ -1469,8 +1541,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const deleteCargoShipment = useCallback<AppState['deleteCargoShipment']>((id) => {
-    setCargoShipments((prev) => prev.filter((c) => c.id !== id));
-  }, []);
+    const c = cargoShipments.find((x) => x.id === id);
+    if (c) moveToTrash('cargo', [{ label: `${c.trackingNumber}${c.customerName ? ' — ' + c.customerName : ''}`, data: c }]);
+    setCargoShipments((prev) => prev.filter((x) => x.id !== id));
+  }, [cargoShipments, moveToTrash]);
 
   const clearCargoShipments = useCallback<AppState['clearCargoShipments']>(() => {
     setCargoShipments([]);
@@ -1557,22 +1631,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const deleteLead = useCallback<AppState['deleteLead']>(
     (id) => {
-      const next = leads.filter((l) => l.id !== id);
+      const l = leads.find((x) => x.id === id);
+      if (l) moveToTrash('lead', [{ label: `${l.phone}${l.customerName ? ' — ' + l.customerName : ''}`, data: l }]);
+      const next = leads.filter((x) => x.id !== id);
       setLeads(next);
       void flushCollectionSave('leads', next);
     },
-    [leads, backend, kvConfigured, kvReady]
+    [leads, moveToTrash, backend, kvConfigured, kvReady]
   );
 
   // Ommaviy o'chirish — bittalab emas, belgilangan barchasini bir saqlash bilan
   const deleteLeads = useCallback<AppState['deleteLeads']>(
     (ids) => {
       const idSet = new Set(ids);
+      const removed = leads.filter((l) => idSet.has(l.id));
+      if (removed.length) moveToTrash('lead', removed.map((l) => ({ label: `${l.phone}${l.customerName ? ' — ' + l.customerName : ''}`, data: l })));
       const next = leads.filter((l) => !idSet.has(l.id));
       setLeads(next);
       void flushCollectionSave('leads', next);
     },
-    [leads, backend, kvConfigured, kvReady]
+    [leads, moveToTrash, backend, kvConfigured, kvReady]
   );
 
   // Ommaviy "Info berildi" belgilash
@@ -2022,6 +2100,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       backend,
       currentUser,
       perms,
+      trash,
+      restoreFromTrash,
+      purgeTrash,
       users,
       stages,
       tickets,
@@ -2113,6 +2194,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       backend,
       currentUser,
       perms,
+      trash,
+      restoreFromTrash,
+      purgeTrash,
       roles,
       saveRole,
       deleteRole,
