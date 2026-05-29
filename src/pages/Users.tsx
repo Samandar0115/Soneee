@@ -18,7 +18,10 @@ export default function UsersPage() {
   const [cameraOpen, setCameraOpen] = useState(false);
   const photoInputRef = useRef<HTMLInputElement | null>(null);
 
-  async function processDataUrl(dataUrl: string) {
+  // Face ID FAQAT jonli kameradan qayd etiladi — yuklangan rasm yuz namunasi
+  // bo'la olmaydi. Bu boshqa odamning rasmini "hazil" tariqasida qo'yishni
+  // butunlay to'sadi: yuz faqat shu yerda, kamera oldida turib qayd etiladi.
+  async function processFaceSample(dataUrl: string) {
     if (!editing) return;
     setScanning(true);
     toast.loading('Yuz aniqlanmoqda...', { id: 'face' });
@@ -26,22 +29,17 @@ export default function UsersPage() {
       await loadFaceModels();
       const desc = await imageDataUrlToDescriptor(dataUrl);
       if (!desc) {
-        toast.error('Rasmda yuz topilmadi', { id: 'face' });
+        toast.error('Yuz topilmadi — yuzingizni kameraga to\'g\'rilang', { id: 'face' });
         setScanning(false);
         return;
       }
-      // Bazaga yuborishdan oldin rasmni kichraytiramiz (har bir xodim ~10-40 KB).
-      // Aks holda 6+ xodim qo'shganda kolleksiya 4.5 MB chegarasidan oshib saqlanmay qoladi.
       let compressed = dataUrl;
       try {
         compressed = await compressImageDataUrl(dataUrl, { maxDim: 400, quality: 0.78 });
-      } catch {
-        // siqish ishlamasa asl rasmni qoldiramiz
-      }
-      // Har bir suratga olish yangi NAMUNA sifatida qo'shiladi (turli sharoit uchun).
-      // Bu Face ID ni qorong'i/soqolli/burchakli holatlarda ham ishonchli qiladi.
+      } catch { /* asl rasm qoladi */ }
+      // Har bir kamera kadri yangi NAMUNA — turli sharoit (yorug'/qorong'i/soqol)
       const prev = editing.faceDescriptors ?? (editing.faceDescriptor ? [editing.faceDescriptor] : []);
-      const nextSamples = [...prev, Array.from(desc)].slice(-6); // ko'pi bilan 6 namuna
+      const nextSamples = [...prev, Array.from(desc)].slice(-6);
       setEditing({
         ...editing,
         photo: editing.photo ?? compressed,
@@ -49,13 +47,14 @@ export default function UsersPage() {
         faceDescriptors: nextSamples,
       });
       toast.success(`Yuz namunasi qo'shildi (${nextSamples.length} ta)`, { id: 'face' });
-    } catch (err) {
+    } catch {
       toast.error('Modellar yuklanmadi (internetni tekshiring)', { id: 'face' });
     } finally {
       setScanning(false);
     }
   }
 
+  // Fayldan yuklangan rasm — FAQAT avatar (Face ID emas)
   async function handlePhotoUpload(file: File) {
     if (!editing) return;
     if (file.size > 4 * 1024 * 1024) {
@@ -64,13 +63,18 @@ export default function UsersPage() {
     }
     const reader = new FileReader();
     reader.onload = async () => {
-      await processDataUrl(reader.result as string);
+      let compressed = reader.result as string;
+      try {
+        compressed = await compressImageDataUrl(reader.result as string, { maxDim: 400, quality: 0.78 });
+      } catch { /* asl rasm */ }
+      setEditing((e) => (e ? { ...e, photo: compressed } : e));
+      toast.success('Avatar yangilandi (Face ID emas)');
     };
     reader.readAsDataURL(file);
   }
 
   async function handleCameraCapture(dataUrl: string) {
-    await processDataUrl(dataUrl);
+    await processFaceSample(dataUrl);
   }
 
   const stats = useMemo(() => {
@@ -373,17 +377,19 @@ export default function UsersPage() {
                         onClick={() => setCameraOpen(true)}
                         disabled={scanning}
                         className="btn-primary text-xs disabled:opacity-50"
+                        title="Jonli kameradan yuz namunasi olish (Face ID)"
                       >
                         <Camera className="h-3.5 w-3.5" />
-                        {scanning ? '...' : 'Kameradan'}
+                        {scanning ? '...' : 'Kameradan (Face ID)'}
                       </button>
                       <button
                         onClick={() => photoInputRef.current?.click()}
                         disabled={scanning}
                         className="btn-ghost text-xs disabled:opacity-50"
+                        title="Rasm faqat avatar bo'ladi — Face ID emas"
                       >
                         <Upload className="h-3.5 w-3.5" />
-                        {scanning ? '...' : 'Fayldan'}
+                        {scanning ? '...' : 'Fayldan (avatar)'}
                       </button>
                     </div>
                     {(() => {
@@ -404,8 +410,10 @@ export default function UsersPage() {
                       </button>
                     )}
                     <p className="text-[10px] text-slate-400">
-                      Ishonchli tanish uchun <b>3-4 marta</b> turli sharoitda suratga oling:
-                      yorug'/qorong'i, soqolli/soqolsiz, ko'zoynakli. Har bosish yangi namuna qo'shadi.
+                      <b>Face ID faqat jonli kameradan</b> qayd etiladi — yuklangan rasm faqat avatar
+                      bo'ladi (boshqaning rasmini qo'yib bo'lmaydi). Ishonchli tanish uchun xodimni
+                      kamera oldida <b>3-4 marta</b> turli sharoitda (yorug'/qorong'i, soqolli/soqolsiz,
+                      ko'zoynakli) suratga oling — har bosish yangi namuna qo'shadi.
                     </p>
                   </div>
                   <input
