@@ -13,6 +13,7 @@ import {
   CheckSquare,
   Square,
   Paperclip,
+  Trash2,
 } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
 import TicketModal from '../components/TicketModal';
@@ -54,7 +55,7 @@ function exportCSV(rows: Ticket[], stages: Stage[], categories: Category[], user
 }
 
 export default function Tickets() {
-  const { tickets, stages, users, categories, currentUser, moveTicket, updateTicket } = useApp();
+  const { tickets, stages, users, categories, currentUser, moveTicket, updateTicket, deleteTicket } = useApp();
 
   const [searchParams, setSearchParams] = useSearchParams();
   const isAdminInit = useApp().currentUser?.role === 'admin';
@@ -401,6 +402,7 @@ export default function Tickets() {
               <th className="px-3 py-3 cursor-pointer" onClick={() => toggleSort('updated')}>
                 <span className="inline-flex items-center gap-1">Yangilangan <ArrowUpDown className="h-3 w-3" /></span>
               </th>
+              {isAdmin && <th className="px-3 py-3 w-12"></th>}
             </tr>
           </thead>
           <tbody>
@@ -473,12 +475,32 @@ export default function Tickets() {
                     {assignee?.fullName ?? assignee?.username ?? <span className="text-rose-500">—</span>}
                   </td>
                   <td className="px-3 py-2.5 text-slate-500 text-xs" onClick={() => setEditing(t)}>{timeAgo(t.updatedAt)}</td>
+                  {isAdmin && (
+                    <td className="px-3 py-2.5">
+                      <button
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          if (!confirm(`${t.trackingNumber} o'chirilsinmi?`)) return;
+                          try {
+                            await deleteTicket(t.id);
+                            toast.success("O'chirildi — Korzinada saqlandi");
+                          } catch (err) {
+                            toast.error('Xato: ' + (err as Error).message);
+                          }
+                        }}
+                        className="p-1.5 rounded hover:bg-rose-50 dark:hover:bg-rose-900/20 text-rose-600"
+                        title="O'chirish (Korzinaga)"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </td>
+                  )}
                 </tr>
               );
             })}
             {pageData.length === 0 && (
               <tr>
-                <td colSpan={10} className="px-4 py-12 text-center">
+                <td colSpan={isAdmin ? 11 : 10} className="px-4 py-12 text-center">
                   <div className="flex flex-col items-center gap-2">
                     <div className="text-3xl opacity-40">📭</div>
                     <div className="text-slate-600 dark:text-slate-300 font-semibold text-sm">
