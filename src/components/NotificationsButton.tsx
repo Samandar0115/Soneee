@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Bell, X, Check, CheckCheck, Phone, Ticket as TicketIcon, AlertTriangle } from 'lucide-react';
-import { AnimatePresence, motion } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { timeAgo } from '../utils/format';
@@ -87,17 +87,17 @@ export default function NotificationsButton({ compact = false }: { compact?: boo
         )}
       </button>
 
-      <AnimatePresence>
-        {open && createPortal(
-          <>
-            <div className="fixed inset-0 z-[60]" onClick={() => setOpen(false)} />
-            <motion.div
-              initial={{ opacity: 0, y: pos.placement === 'top' ? 8 : -8, scale: 0.96 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: pos.placement === 'top' ? 8 : -8, scale: 0.96 }}
-              className="card overflow-hidden shadow-2xl"
-              style={{ position: 'fixed', top: pos.top, left: pos.left, width: PANEL_W, maxHeight: PANEL_MAX_H, zIndex: 70, display: 'flex', flexDirection: 'column' }}
-            >
+      {open && createPortal(
+        <>
+          <div className="fixed inset-0" style={{ zIndex: 9998 }} onClick={() => setOpen(false)} />
+          <motion.div
+            key="notif-panel"
+            initial={{ opacity: 0, scale: 0.96 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.12 }}
+            className="card overflow-hidden shadow-2xl"
+            style={{ position: 'fixed', top: pos.top, left: pos.left, width: PANEL_W, maxHeight: PANEL_MAX_H, zIndex: 9999, display: 'flex', flexDirection: 'column' }}
+          >
               <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-700">
                 <div className="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                   <Bell className="h-4 w-4" /> Bildirishnomalar
@@ -197,11 +197,10 @@ export default function NotificationsButton({ compact = false }: { compact?: boo
                   </button>
                 </div>
               )}
-            </motion.div>
-          </>,
-          document.body
-        )}
-      </AnimatePresence>
+          </motion.div>
+        </>,
+        document.body
+      )}
     </div>
   );
 }
