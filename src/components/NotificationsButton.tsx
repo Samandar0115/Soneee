@@ -1,4 +1,5 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Bell, X, Check, CheckCheck, Phone, Ticket as TicketIcon, AlertTriangle } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
@@ -20,6 +21,31 @@ export default function NotificationsButton({ compact = false }: { compact?: boo
   const btnRef = useRef<HTMLButtonElement | null>(null);
   const nav = useNavigate();
 
+  // Oyna o'lchami va bell joyiga qarab joylashuv (yuqori yoki past)
+  const PANEL_W = 384, PANEL_MAX_H = 480, GAP = 8;
+  const [pos, setPos] = useState<{ top: number; left: number; placement: 'top' | 'bottom' }>({ top: 0, left: 0, placement: 'bottom' });
+  useEffect(() => {
+    if (!open) return;
+    const update = () => {
+      const r = btnRef.current?.getBoundingClientRect();
+      if (!r) return;
+      const vw = window.innerWidth, vh = window.innerHeight;
+      const spaceBelow = vh - r.bottom;
+      const spaceAbove = r.top;
+      const placement: 'top' | 'bottom' = spaceBelow >= PANEL_MAX_H + 16 || spaceBelow >= spaceAbove ? 'bottom' : 'top';
+      const top = placement === 'bottom' ? r.bottom + GAP : Math.max(8, r.top - PANEL_MAX_H - GAP);
+      // panelni o'ng qirrasi bell o'ng qirrasiga moslashtirib, ekrandan chiqmasligini ta'minlaymiz
+      let left = r.right - PANEL_W;
+      if (left < 8) left = 8;
+      if (left + PANEL_W > vw - 8) left = vw - PANEL_W - 8;
+      setPos({ top, left, placement });
+    };
+    update();
+    window.addEventListener('resize', update);
+    window.addEventListener('scroll', update, true);
+    return () => { window.removeEventListener('resize', update); window.removeEventListener('scroll', update, true); };
+  }, [open]);
+
   const mine = useMemo(
     () => notifications.filter((n) => n.toUserId === currentUser?.id),
     [notifications, currentUser]
@@ -28,6 +54,11 @@ export default function NotificationsButton({ compact = false }: { compact?: boo
 
   function handleClick(n: AppNotification) {
     markNotificationRead(n.id);
+    // "Yangi versiya tayyor" — bossangiz ilovani yangilaymiz
+    if (n.type === 'system' && /yangi versiya/i.test(n.title)) {
+      window.location.reload();
+      return;
+    }
     if (n.ticketId) {
       nav('/tickets');
     }
@@ -57,15 +88,15 @@ export default function NotificationsButton({ compact = false }: { compact?: boo
       </button>
 
       <AnimatePresence>
-        {open && (
+        {open && createPortal(
           <>
-            <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+            <div className="fixed inset-0 z-[60]" onClick={() => setOpen(false)} />
             <motion.div
-              initial={{ opacity: 0, y: -8, scale: 0.96 }}
+              initial={{ opacity: 0, y: pos.placement === 'top' ? 8 : -8, scale: 0.96 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -8, scale: 0.96 }}
-              className="absolute right-0 mt-2 w-96 max-w-[calc(100vw-2rem)] card z-50 overflow-hidden"
-              style={{ position: 'absolute', top: '100%' }}
+              exit={{ opacity: 0, y: pos.placement === 'top' ? 8 : -8, scale: 0.96 }}
+              className="card overflow-hidden shadow-2xl"
+              style={{ position: 'fixed', top: pos.top, left: pos.left, width: PANEL_W, maxHeight: PANEL_MAX_H, zIndex: 70, display: 'flex', flexDirection: 'column' }}
             >
               <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-700">
                 <div className="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
@@ -95,7 +126,7 @@ export default function NotificationsButton({ compact = false }: { compact?: boo
                 </div>
               </div>
 
-              <div className="max-h-96 overflow-y-auto scroll-thin">
+              <div className="flex-1 overflow-y-auto scroll-thin">
                 {mine.length === 0 && (
                   <div className="px-4 py-10 text-center text-sm text-slate-400">
                     Hozircha bildirishnomalar yo'q
@@ -167,7 +198,8 @@ export default function NotificationsButton({ compact = false }: { compact?: boo
                 </div>
               )}
             </motion.div>
-          </>
+          </>,
+          document.body
         )}
       </AnimatePresence>
     </div>

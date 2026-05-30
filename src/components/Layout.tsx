@@ -42,7 +42,7 @@ import toast from 'react-hot-toast';
 const COLLAPSE_KEY = 'ipost.sidebar.collapsed';
 
 export default function Layout() {
-  const { currentUser, perms, logout, backend, lang, setLang, theme, setTheme, kvConfigured, settings } = useApp();
+  const { currentUser, perms, logout, backend, lang, setLang, theme, setTheme, kvConfigured, settings, pushNotification } = useApp();
 
   // Session timeout — kerakli daqiqalardan keyin avto-logout
   useEffect(() => {
@@ -87,6 +87,15 @@ export default function Layout() {
       if (shown || document.hidden) return;
       if (await checkForUpdate()) {
         shown = true;
+        // Bildirishnomalar (qo'ng'iroq) oynasiga ham qo'shamiz — qaytib chiqmasa ham ko'rinadi
+        if (currentUser) {
+          pushNotification({
+            toUserId: currentUser.id,
+            type: 'system',
+            title: 'Yangi versiya tayyor 🎉',
+            body: "Ilovani yangilashingiz mumkin. Bell yonidagi tugmadan ko'ring.",
+          });
+        }
         toast(
           (tt) => (
             <span className="flex items-center gap-3">
