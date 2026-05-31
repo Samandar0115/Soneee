@@ -1161,7 +1161,30 @@ function RoutesTab({ isAdmin }: { isAdmin: boolean }) {
                 </div>
                 {!r.active && <span className="text-[10px] uppercase px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-500">yashirin</span>}
                 {isAdmin && (
-                  <button onClick={() => setEditing(r)} className="text-xs text-brand-600 hover:underline">tahrirlash</button>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setEditing(r)}
+                      className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500"
+                      title="Tahrirlash"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      onClick={async () => {
+                        if (!confirm(`"${r.name}" reysi o'chirilsinmi?`)) return;
+                        try {
+                          await deleteTripRoute(r.id);
+                          toast.success("O'chirildi");
+                        } catch (e) {
+                          toast.error((e as Error).message);
+                        }
+                      }}
+                      className="p-1.5 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-900/20 text-rose-500"
+                      title="O'chirish"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                 )}
               </div>
               <div className="space-y-1.5 mt-3">
@@ -1177,6 +1200,7 @@ function RoutesTab({ isAdmin }: { isAdmin: boolean }) {
       {editing && (
         <RouteEditor
           route={editing}
+          isNew={!tripRoutes.some((x) => x.id === editing.id)}
           onClose={() => setEditing(null)}
           onSave={async (r) => {
             if (!r.name.trim()) { toast.error('Nomi kerak'); return; }
@@ -1184,9 +1208,7 @@ function RoutesTab({ isAdmin }: { isAdmin: boolean }) {
           }}
           onDelete={async () => {
             if (!confirm(`"${editing.name}" reysi o'chirilsinmi?`)) return;
-            await deleteTripRoute(editing.id);
-            toast.success("O'chirildi");
-            setEditing(null);
+            try { await deleteTripRoute(editing.id); toast.success("O'chirildi"); setEditing(null); } catch (e) { toast.error((e as Error).message); }
           }}
         />
       )}
@@ -1203,12 +1225,14 @@ function Row({ label, value, highlight }: { label: string; value: string; highli
   );
 }
 
-function RouteEditor({ route, onClose, onSave, onDelete }: { route: TripRoute; onClose: () => void; onSave: (r: TripRoute) => void; onDelete: () => void }) {
+function RouteEditor({ route, isNew, onClose, onSave, onDelete }: { route: TripRoute; isNew: boolean; onClose: () => void; onSave: (r: TripRoute) => void; onDelete: () => void }) {
   const [d, setD] = useState(route);
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
       <div className="w-full max-w-md rounded-2xl bg-white dark:bg-slate-900 shadow-2xl">
-        <div className="p-5 border-b border-slate-100 dark:border-slate-800 font-bold text-slate-800 dark:text-white">Reys</div>
+        <div className="p-5 border-b border-slate-100 dark:border-slate-800 font-bold text-slate-800 dark:text-white">
+          {isNew ? 'Yangi reys' : 'Reysni tahrirlash'}
+        </div>
         <div className="p-5 space-y-3">
           <div>
             <label className="label">Nomi</label>
@@ -1228,12 +1252,22 @@ function RouteEditor({ route, onClose, onSave, onDelete }: { route: TripRoute; o
             <label className="label">Izoh (ixtiyoriy)</label>
             <input className="input mt-1" value={d.notes ?? ''} onChange={(e) => setD({ ...d, notes: e.target.value })} />
           </div>
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={d.active} onChange={(e) => setD({ ...d, active: e.target.checked })} /> Faol
-          </label>
+          <div className="grid grid-cols-2 gap-3 items-end">
+            <div>
+              <label className="label">Tartib (kichikroq — yuqorida)</label>
+              <input type="number" className="input mt-1" value={d.order} onChange={(e) => setD({ ...d, order: parseInt(e.target.value) || 0 })} />
+            </div>
+            <label className="flex items-center gap-2 text-sm h-[42px] px-3 rounded-lg border border-slate-200 dark:border-slate-700 cursor-pointer">
+              <input type="checkbox" checked={d.active} onChange={(e) => setD({ ...d, active: e.target.checked })} /> Faol (ko'rinadigan)
+            </label>
+          </div>
         </div>
         <div className="flex justify-between gap-2 p-5 border-t border-slate-100 dark:border-slate-800">
-          <button onClick={onDelete} className="text-sm text-rose-500 hover:underline">O'chirish</button>
+          {!isNew ? (
+            <button onClick={onDelete} className="btn-danger text-sm">
+              <Trash2 className="h-4 w-4" /> O'chirish
+            </button>
+          ) : <span />}
           <div className="flex gap-2">
             <button onClick={onClose} className="btn-ghost">Bekor</button>
             <button onClick={() => onSave(d)} className="btn-primary">Saqlash</button>
