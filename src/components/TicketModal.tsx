@@ -161,6 +161,10 @@ export default function TicketModal({ open, onClose, ticket, prefill, onCreated 
       toast.error('Mijoz ismi va telefoni majburiy');
       return;
     }
+    if (!customTracking.trim()) {
+      toast.error('Trek raqami majburiy — kiriting');
+      return;
+    }
     if (!currentUser) return;
     if (isEdit && ticket) {
       await updateTicket(
@@ -271,12 +275,13 @@ export default function TicketModal({ open, onClose, ticket, prefill, onCreated 
         <div className="md:col-span-2 space-y-4">
           {!isEdit && (
             <div>
-              <label className="label">Trek raqami (ixtiyoriy — bo'sh qoldirsangiz avtomatik)</label>
+              <label className="label">Trek raqami <span className="text-rose-500">*</span></label>
               <input
                 className="input mt-1 font-mono"
-                placeholder="T-XXXX-YYYY"
+                placeholder="Trek raqamini kiriting (majburiy)"
                 value={customTracking}
                 onChange={(e) => setCustomTracking(e.target.value)}
+                required
               />
               {duplicateTicket && (
                 <div className="mt-2 flex items-start gap-2 p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs">
