@@ -335,14 +335,25 @@ export default function TicketModal({ open, onClose, ticket, prefill, onCreated 
                   <div className="text-xs text-slate-500 mt-1.5">
                     {activeCategories.find((c) => c.id === categoryId)?.description}
                   </div>
-                  <div className="mt-3">
-                    <label className="label">Mavzu izohi (qisqacha)</label>
-                    <input
-                      className="input mt-1"
-                      placeholder="Masalan: trek topilmadi, manzil noto'g'ri, yetkazib berishni kechiktirish..."
-                      value={details.topicNote ?? ''}
-                      onChange={(e) => setDetails((d) => ({ ...d, topicNote: e.target.value }))}
-                    />
+                  <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                      <label className="label">Mavzu izohi (qisqacha)</label>
+                      <input
+                        className="input mt-1"
+                        placeholder="Masalan: trek topilmadi, manzil noto'g'ri, yetkazib berishni kechiktirish..."
+                        value={details.topicNote ?? ''}
+                        onChange={(e) => setDetails((d) => ({ ...d, topicNote: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <label className="label">Kimning nomidan zayavka qilish kerak</label>
+                      <input
+                        className="input mt-1"
+                        placeholder="Masalan: Buvajonov nomidan"
+                        value={details.orderedBy ?? ''}
+                        onChange={(e) => setDetails((d) => ({ ...d, orderedBy: e.target.value }))}
+                      />
+                    </div>
                   </div>
                 </>
               )}

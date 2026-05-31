@@ -37,7 +37,7 @@ function formatMisrouteTicket(t: Ticket, direction: string, branchPhone: string,
   const customerId = m.postalId || t.details?.customerId || '—';
   const toAddress = m.correctAddress || '—';
   const toPhone = (t.details?.destinationPhone as string) || branchPhone || '—';
-  const orderedBy = m.orderedBy || '—';
+  const orderedBy = m.orderedBy || (t.details?.orderedBy as string) || '—';
   const note = m.notes || t.details?.topicNote || '';
 
   const lines: string[] = [];
@@ -70,11 +70,13 @@ function formatSimpleTicket(t: Ticket, direction: string): string {
   const time = new Date(t.createdAt).toLocaleString('uz', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
   const customer = t.customerName ? `${t.customerName} (${t.customerPhone})` : t.customerPhone;
   const note = t.details?.topicNote || t.details?.note || '';
+  const orderedBy = t.details?.orderedBy as string | undefined;
   const lines: string[] = [];
   lines.push(`🔹 Trek: ${t.trackingNumber}`);
   lines.push(`   Vaqt: ${time}`);
   lines.push(`   Mavzu: ${direction}`);
   if (customer) lines.push(`   Mijoz: ${customer}`);
+  if (orderedBy) lines.push(`   Nomidan: ${orderedBy}`);
   if (note) lines.push(`   Izoh: ${note}`);
   return lines.join('\n');
 }
