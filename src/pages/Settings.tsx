@@ -40,6 +40,19 @@ export default function SettingsPage() {
   const setTgCfg = (patch: Partial<TelegramConfig>) =>
     setDraft({ ...draft, telegram: { ...tgCfg, ...patch } });
   const [tgBusy, setTgBusy] = useState(false);
+  const [tgBot, setTgBot] = useState<{ username?: string; first_name?: string } | null>(null);
+
+  // Bot username va nomini avtomatik aniqlash (bot ochish havolasi uchun)
+  useEffect(() => {
+    if (!tgCfg.botToken) { setTgBot(null); return; }
+    const t = tgCfg.botToken;
+    let cancelled = false;
+    fetch(`https://api.telegram.org/bot${t}/getMe`)
+      .then((r) => r.json())
+      .then((j) => { if (!cancelled && j?.ok) setTgBot(j.result); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [tgCfg.botToken]);
 
   async function tgTest() {
     if (!tgCfg.botToken || !tgCfg.defaultChatId) { toast.error('Token va Chat ID kerak'); return; }
@@ -482,9 +495,29 @@ export default function SettingsPage() {
             <h3 className="font-bold">Telegram bot</h3>
           </div>
           <p className="text-xs text-slate-500 mb-3">
-            Kunlik yuk adashishlari va hisobotlarni botga yuborish uchun. Bot tokeni va chat ID ni kiriting.
-            Avtomatik chat ID topish uchun avval botga <code>/start</code> yozing yoki uni guruhga qo'shing.
+            Kunlik yuk adashishlari va hisobotlarni botga yuborish uchun.
+            <b className="block mt-1">3 qadamda sozlanadi:</b>
+            <span className="block mt-1">1. <b>"Botni ochish"</b> ni bosing — Telegram ochiladi → <b>/start</b> bosing.</span>
+            <span className="block">2. <b>"Topish"</b> ni bosing — chat ID avtomatik to'ldiriladi.</span>
+            <span className="block">3. <b>"Test xabar yuborish"</b> bilan tasdiqlang.</span>
           </p>
+
+          {tgBot && (
+            <div className="card p-3 mb-3 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 flex items-center gap-3 flex-wrap">
+              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+              <span className="text-sm font-medium text-emerald-800 dark:text-emerald-300">
+                Bot: <b>@{tgBot.username}</b> ({tgBot.first_name})
+              </span>
+              <a
+                href={`https://t.me/${tgBot.username}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn-primary text-xs ml-auto"
+              >
+                <Send className="h-3.5 w-3.5" /> Botni ochish
+              </a>
+            </div>
+          )}
 
           <label className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 dark:border-slate-700 cursor-pointer mb-3">
             <input type="checkbox" checked={tgCfg.enabled} onChange={(e) => setTgCfg({ enabled: e.target.checked })} />
