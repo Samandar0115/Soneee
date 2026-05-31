@@ -78,7 +78,9 @@ export default function Login() {
   const [saved, setSaved] = useState<SavedLogin[]>(() => getSavedLogins());
 
   // Sahifa ochilganda jim ravishda modellarni yuklab ko'ramiz.
-  // Muvaffaqiyatli bo'lsa Face ID tabini ko'rsatamiz, bo'lmasa Parol rejimida qolamiz.
+  // Face ID tabini KO'RSATAMIZ (foydalanuvchi xohlasa bossa), lekin
+  // AVTOMATIK o'tib ketmaymiz — kamerasi hira/zaif bo'lganlar ushlanib qolmasin.
+  // Parol — standart rejim. Face ID kerak bo'lsa, tugmasi bossa kamera ochiladi.
   useEffect(() => {
     if (!hasFaceUsers) return;
     let cancelled = false;
@@ -86,7 +88,7 @@ export default function Login() {
       .then(() => {
         if (cancelled) return;
         setFaceAvailable(true);
-        setMode('face');
+        // setMode('face') OLIB TASHLANDI — Parol rejimida qolamiz
       })
       .catch(() => {
         // jim — Parol rejimi qoladi

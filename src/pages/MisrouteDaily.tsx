@@ -177,19 +177,27 @@ export default function DailyTickets() {
     toast.success(`${rows.length} ta yozuv Excel'ga yuklandi`);
   }
 
-  // Kunlik xulosa — qaysi yo'nalishdan nechtadan
+  // Kunlik xulosa — TIZIMDAGI BARCHA murojaat turlari sanaladi
+  // (bo'lmaganlari ham 0 ta deb ko'rinadi, hech narsa unutilmaydi)
   function summaryHeader(items: Ticket[]): string {
     const byDir = new Map<string, number>();
+    // Avval barcha mavjud kategoriyalarni 0 bilan to'ldiramiz
+    for (const c of categories) {
+      if (c.active) byDir.set(c.name.toUpperCase(), 0);
+    }
+    // Asosiy yo'nalishlar ham (mavjud kategoriyalardan tashqari)
+    const knownTypes = ['BTS', 'EMU', 'SKLAD', 'DOSTAVKA', 'IPOST-FILIAL', 'MIJOZ-UYIDAN', 'MIJOZ-UYIGA'];
+    for (const tt of knownTypes) if (!byDir.has(tt)) byDir.set(tt, 0);
+    // Endi bugungilarni sanaymiz
     for (const t of items) {
       const d = direction(t);
       byDir.set(d, (byDir.get(d) ?? 0) + 1);
     }
-    const lines = [`📋 ${date} — Kunlik murojaatlar (${items.length} ta)`];
-    if (byDir.size > 0) {
-      lines.push('');
-      for (const [d, c] of [...byDir].sort((a, b) => b[1] - a[1])) {
-        lines.push(`• ${d}: ${c} ta`);
-      }
+    const lines = [`📋 ${date} — Kunlik murojaatlar (${items.length} ta)`, ''];
+    // Bor bo'lganlarni avval, qolganlarini keyin (lekin hammasini ko'rsatamiz)
+    const sorted = [...byDir].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+    for (const [d, c] of sorted) {
+      lines.push(`• ${d}: ${c} ta`);
     }
     return lines.join('\n');
   }
