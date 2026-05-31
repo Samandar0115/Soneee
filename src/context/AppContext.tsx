@@ -1124,6 +1124,37 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (!ok && backend === 'local' && kvConfigured) {
         throw new Error('Murojaat bazaga saqlanmadi — internetni tekshiring');
       }
+      // Duplicate aniqlash: shu telefon yoki trek bo'yicha boshqa operator
+      // allaqachon ish olib bormoqdami? Agar ha — uni eslatamiz.
+      try {
+        const normPhone = (ticket.customerPhone || '').replace(/\D/g, '');
+        const normTrek = (ticket.trackingNumber || '').toLowerCase().trim();
+        const notifiedOperators = new Set<string>();
+        for (const t of tickets) {
+          if (t.id === ticket.id) continue;
+          if (t.status === 'resolved') continue;
+          if (!t.assigneeId || t.assigneeId === currentUser?.id) continue;
+          const pMatch = normPhone && t.customerPhone && t.customerPhone.replace(/\D/g, '') === normPhone;
+          const tMatch = normTrek && t.trackingNumber && t.trackingNumber.toLowerCase().trim() === normTrek;
+          if (!pMatch && !tMatch) continue;
+          if (notifiedOperators.has(t.assigneeId)) continue;
+          notifiedOperators.add(t.assigneeId);
+          const reason = pMatch ? 'shu telefon raqami' : 'shu trek raqami';
+          const fullNew: AppNotification = {
+            id: randomId('ntf'),
+            toUserId: t.assigneeId,
+            fromUserId: currentUser?.id,
+            fromUserName: currentUser?.fullName ?? currentUser?.username,
+            ticketId: t.id,
+            trackingNumber: t.trackingNumber,
+            type: 'callback',
+            title: 'Mijozingiz yana murojaat qildi',
+            body: `${ticket.customerName} (${ticket.customerPhone}) — ${reason} bo'yicha yangi murojaat. Trek: ${ticket.trackingNumber}. Sizning eski murojaatingiz: ${t.trackingNumber}.`,
+            createdAt: Date.now(),
+          };
+          setNotifications((prev) => [fullNew, ...prev].slice(0, 200));
+        }
+      } catch { /* sezilmaydi */ }
       return ticket;
     },
     [stages, users, tickets, settings, currentUser, writeDoc, backend, kvConfigured, kvReady]
