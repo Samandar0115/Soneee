@@ -27,9 +27,8 @@ function directionOf(t: Ticket, categoryName?: string): string {
   return 'OTHER';
 }
 
-// Bitta murojaatni to'liq shablon formatiga o'tkazadi
-// (har doim barcha qatorlar — kimdan/qayerdan/qayerga aniq ko'rinadi)
-function formatTicket(t: Ticket, direction: string, branchPhone: string, operatorPhone: string): string {
+// Yuk adashishi (misroute) uchun — to'liq logistika shabloni
+function formatMisrouteTicket(t: Ticket, direction: string, branchPhone: string, operatorPhone: string): string {
   const m = t.misroute ?? {};
   const fromWarehouse = m.wrongAddress || '—';
   const fromPhone = branchPhone || '—';
@@ -64,6 +63,26 @@ function formatTicket(t: Ticket, direction: string, branchPhone: string, operato
   lines.push(`Filial tel raqami: ${toPhone}`);
   if (note) { lines.push(''); lines.push(`📝 Izoh: ${note}`); }
   return lines.join('\n');
+}
+
+// Oddiy murojaat — qisqa format: trek + nima bolgani + qachon
+function formatSimpleTicket(t: Ticket, direction: string): string {
+  const time = new Date(t.createdAt).toLocaleString('uz', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+  const customer = t.customerName ? `${t.customerName} (${t.customerPhone})` : t.customerPhone;
+  const note = t.details?.topicNote || t.details?.note || '';
+  const lines: string[] = [];
+  lines.push(`🔹 Trek: ${t.trackingNumber}`);
+  lines.push(`   Vaqt: ${time}`);
+  lines.push(`   Mavzu: ${direction}`);
+  if (customer) lines.push(`   Mijoz: ${customer}`);
+  if (note) lines.push(`   Izoh: ${note}`);
+  return lines.join('\n');
+}
+
+// Yagona format tanlash — misroute bo'lsa to'liq, aks holda qisqa
+function formatTicket(t: Ticket, direction: string, branchPhone: string, operatorPhone: string): string {
+  if (t.misroute) return formatMisrouteTicket(t, direction, branchPhone, operatorPhone);
+  return formatSimpleTicket(t, direction);
 }
 
 async function copy(text: string, msg = 'Nusxalandi') {
@@ -156,40 +175,73 @@ export default function DailyTickets() {
     toast.success(`${rows.length} ta yozuv Excel'ga yuklandi`);
   }
 
+  // Kunlik xulosa — qaysi yo'nalishdan nechtadan
+  function summaryHeader(items: Ticket[]): string {
+    const byDir = new Map<string, number>();
+    for (const t of items) {
+      const d = direction(t);
+      byDir.set(d, (byDir.get(d) ?? 0) + 1);
+    }
+    const lines = [`📋 ${date} — Kunlik murojaatlar (${items.length} ta)`];
+    if (byDir.size > 0) {
+      lines.push('');
+      for (const [d, c] of [...byDir].sort((a, b) => b[1] - a[1])) {
+        lines.push(`• ${d}: ${c} ta`);
+      }
+    }
+    return lines.join('\n');
+  }
+
+  // Har murojaatni alohida xabar qilib yuborish — boshida xulosa
   async function sendTelegram() {
-    if (!allText) throw new Error('Yuborish uchun yozuv yo\'q');
+    if (dayFiltered.length === 0) throw new Error('Yuborish uchun yozuv yo\'q');
     if (!tg?.enabled || !tg.botToken) throw new Error('Avval Sozlamalardan Telegram botni yoqing');
     let chatId = tg.defaultChatId;
     if (tab === 'EMU' && tg.emuChatId) chatId = tg.emuChatId;
     else if (tab === 'BTS' && tg.btsChatId) chatId = tg.btsChatId;
     if (!chatId) throw new Error('Chat ID Sozlamalarda kiritilmagan');
 
-    const tabLabel = tab === 'ALL' ? 'Hammasi' : tab;
-    const header = `📋 ${date} — ${tabLabel} (${dayFiltered.length} ta murojaat)\n\n`;
-    const r = await sendTelegramMessage(tg.botToken, chatId, header + allText);
-    if (!r.ok) throw new Error(r.error || 'Telegram xatosi');
-    toast.success(`${dayFiltered.length} ta yuborildi`);
+    // 1) Xulosa (yo'nalish bo'yicha sanoq)
+    const hdr = await sendTelegramMessage(tg.botToken, chatId, summaryHeader(dayFiltered));
+    if (!hdr.ok) throw new Error(hdr.error || 'Telegram xatosi');
+
+    // 2) Har birini alohida
+    let sent = 0, failed = 0;
+    for (const t of dayFiltered) {
+      const text = formatTicket(t, direction(t), branchPhoneFor(t), operatorPhone);
+      const r = await sendTelegramMessage(tg.botToken, chatId, text);
+      if (r.ok) sent++; else failed++;
+    }
+    if (failed === 0) toast.success(`${sent} ta murojaat alohida yuborildi`);
+    else throw new Error(`${sent} muvaffaqiyatli, ${failed} ta xato`);
   }
 
-  // Hamma yo'nalishlarni bir bosishda — har biri o'z chatiga
+  // Hamma yo'nalishlarni alohida chatlarga — har murojaat o'zicha xabar
   async function sendAllByDirection() {
     if (!tg?.enabled || !tg.botToken) throw new Error('Avval Sozlamalardan Telegram botni yoqing');
     if (!tg.defaultChatId) throw new Error('Standart chat ID kiritilmagan');
     if (directions.length === 0) throw new Error('Yuborish uchun yozuv yo\'q');
 
-    let success = 0, fail = 0;
+    let sentTotal = 0, failedTotal = 0;
     for (const [dir] of directions) {
       const items = dayAll.filter((t) => direction(t) === dir);
-      const text = items.map((t) => formatTicket(t, dir, branchPhoneFor(t), operatorPhone)).join('\n\n══════════════════\n\n');
-      const header = `📋 ${date} — ${dir} (${items.length} ta murojaat)\n\n`;
       let chat = tg.defaultChatId;
       if (dir === 'EMU' && tg.emuChatId) chat = tg.emuChatId;
       else if (dir === 'BTS' && tg.btsChatId) chat = tg.btsChatId;
-      const r = await sendTelegramMessage(tg.botToken, chat, header + text);
-      if (r.ok) success++; else fail++;
+
+      // Yo'nalish boshida xulosa
+      const hdr = `📋 ${date} — ${dir} (${items.length} ta murojaat)`;
+      const r0 = await sendTelegramMessage(tg.botToken, chat, hdr);
+      if (!r0.ok) { failedTotal++; continue; }
+      // Har birini alohida
+      for (const t of items) {
+        const text = formatTicket(t, dir, branchPhoneFor(t), operatorPhone);
+        const r = await sendTelegramMessage(tg.botToken, chat, text);
+        if (r.ok) sentTotal++; else failedTotal++;
+      }
     }
-    if (fail === 0) toast.success(`${success} ta yo'nalish bo'yicha yuborildi`);
-    else throw new Error(`${success} muvaffaqiyatli, ${fail} xato`);
+    if (failedTotal === 0) toast.success(`${sentTotal} ta murojaat yo'nalish bo'yicha yuborildi`);
+    else throw new Error(`${sentTotal} muvaffaqiyatli, ${failedTotal} ta xato`);
   }
 
   return (
