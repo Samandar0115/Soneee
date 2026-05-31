@@ -21,6 +21,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 import PageHeader from '../components/PageHeader';
 import Modal from '../components/Modal';
+import AsyncButton from '../components/AsyncButton';
 import { useApp } from '../context/AppContext';
 import type {
   Announcement,
@@ -452,24 +453,23 @@ function BranchesTab({ isAdmin }: { isAdmin: boolean }) {
                 >
                   <Pencil className="h-3.5 w-3.5" /> Tahrirlash
                 </button>
-                <button
+                <AsyncButton
                   onClick={() => saveBranch({ ...b, active: !b.active })}
                   className="p-2 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-600"
                   title={b.active ? 'Yashirish' : 'Faollashtirish'}
+                  loadingText="..."
                 >
                   {b.active ? <PowerOff className="h-4 w-4" /> : <Power className="h-4 w-4" />}
-                </button>
-                <button
-                  onClick={() => {
-                    if (confirm("Filialni o'chirishni tasdiqlaysizmi?")) {
-                      deleteBranch(b.id);
-                      toast.success("O'chirildi");
-                    }
-                  }}
+                </AsyncButton>
+                <AsyncButton
+                  onClick={() => deleteBranch(b.id)}
+                  confirmText="Filialni o'chirishni tasdiqlaysizmi?"
+                  successToast="O'chirildi"
                   className="p-2 rounded-xl border border-rose-200 hover:bg-rose-50 text-rose-600"
+                  loadingText="..."
                 >
                   <Trash2 className="h-4 w-4" />
-                </button>
+                </AsyncButton>
               </div>
             )}
           </motion.div>

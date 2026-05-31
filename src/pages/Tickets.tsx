@@ -16,6 +16,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
+import AsyncButton from '../components/AsyncButton';
 import TicketModal from '../components/TicketModal';
 import CopyButton from '../components/CopyButton';
 import { useApp } from '../context/AppContext';
@@ -476,23 +477,17 @@ export default function Tickets() {
                   </td>
                   <td className="px-3 py-2.5 text-slate-500 text-xs" onClick={() => setEditing(t)}>{timeAgo(t.updatedAt)}</td>
                   {isAdmin && (
-                    <td className="px-3 py-2.5">
-                      <button
-                        onClick={async (e) => {
-                          e.stopPropagation();
-                          if (!confirm(`${t.trackingNumber} o'chirilsinmi?`)) return;
-                          try {
-                            await deleteTicket(t.id);
-                            toast.success("O'chirildi — Korzinada saqlandi");
-                          } catch (err) {
-                            toast.error('Xato: ' + (err as Error).message);
-                          }
-                        }}
+                    <td className="px-3 py-2.5" onClick={(e) => e.stopPropagation()}>
+                      <AsyncButton
+                        onClick={() => deleteTicket(t.id)}
+                        confirmText={`${t.trackingNumber} o'chirilsinmi?`}
+                        successToast="O'chirildi — Korzinada saqlandi"
                         className="p-1.5 rounded hover:bg-rose-50 dark:hover:bg-rose-900/20 text-rose-600"
                         title="O'chirish (Korzinaga)"
+                        loadingText="..."
                       >
                         <Trash2 className="h-3.5 w-3.5" />
-                      </button>
+                      </AsyncButton>
                     </td>
                   )}
                 </tr>

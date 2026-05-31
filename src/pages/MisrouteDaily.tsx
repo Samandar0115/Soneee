@@ -1,13 +1,13 @@
 import { useMemo, useState } from 'react';
 import * as XLSX from 'xlsx';
-import { ClipboardCopy, FileSpreadsheet, Send, AlertTriangle, Truck } from 'lucide-react';
+import { ClipboardCopy, FileSpreadsheet, Send, Inbox, Truck } from 'lucide-react';
 import toast from 'react-hot-toast';
 import PageHeader from '../components/PageHeader';
 import { useApp } from '../context/AppContext';
 import { sendTelegramMessage } from '../utils/telegram';
+import AsyncButton from '../components/AsyncButton';
 import type { Ticket } from '../types';
 
-// Buyurtmachi kompaniya nomi (sozlamadan o'qish mumkin, hozircha standart)
 const COMPANY_NAME = 'ABUSAXIYTEZ';
 
 function pad(n: number) { return n < 10 ? '0' + n : String(n); }
@@ -20,48 +20,49 @@ function dayBounds(ymd: string) {
   return { start, end };
 }
 
-// Bitta murojaatni o'sha aniq formatga o'tkazadi — yo'nalish va to'liq murojaat
-function formatTicket(t: Ticket, branchPhone: string, operatorPhone: string): string {
+// Murojaatning "yo'nalishi" — qaysi bo'limga jo'natiladi
+function directionOf(t: Ticket, categoryName?: string): string {
+  if (t.misroute?.trackingType) return t.misroute.trackingType;
+  if (categoryName) return categoryName.toUpperCase();
+  return 'OTHER';
+}
+
+// Bitta murojaatni to'liq shablon formatiga o'tkazadi
+// (har doim barcha qatorlar — kimdan/qayerdan/qayerga aniq ko'rinadi)
+function formatTicket(t: Ticket, direction: string, branchPhone: string, operatorPhone: string): string {
   const m = t.misroute ?? {};
-  const trackType = m.trackingType || 'OTHER';
-  const wrongAddr = m.wrongAddress || '—';
-  const wrongName = m.wrongCustomerName || '';
-  const wrongPhone = m.wrongCustomerPhone || '';
-  const wrongDelivery = m.wrongDeliveryType || '';
-  const customerName = m.correctCustomerName || t.customerName || '';
-  const customerPhone = m.correctCustomerPhone || t.customerPhone || '';
-  const customerId = m.postalId || t.details?.customerId || '';
-  const correctAddr = m.correctAddress || '';
-  const orderedBy = m.orderedBy || '';
+  const fromWarehouse = m.wrongAddress || '—';
+  const fromPhone = branchPhone || '—';
+  const customerName = m.correctCustomerName || t.customerName || '—';
+  const customerPhone = m.correctCustomerPhone || t.customerPhone || '—';
+  const customerId = m.postalId || t.details?.customerId || '—';
+  const toAddress = m.correctAddress || '—';
+  const toPhone = (t.details?.destinationPhone as string) || branchPhone || '—';
+  const orderedBy = m.orderedBy || '—';
   const note = m.notes || t.details?.topicNote || '';
 
   const lines: string[] = [];
   lines.push(`Заказчик: ${COMPANY_NAME}`);
-  if (orderedBy) lines.push(`${orderedBy} nomidan zayavka qilish kerak`);
-  if (operatorPhone) lines.push(`${operatorPhone}`);
+  lines.push(`${orderedBy} nomidan zayavka qilish kerak`);
+  lines.push(`${operatorPhone || '—'}`);
   lines.push('');
-  lines.push(`Yo'nalish: ${trackType}`);
-  lines.push('');
-  lines.push(`Товар олинадиган манзил: "${wrongAddr}"`);
-  if (branchPhone) lines.push(`Filial tel raqami: ${branchPhone}`);
-  if (wrongName) lines.push(`Noto'g'ri ism: ${wrongName}`);
-  if (wrongPhone) lines.push(`Noto'g'ri tel: ${wrongPhone}`);
-  if (wrongDelivery) lines.push(`Noto'g'ri yetkazish turi: ${wrongDelivery}`);
+  lines.push(`Товар олинадиган манзил: "${fromWarehouse}"`);
+  lines.push(`Filial tel raqami: ${fromPhone}`);
   lines.push('');
   lines.push(`Trek raqam: ${t.trackingNumber}`);
   lines.push('');
   lines.push('Олувчининг маълумотлари');
   lines.push('');
-  if (customerPhone) lines.push(`Mijoz tel raqami: ${customerPhone}`);
+  lines.push(`Mijoz tel raqami: ${customerPhone}`);
   lines.push('');
-  if (customerName) lines.push(`Mijoz ism familiyasi: ${customerName}`);
+  lines.push(`Mijoz ism familiyasi: ${customerName}`);
   lines.push('');
-  if (customerId) lines.push(`Mijoz ID: ${customerId}`);
+  lines.push(`Mijoz ID: ${customerId}`);
   lines.push('');
-  lines.push(`"${wrongAddr}dan" "IPOST FILIAL" ga yetkazish ${trackType} orqali`);
-  if (correctAddr) lines.push(`Manzil: ${correctAddr}`);
-  if (branchPhone) lines.push(`Filial tel raqami: ${branchPhone}`);
-  if (note) { lines.push(''); lines.push(`Izoh: ${note}`); }
+  lines.push(`"${fromWarehouse}dan" "IPOST FILIAL" ga yetkazish ${direction} orqali`);
+  lines.push(`Manzil: ${toAddress}`);
+  lines.push(`Filial tel raqami: ${toPhone}`);
+  if (note) { lines.push(''); lines.push(`📝 Izoh: ${note}`); }
   return lines.join('\n');
 }
 
@@ -70,7 +71,6 @@ async function copy(text: string, msg = 'Nusxalandi') {
     await navigator.clipboard.writeText(text);
     toast.success(msg);
   } catch {
-    // Fallback: textarea
     const ta = document.createElement('textarea');
     ta.value = text;
     document.body.appendChild(ta);
@@ -80,49 +80,44 @@ async function copy(text: string, msg = 'Nusxalandi') {
   }
 }
 
-const ALL_TYPES = ['EMU', 'BTS', 'DOSTAVKA', 'IPOST-FILIAL', 'MIJOZ-UYIDAN', 'MIJOZ-UYIGA', 'OTHER'] as const;
-type TabKey = (typeof ALL_TYPES)[number] | 'ALL';
-const TYPE_LABEL: Record<(typeof ALL_TYPES)[number], string> = {
-  'EMU': 'EMU',
-  'BTS': 'BTS',
-  'DOSTAVKA': 'Dostavka',
-  'IPOST-FILIAL': 'iPOST Filial',
-  'MIJOZ-UYIDAN': 'Mijoz uyidan',
-  'MIJOZ-UYIGA': 'Mijoz uyiga',
-  'OTHER': 'Boshqa',
-};
-
-export default function MisrouteDaily() {
-  const { tickets, branches, currentUser, settings } = useApp();
+export default function DailyTickets() {
+  const { tickets, branches, categories, currentUser, settings } = useApp();
   const [date, setDate] = useState<string>(toYmd(new Date()));
-  const [tab, setTab] = useState<TabKey>('ALL');
-  const [tgBusy, setTgBusy] = useState(false);
+  const [tab, setTab] = useState<string>('ALL');
 
   const tg = settings.telegram;
   const operatorPhone = currentUser?.phone || '';
 
+  // Kun ichidagi BARCHA murojaatlar
   const dayAll = useMemo(() => {
     const { start, end } = dayBounds(date);
     return tickets
-      .filter((t) => !!t.misroute && t.createdAt >= start && t.createdAt <= end)
+      .filter((t) => t.createdAt >= start && t.createdAt <= end)
       .sort((a, b) => a.createdAt - b.createdAt);
   }, [tickets, date]);
 
-  function inTab(t: Ticket, which: TabKey) {
-    if (which === 'ALL') return true;
-    const type = t.misroute?.trackingType || 'OTHER';
-    return type === which;
-  }
+  // Har birining yo'nalishi
+  const direction = (t: Ticket) => {
+    const cat = categories.find((c) => c.id === t.categoryId);
+    return directionOf(t, cat?.name);
+  };
 
-  const dayMisroute = useMemo(() => dayAll.filter((t) => inTab(t, tab)), [dayAll, tab]);
-  const counts = useMemo(() => {
-    const map: Record<string, number> = {};
+  // Mavjud yo'nalishlar (dinamik tab'lar uchun)
+  const directions = useMemo(() => {
+    const set = new Map<string, number>();
     for (const t of dayAll) {
-      const k = t.misroute?.trackingType || 'OTHER';
-      map[k] = (map[k] ?? 0) + 1;
+      const d = direction(t);
+      set.set(d, (set.get(d) ?? 0) + 1);
     }
-    return map;
-  }, [dayAll]);
+    return Array.from(set.entries()).sort((a, b) => b[1] - a[1]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dayAll, categories]);
+
+  const dayFiltered = useMemo(() =>
+    tab === 'ALL' ? dayAll : dayAll.filter((t) => direction(t) === tab),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [dayAll, tab, categories]
+  );
 
   function branchPhoneFor(t: Ticket): string {
     const wrong = (t.misroute?.wrongAddress || '').toLowerCase();
@@ -132,59 +127,76 @@ export default function MisrouteDaily() {
   }
 
   const allText = useMemo(() =>
-    dayMisroute.map((t) => formatTicket(t, branchPhoneFor(t), operatorPhone)).join('\n\n══════════════════\n\n'),
-    [dayMisroute, branches, operatorPhone]
+    dayFiltered.map((t) => formatTicket(t, direction(t), branchPhoneFor(t), operatorPhone)).join('\n\n══════════════════\n\n'),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [dayFiltered, branches, operatorPhone, categories]
   );
 
   function exportExcel() {
-    if (dayMisroute.length === 0) { toast.error('Yozuv yo\'q'); return; }
-    const rows = dayMisroute.map((t) => {
+    if (dayFiltered.length === 0) { toast.error('Yozuv yo\'q'); return; }
+    const rows = dayFiltered.map((t) => {
       const m = t.misroute ?? {};
       return {
         'Vaqt': new Date(t.createdAt).toLocaleString('uz'),
+        "Yo'nalish": direction(t),
         'Trek': t.trackingNumber,
-        'Tur': m.trackingType ?? '',
         'Mijoz ismi': m.correctCustomerName || t.customerName || '',
         'Mijoz tel': m.correctCustomerPhone || t.customerPhone || '',
         'Mijoz ID': m.postalId || t.details?.customerId || '',
         'Olinadigan manzil': m.wrongAddress || '',
         'Yetkazib beriladigan manzil': m.correctAddress || '',
         'Buyurtmachi': m.orderedBy || '',
-        'Izoh': m.notes || '',
+        'Izoh': m.notes || t.details?.topicNote || '',
       };
     });
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Misroute');
-    XLSX.writeFile(wb, `misroute-${date}.xlsx`);
+    XLSX.utils.book_append_sheet(wb, ws, 'Kunlik murojaatlar');
+    XLSX.writeFile(wb, `murojaatlar-${date}-${tab === 'ALL' ? 'hammasi' : tab}.xlsx`);
     toast.success(`${rows.length} ta yozuv Excel'ga yuklandi`);
   }
 
   async function sendTelegram() {
-    if (!allText) { toast.error('Yuborish uchun yozuv yo\'q'); return; }
-    if (!tg?.enabled || !tg.botToken) {
-      toast.error('Avval Sozlamalardan Telegram botni yoqing');
-      return;
-    }
-    // Yo'nalishga qarab kerakli chat ID ni tanlash
+    if (!allText) throw new Error('Yuborish uchun yozuv yo\'q');
+    if (!tg?.enabled || !tg.botToken) throw new Error('Avval Sozlamalardan Telegram botni yoqing');
     let chatId = tg.defaultChatId;
     if (tab === 'EMU' && tg.emuChatId) chatId = tg.emuChatId;
     else if (tab === 'BTS' && tg.btsChatId) chatId = tg.btsChatId;
-    if (!chatId) { toast.error('Chat ID Sozlamalarda kiritilmagan'); return; }
+    if (!chatId) throw new Error('Chat ID Sozlamalarda kiritilmagan');
 
-    setTgBusy(true);
-    const header = `📦 ${date} — ${tab === 'ALL' ? 'Hammasi' : TYPE_LABEL[tab]} (${dayMisroute.length} ta)\n\n`;
+    const tabLabel = tab === 'ALL' ? 'Hammasi' : tab;
+    const header = `📋 ${date} — ${tabLabel} (${dayFiltered.length} ta murojaat)\n\n`;
     const r = await sendTelegramMessage(tg.botToken, chatId, header + allText);
-    setTgBusy(false);
-    if (r.ok) toast.success(`${dayMisroute.length} ta yuborildi`);
-    else toast.error(r.error || 'Xato');
+    if (!r.ok) throw new Error(r.error || 'Telegram xatosi');
+    toast.success(`${dayFiltered.length} ta yuborildi`);
+  }
+
+  // Hamma yo'nalishlarni bir bosishda — har biri o'z chatiga
+  async function sendAllByDirection() {
+    if (!tg?.enabled || !tg.botToken) throw new Error('Avval Sozlamalardan Telegram botni yoqing');
+    if (!tg.defaultChatId) throw new Error('Standart chat ID kiritilmagan');
+    if (directions.length === 0) throw new Error('Yuborish uchun yozuv yo\'q');
+
+    let success = 0, fail = 0;
+    for (const [dir] of directions) {
+      const items = dayAll.filter((t) => direction(t) === dir);
+      const text = items.map((t) => formatTicket(t, dir, branchPhoneFor(t), operatorPhone)).join('\n\n══════════════════\n\n');
+      const header = `📋 ${date} — ${dir} (${items.length} ta murojaat)\n\n`;
+      let chat = tg.defaultChatId;
+      if (dir === 'EMU' && tg.emuChatId) chat = tg.emuChatId;
+      else if (dir === 'BTS' && tg.btsChatId) chat = tg.btsChatId;
+      const r = await sendTelegramMessage(tg.botToken, chat, header + text);
+      if (r.ok) success++; else fail++;
+    }
+    if (fail === 0) toast.success(`${success} ta yo'nalish bo'yicha yuborildi`);
+    else throw new Error(`${success} muvaffaqiyatli, ${fail} xato`);
   }
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
       <PageHeader
-        title="Kunlik yuk adashishlari"
-        subtitle="Bir kun ichida tushgan yuk adashishi murojaatlarini bir joyda yig'ib, kerakli formatda yuborasiz"
+        title="Kunlik murojaatlar"
+        subtitle="Bir kun ichidagi barcha murojaatlarni yo'nalish bo'yicha guruhlab, kerakli bo'limga jo'natasiz"
         actions={
           <div className="flex items-center gap-2 flex-wrap">
             <input
@@ -194,65 +206,97 @@ export default function MisrouteDaily() {
               max={toYmd(new Date())}
               className="input text-sm"
             />
-            <button onClick={() => copy(allText, `${dayMisroute.length} ta murojaat nusxalandi`)} disabled={dayMisroute.length === 0} className="btn-primary text-sm disabled:opacity-50">
-              <ClipboardCopy className="h-4 w-4" /> Hammasini nusxalash
-            </button>
-            <button onClick={exportExcel} disabled={dayMisroute.length === 0} className="btn-ghost text-sm disabled:opacity-50">
+            <AsyncButton
+              onClick={() => copy(allText, `${dayFiltered.length} ta murojaat nusxalandi`)}
+              disabled={dayFiltered.length === 0}
+              className="btn-primary text-sm disabled:opacity-50"
+              loadingText="..."
+            >
+              <ClipboardCopy className="h-4 w-4" /> Nusxalash
+            </AsyncButton>
+            <AsyncButton
+              onClick={exportExcel}
+              disabled={dayFiltered.length === 0}
+              className="btn-ghost text-sm disabled:opacity-50"
+              loadingText="..."
+            >
               <FileSpreadsheet className="h-4 w-4" /> Excel
-            </button>
-            <button onClick={sendTelegram} disabled={dayMisroute.length === 0 || tgBusy} className="btn-ghost text-sm disabled:opacity-50">
-              <Send className="h-4 w-4" /> {tgBusy ? 'Yuborilmoqda...' : 'Telegram'}
-            </button>
+            </AsyncButton>
+            <AsyncButton
+              onClick={sendTelegram}
+              disabled={dayFiltered.length === 0}
+              className="btn-ghost text-sm disabled:opacity-50"
+              loadingText="Yuborilmoqda..."
+            >
+              <Send className="h-4 w-4" /> Telegram
+            </AsyncButton>
           </div>
         }
       />
 
-      <div className="card p-4 mb-4 flex items-center gap-3">
-        <div className="h-10 w-10 rounded-xl bg-amber-100 dark:bg-amber-900/20 text-amber-600 flex items-center justify-center">
-          <Truck className="h-5 w-5" />
+      <div className="card p-4 mb-4 flex items-center gap-3 flex-wrap">
+        <div className="h-10 w-10 rounded-xl bg-brand-500/10 text-brand-600 flex items-center justify-center">
+          <Inbox className="h-5 w-5" />
         </div>
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           <div className="text-sm text-slate-500">{date}</div>
-          <div className="text-2xl font-bold text-slate-800 dark:text-white">{dayMisroute.length} <span className="text-base font-normal text-slate-500">ta murojaat ({tab === 'ALL' ? 'hammasi' : TYPE_LABEL[tab]})</span></div>
+          <div className="text-2xl font-bold text-slate-800 dark:text-white">
+            {dayFiltered.length} <span className="text-base font-normal text-slate-500">ta murojaat ({tab === 'ALL' ? 'hammasi' : tab})</span>
+          </div>
         </div>
+        {directions.length > 1 && (
+          <AsyncButton
+            onClick={sendAllByDirection}
+            className="btn-primary text-sm"
+            loadingText="Yuborilmoqda..."
+          >
+            <Send className="h-4 w-4" /> Hamma yo'nalishni alohida yuborish ({directions.length})
+          </AsyncButton>
+        )}
       </div>
 
-      {/* Yo'nalish bo'yicha filter — har biri uchun alohida nusxalash/Excel */}
-      <div className="flex flex-wrap gap-2 mb-4">
-        <button
-          onClick={() => setTab('ALL')}
-          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium transition border ${
-            tab === 'ALL' ? 'bg-brand-600 text-white border-brand-600' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'
-          }`}
-        >
-          Hammasi <span className="opacity-70">({dayAll.length})</span>
-        </button>
-        {ALL_TYPES.map((k) => (
+      {/* Yo'nalish bo'yicha tab'lar — dinamik */}
+      {directions.length > 0 && (
+        <div className="flex flex-wrap gap-2 mb-4">
           <button
-            key={k}
-            onClick={() => setTab(k)}
+            onClick={() => setTab('ALL')}
             className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium transition border ${
-              tab === k ? 'bg-brand-600 text-white border-brand-600' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'
+              tab === 'ALL' ? 'bg-brand-600 text-white border-brand-600' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'
             }`}
           >
-            {TYPE_LABEL[k]} <span className="opacity-70">({counts[k] ?? 0})</span>
+            Hammasi <span className="opacity-70">({dayAll.length})</span>
           </button>
-        ))}
-      </div>
+          {directions.map(([d, c]) => (
+            <button
+              key={d}
+              onClick={() => setTab(d)}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium transition border ${
+                tab === d ? 'bg-brand-600 text-white border-brand-600' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'
+              }`}
+            >
+              {d} <span className="opacity-70">({c})</span>
+            </button>
+          ))}
+        </div>
+      )}
 
-      {dayMisroute.length === 0 ? (
+      {dayFiltered.length === 0 ? (
         <div className="card p-10 text-center text-slate-500">
-          <AlertTriangle className="h-10 w-10 mx-auto mb-3 opacity-40" />
-          Bu kunda yuk adashishi murojaatlari yo'q.
+          <Inbox className="h-10 w-10 mx-auto mb-3 opacity-40" />
+          Bu kunda murojaat yo'q.
         </div>
       ) : (
         <div className="space-y-3">
-          {dayMisroute.map((t) => {
-            const text = formatTicket(t, branchPhoneFor(t), operatorPhone);
+          {dayFiltered.map((t) => {
+            const dir = direction(t);
+            const text = formatTicket(t, dir, branchPhoneFor(t), operatorPhone);
             return (
               <div key={t.id} className="card p-4">
                 <div className="flex items-center justify-between gap-2 mb-2">
-                  <div className="font-mono font-semibold text-brand-600 dark:text-brand-400">{t.trackingNumber}</div>
+                  <div className="flex items-center gap-2">
+                    <div className="font-mono font-semibold text-brand-600 dark:text-brand-400">{t.trackingNumber}</div>
+                    <span className="text-[10px] uppercase px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500">{dir}</span>
+                  </div>
                   <div className="flex items-center gap-2 text-xs text-slate-500">
                     <span>{new Date(t.createdAt).toLocaleTimeString('uz', { hour: '2-digit', minute: '2-digit' })}</span>
                     <button onClick={() => copy(text)} className="inline-flex items-center gap-1 text-brand-600 hover:underline">
