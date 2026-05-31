@@ -25,6 +25,7 @@ import {
   Sun,
   Tags,
   Trash2,
+  Truck,
   Ticket as TicketIcon,
   Users,
   Database,
@@ -167,6 +168,7 @@ export default function Layout() {
     { to: '/stages', label: t('nav.stages'), icon: Settings2 },
     { to: '/categories', label: t('nav.categories'), icon: Tags },
     { to: '/templates', label: 'Javob shablonlari', icon: MessageSquare },
+    { to: '/misroute-daily', label: "Kunlik yuk adashishlari", icon: Truck },
     { to: '/trash', label: "Korzina (o'chirilganlar)", icon: Trash2 },
     { to: '/settings', label: t('nav.settings'), icon: Settings },
   ];

@@ -43,6 +43,11 @@ export const seedAppSettings: AppSettings = {
     displayName: '',
     stunUrl: 'stun:stun.l.google.com:19302',
   },
+  telegram: {
+    enabled: true,
+    botToken: '8613686825:AAGxhfEi6PG4rFi3-uyTx_QxXdcXzUfygUE',
+    defaultChatId: '',
+  },
   updatedAt: Date.now(),
 };
 

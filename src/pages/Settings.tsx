@@ -5,12 +5,15 @@ import toast from 'react-hot-toast';
 import PageHeader from '../components/PageHeader';
 import { useApp } from '../context/AppContext';
 import { sipManager, type SipState } from '../utils/sip';
-import type { AppSettings, SipConfig } from '../types';
+import { sendTelegramMessage } from '../utils/telegram';
+import { Send } from 'lucide-react';
+import type { AppSettings, SipConfig, TelegramConfig } from '../types';
 
 const DEFAULT_SIP: SipConfig = {
   enabled: false, wsUrl: '', domain: '', username: '', password: '', displayName: '',
   stunUrl: 'stun:stun.l.google.com:19302',
 };
+const DEFAULT_TG: TelegramConfig = { enabled: false, botToken: '', defaultChatId: '' };
 import { checkKVStatus, loadFromKV, saveToKV, resetKVStatus, cleanupLegacyKV, type KVStatus } from '../utils/vercelKV';
 import { formatDateTime } from '../utils/format';
 
@@ -33,6 +36,36 @@ export default function SettingsPage() {
   const sipCfg = draft.sip ?? DEFAULT_SIP;
   const setSipCfg = (patch: Partial<SipConfig>) =>
     setDraft({ ...draft, sip: { ...sipCfg, ...patch } });
+  const tgCfg = draft.telegram ?? DEFAULT_TG;
+  const setTgCfg = (patch: Partial<TelegramConfig>) =>
+    setDraft({ ...draft, telegram: { ...tgCfg, ...patch } });
+  const [tgBusy, setTgBusy] = useState(false);
+
+  async function tgTest() {
+    if (!tgCfg.botToken || !tgCfg.defaultChatId) { toast.error('Token va Chat ID kerak'); return; }
+    setTgBusy(true);
+    const r = await sendTelegramMessage(tgCfg.botToken, tgCfg.defaultChatId, '✅ iPOST CRM — Telegram bot ulanish testi muvaffaqiyatli');
+    setTgBusy(false);
+    if (r.ok) toast.success('Test xabar yuborildi'); else toast.error(r.error || 'Xato');
+  }
+
+  async function tgFindChatId() {
+    if (!tgCfg.botToken) { toast.error('Avval bot token kiriting'); return; }
+    setTgBusy(true);
+    try {
+      const res = await fetch(`https://api.telegram.org/bot${tgCfg.botToken}/getUpdates`);
+      const j = await res.json();
+      if (!j.ok) throw new Error(j.description);
+      const updates = j.result as Array<{ message?: { chat: { id: number; title?: string; username?: string; first_name?: string } } }>;
+      if (!updates.length) { toast('Bot hali xabar olmagan — botga /start yozing yoki guruhga qo\'shing', { icon: 'ℹ️', duration: 6000 }); return; }
+      const chats = Array.from(new Map(updates.filter((u) => u.message).map((u) => [u.message!.chat.id, u.message!.chat])).values());
+      const list = chats.map((c) => `${c.id} — ${c.title || c.username || c.first_name || ''}`).join('\n');
+      const chosen = prompt('Topilgan chatlar:\n\n' + list + '\n\nChat ID ni kiriting:', String(chats[0]?.id ?? ''));
+      if (chosen) setTgCfg({ defaultChatId: chosen.trim() });
+    } catch (e) {
+      toast.error((e as Error).message || 'Xato');
+    } finally { setTgBusy(false); }
+  }
 
   const oldResolvedCount = (() => {
     const cutoff = Date.now() - (draft.archiveAfterDays || 365) * 86_400_000;
@@ -440,6 +473,52 @@ export default function SettingsPage() {
           {sipCfg.enabled && sip.reg === 'failed' && sip.lastError && (
             <p className="text-xs text-rose-600 dark:text-rose-400 mt-2">Xato: {sip.lastError}</p>
           )}
+        </div>
+
+        {/* === TELEGRAM BOT === */}
+        <div className="card p-6 lg:col-span-2">
+          <div className="flex items-center gap-2 mb-3">
+            <Send className="h-5 w-5 text-brand-600" />
+            <h3 className="font-bold">Telegram bot</h3>
+          </div>
+          <p className="text-xs text-slate-500 mb-3">
+            Kunlik yuk adashishlari va hisobotlarni botga yuborish uchun. Bot tokeni va chat ID ni kiriting.
+            Avtomatik chat ID topish uchun avval botga <code>/start</code> yozing yoki uni guruhga qo'shing.
+          </p>
+
+          <label className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 dark:border-slate-700 cursor-pointer mb-3">
+            <input type="checkbox" checked={tgCfg.enabled} onChange={(e) => setTgCfg({ enabled: e.target.checked })} />
+            <div className="font-semibold text-sm">Telegram botni yoqish</div>
+          </label>
+
+          <div className="grid sm:grid-cols-2 gap-3">
+            <div className="sm:col-span-2">
+              <label className="label">Bot token</label>
+              <input className="input mt-1 font-mono text-xs" value={tgCfg.botToken} placeholder="123456:ABC..." onChange={(e) => setTgCfg({ botToken: e.target.value.trim() })} />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="label">Standart chat ID (guruh yoki kanal)</label>
+              <div className="flex items-center gap-2">
+                <input className="input mt-1 font-mono text-xs flex-1" value={tgCfg.defaultChatId} placeholder="-1001234567890" onChange={(e) => setTgCfg({ defaultChatId: e.target.value.trim() })} />
+                <button type="button" onClick={tgFindChatId} disabled={tgBusy} className="btn-ghost text-xs whitespace-nowrap mt-1 disabled:opacity-50">Topish</button>
+              </div>
+            </div>
+            <div>
+              <label className="label">EMU uchun alohida chat ID (ixtiyoriy)</label>
+              <input className="input mt-1 font-mono text-xs" value={tgCfg.emuChatId ?? ''} placeholder="-100..." onChange={(e) => setTgCfg({ emuChatId: e.target.value.trim() || undefined })} />
+            </div>
+            <div>
+              <label className="label">BTS uchun alohida chat ID (ixtiyoriy)</label>
+              <input className="input mt-1 font-mono text-xs" value={tgCfg.btsChatId ?? ''} placeholder="-100..." onChange={(e) => setTgCfg({ btsChatId: e.target.value.trim() || undefined })} />
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 mt-3">
+            <button onClick={tgTest} disabled={tgBusy || !tgCfg.botToken || !tgCfg.defaultChatId} className="btn-primary text-sm disabled:opacity-50">
+              <Send className="h-3.5 w-3.5" /> Test xabar yuborish
+            </button>
+            <span className="text-[11px] text-slate-400">Sozlamani avval saqlang (avto-saqlanadi), keyin test bosing.</span>
+          </div>
         </div>
 
         <div className="card p-6 lg:col-span-2">

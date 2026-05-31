@@ -394,7 +394,17 @@ export interface AppSettings {
   archiveAfterDays: number;
   faceMatchThreshold: number;
   sip?: SipConfig;
+  telegram?: TelegramConfig;
   updatedAt: number;
+}
+
+// Telegram bot sozlamalari — kunlik hisobotlar va misroute eksport uchun
+export interface TelegramConfig {
+  enabled: boolean;
+  botToken: string;
+  defaultChatId: string;   // standart kanal/guruh/chat id
+  emuChatId?: string;       // EMU yo'nalishi uchun alohida
+  btsChatId?: string;       // BTS yo'nalishi uchun alohida
 }
 
 // O'rnatilgan SIP telefon liniyasi sozlamalari (WebRTC orqali, dastur ichida)
