@@ -143,6 +143,19 @@ export interface AppDataSnapshot {
   profileChanges?: ProfileChange[];
   roles?: RoleDef[];
   trash?: TrashItem[];
+  tripRoutes?: TripRoute[];
+}
+
+// Reys (yo'nalish) — qaysi yo'nalishdan yuk necha kunda keladi va oxirgisi qachon keldi
+export interface TripRoute {
+  id: string;
+  name: string;              // "Guanchjou → Toshkent (aviadan)"
+  durationDays: number;      // o'rtacha necha kunda keladi
+  lastArrivedDate?: string;  // YYYY-MM-DD — oxirgi partiya kelgan sana
+  notes?: string;
+  order: number;
+  active: boolean;
+  createdAt: number;
 }
 
 // O'chirilgan yozuvlar — hech narsa butunlay yo'qolmaydi. Admin tiklaydi yoki

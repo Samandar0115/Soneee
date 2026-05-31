@@ -36,6 +36,7 @@ import type {
   RoleDef,
   TrashItem,
   TrashType,
+  TripRoute,
   CustomerRating,
   Lang,
   NotificationType,
@@ -61,6 +62,7 @@ import {
   seedLessons,
   seedTracks,
   seedRoles,
+  seedTripRoutes,
 } from '../api/seed';
 import { handleFirestoreError } from '../utils/errors';
 import { generateTrackingNumber, randomId } from '../utils/format';
@@ -105,6 +107,9 @@ interface AppState {
   trash: TrashItem[];
   restoreFromTrash: (id: string) => void;
   purgeTrash: (ids: string[]) => void;
+  tripRoutes: TripRoute[];
+  saveTripRoute: (r: TripRoute) => Promise<void>;
+  deleteTripRoute: (id: string) => Promise<void>;
   kvConfigured: boolean;
   kvReady: boolean;
   lang: Lang;
@@ -196,6 +201,7 @@ const STORAGE_KEYS = {
   profileChanges: 'ipost.profileChanges',
   roles: 'ipost.roles',
   trash: 'ipost.trash',
+  tripRoutes: 'ipost.tripRoutes',
   userPhotos: 'ipost.userPhotos',
   lang: 'ipost.lang',
   theme: 'ipost.theme',
@@ -266,6 +272,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [profileChanges, setProfileChanges] = useState<ProfileChange[]>([]);
   const [roles, setRoles] = useState<RoleDef[]>(seedRoles);
   const [trash, setTrash] = useState<TrashItem[]>([]);
+  const [tripRoutes, setTripRoutes] = useState<TripRoute[]>(seedTripRoutes);
   const [lang, setLangState] = useState<Lang>(() => (localStorage.getItem(STORAGE_KEYS.lang) as Lang) || 'uz');
   const [theme, setThemeState] = useState<'light' | 'dark'>(
     () => (localStorage.getItem(STORAGE_KEYS.theme) as 'light' | 'dark') || 'light'
@@ -403,6 +410,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setProfileChanges(loadLocal<ProfileChange[]>(STORAGE_KEYS.profileChanges, []));
     setRoles(loadLocal<RoleDef[]>(STORAGE_KEYS.roles, seedRoles));
     setTrash(loadLocal<TrashItem[]>(STORAGE_KEYS.trash, []));
+    setTripRoutes(loadLocal<TripRoute[]>(STORAGE_KEYS.tripRoutes, seedTripRoutes));
+    if (!localStorage.getItem(STORAGE_KEYS.tripRoutes)) saveLocal(STORAGE_KEYS.tripRoutes, seedTripRoutes);
     if (!localStorage.getItem(STORAGE_KEYS.roles)) saveLocal(STORAGE_KEYS.roles, seedRoles);
     if (!localStorage.getItem(STORAGE_KEYS.tracks)) saveLocal(STORAGE_KEYS.tracks, seedTracks);
     if (!localStorage.getItem(STORAGE_KEYS.lessons)) saveLocal(STORAGE_KEYS.lessons, seedLessons);
@@ -514,6 +523,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (backend === 'local' && ready) saveLocal(STORAGE_KEYS.trash, trash);
   }, [trash, backend, ready]);
 
+  useEffect(() => {
+    if (backend === 'local' && ready) saveLocal(STORAGE_KEYS.tripRoutes, tripRoutes);
+  }, [tripRoutes, backend, ready]);
+
   /* ---------------- Session restore ---------------- */
   useEffect(() => {
     if (!ready) return;
@@ -543,7 +556,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const ALL_COLLECTIONS: CollectionName[] = [
     'users', 'stages', 'tickets', 'categories', 'announcements', 'branches',
     'tariff', 'settings', 'templates', 'notifications', 'callLogs', 'cargoShipments', 'leads',
-    'tracks', 'lessons', 'learnerProgress', 'profileChanges', 'roles', 'trash',
+    'tracks', 'lessons', 'learnerProgress', 'profileChanges', 'roles', 'trash', 'tripRoutes',
   ];
 
   useEffect(() => {
@@ -600,6 +613,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           if (Array.isArray(d.profileChanges)) setProfileChanges(d.profileChanges);
           if (Array.isArray(d.roles) && d.roles.length > 0) setRoles(d.roles);
           if (Array.isArray(d.trash)) setTrash(d.trash);
+          if (Array.isArray(d.tripRoutes) && d.tripRoutes.length > 0) setTripRoutes(d.tripRoutes);
         }
       } catch {
         // jim — fallback localStorage
@@ -712,6 +726,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => { scheduleCollectionSave('profileChanges', profileChanges); }, [profileChanges, backend, kvReady, kvConfigured]);
   useEffect(() => { scheduleCollectionSave('roles', roles); }, [roles, backend, kvReady, kvConfigured]);
   useEffect(() => { scheduleCollectionSave('trash', trash); }, [trash, backend, kvReady, kvConfigured]);
+  useEffect(() => { scheduleCollectionSave('tripRoutes', tripRoutes); }, [tripRoutes, backend, kvReady, kvConfigured]);
 
   useEffect(() => {
     return () => {
@@ -742,6 +757,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => { pendingStateRef.current.profileChanges = profileChanges; }, [profileChanges]);
   useEffect(() => { pendingStateRef.current.roles = roles; }, [roles]);
   useEffect(() => { pendingStateRef.current.trash = trash; }, [trash]);
+  useEffect(() => { pendingStateRef.current.tripRoutes = tripRoutes; }, [tripRoutes]);
 
   useEffect(() => {
     if (backend !== 'local' || !kvReady || !kvConfigured) return;
@@ -834,6 +850,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       case 'profileChanges': return (v) => Array.isArray(v) && setProfileChanges(v);
       case 'roles': return (v) => Array.isArray(v) && v.length > 0 && setRoles(v);
       case 'trash': return (v) => Array.isArray(v) && setTrash(v);
+      case 'tripRoutes': return (v) => Array.isArray(v) && v.length > 0 && setTripRoutes(v);
     }
   }
 
@@ -885,6 +902,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => { lastLocalChangeRef.current.profileChanges = Date.now(); }, [profileChanges]);
   useEffect(() => { lastLocalChangeRef.current.roles = Date.now(); }, [roles]);
   useEffect(() => { lastLocalChangeRef.current.trash = Date.now(); }, [trash]);
+  useEffect(() => { lastLocalChangeRef.current.tripRoutes = Date.now(); }, [tripRoutes]);
 
   // Meta polling — visibility-aware: tab aktiv bo'lganda har 15 sek, yashirin bo'lsa to'xtaydi.
   // Bu Vercel Fast Origin Transfer'ni ~80% kamaytiradi (avval 5s × doimiy edi).
@@ -1276,6 +1294,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
       void flushCollectionSave('trash', restTrash);
     },
     [trash, tickets, leads, cargoShipments, callLogs, saveUser, backend, kvConfigured, kvReady]
+  );
+
+  // === Reyslar (Bilim bazasi → Reyslar) ===
+  const saveTripRoute = useCallback<AppState['saveTripRoute']>(
+    async (r) => {
+      const exists = tripRoutes.some((x) => x.id === r.id);
+      const next = (exists ? tripRoutes.map((x) => (x.id === r.id ? r : x)) : [...tripRoutes, r]).sort((a, b) => a.order - b.order);
+      setTripRoutes(next);
+      const ok = await flushCollectionSave('tripRoutes', next);
+      if (!ok && backend === 'local' && kvConfigured) throw new Error('Reys saqlanmadi');
+    },
+    [tripRoutes, backend, kvConfigured, kvReady]
+  );
+
+  const deleteTripRoute = useCallback<AppState['deleteTripRoute']>(
+    async (id) => {
+      const next = tripRoutes.filter((x) => x.id !== id);
+      setTripRoutes(next);
+      await flushCollectionSave('tripRoutes', next);
+    },
+    [tripRoutes, backend, kvConfigured, kvReady]
   );
 
   // === Rollar (admin) ===
@@ -2103,6 +2142,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       trash,
       restoreFromTrash,
       purgeTrash,
+      tripRoutes,
+      saveTripRoute,
+      deleteTripRoute,
       users,
       stages,
       tickets,
@@ -2197,6 +2239,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       trash,
       restoreFromTrash,
       purgeTrash,
+      tripRoutes,
+      saveTripRoute,
+      deleteTripRoute,
       roles,
       saveRole,
       deleteRole,

@@ -1,4 +1,4 @@
-import type { Announcement, AppSettings, Branch, Category, Lesson, Track, ResponseTemplate, RoleDef, PageKey, Stage, TariffSettings, User } from '../types';
+import type { Announcement, AppSettings, Branch, Category, Lesson, Track, ResponseTemplate, RoleDef, PageKey, Stage, TariffSettings, TripRoute, User } from '../types';
 
 const ALL_PAGES: PageKey[] = [
   'dashboard', 'leads', 'pipeline', 'tickets', 'calls', 'cargo', 'warehouse',
@@ -450,4 +450,12 @@ export const seedLessons: Lesson[] = [
         { id: 'c', text: 'Faqat dushanba kuni' },
       ], correctOptionId: 'a' },
     ]),
+];
+
+// Reyslar (yo'nalishlar) — operator mijozga "qachon keladi" deganda foydalanadi
+export const seedTripRoutes: TripRoute[] = [
+  { id: 'route-guangzhou-tas-air',  name: 'Guanchjou → Toshkent (aviadan)',     durationDays: 7,  order: 0, active: true, createdAt: T0, notes: 'Tezkor — eng arzon emas' },
+  { id: 'route-guangzhou-tas-land', name: 'Guanchjou → Toshkent (quruqlikdan)', durationDays: 18, order: 1, active: true, createdAt: T0, notes: 'Sekinroq, arzonroq' },
+  { id: 'route-yiwu-tas',           name: 'Iv → Toshkent',                       durationDays: 22, order: 2, active: true, createdAt: T0 },
+  { id: 'route-urumchi-tas',        name: 'Urumchi → Toshkent',                  durationDays: 10, order: 3, active: true, createdAt: T0 },
 ];

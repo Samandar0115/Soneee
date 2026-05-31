@@ -4,6 +4,7 @@ import {
   MapPin,
   Coins,
   Calculator,
+  Truck,
   Plus,
   Pencil,
   Trash2,
@@ -27,11 +28,12 @@ import type {
   Branch,
   Region,
   TariffSettings,
+  TripRoute,
 } from '../types';
 import { formatDateTime, randomId, timeAgo } from '../utils/format';
 import { REGIONS, regionName, regionIcon } from '../utils/regions';
 
-type Tab = 'announcements' | 'branches' | 'tariff' | 'calc';
+type Tab = 'announcements' | 'branches' | 'routes' | 'tariff' | 'calc';
 
 const CAT_META: Record<AnnouncementCategory, { label: string; color: string; icon: string }> = {
   'china-uzb': { label: 'Xitoy → Uzb', color: '#ef4444', icon: '🇨🇳' },
@@ -48,6 +50,7 @@ export default function Knowledge() {
   const tabs: { key: Tab; label: string; icon: typeof Megaphone }[] = [
     { key: 'announcements', label: 'E’lonlar', icon: Megaphone },
     { key: 'branches', label: 'Filiallar', icon: MapPin },
+    { key: 'routes', label: 'Reyslar', icon: Truck },
     { key: 'tariff', label: 'Tariflar', icon: Coins },
     { key: 'calc', label: 'Yuk kalkulyatori', icon: Calculator },
   ];
@@ -95,6 +98,7 @@ export default function Knowledge() {
           {tab === 'announcements' && <AnnouncementsTab isAdmin={isAdmin} />}
           {tab === 'branches' && <BranchesTab isAdmin={isAdmin} />}
           {tab === 'tariff' && <TariffTab isAdmin={isAdmin} />}
+          {tab === 'routes' && <RoutesTab isAdmin={isAdmin} />}
           {tab === 'calc' && <CalculatorTab />}
         </motion.div>
       </AnimatePresence>
@@ -1095,6 +1099,146 @@ function Stat({ label, value, tone }: { label: string; value: string; tone?: 'wi
         }`}
       >
         {value}
+      </div>
+    </div>
+  );
+}
+
+/* ============================= REYSLAR ============================= */
+
+function RoutesTab({ isAdmin }: { isAdmin: boolean }) {
+  const { tripRoutes, saveTripRoute, deleteTripRoute } = useApp();
+  const [editing, setEditing] = useState<TripRoute | null>(null);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayMs = today.getTime();
+
+  const visible = [...tripRoutes].filter((r) => isAdmin || r.active).sort((a, b) => a.order - b.order);
+
+  function blank(): TripRoute {
+    return { id: randomId('route'), name: '', durationDays: 14, active: true, order: tripRoutes.length, createdAt: Date.now() };
+  }
+
+  function fmtDate(d?: string) {
+    if (!d) return '—';
+    const dt = new Date(d + 'T00:00:00');
+    return dt.toLocaleDateString('uz-UZ', { day: '2-digit', month: 'long', year: 'numeric' });
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
+        <p className="text-sm text-slate-500">
+          Mijoz "qachon keladi?" deganda — shu yerga qarang. Oxirgi partiya sanasi va reys davomiyligiga qarab keyingi taxminiy sana avtomatik hisoblanadi.
+        </p>
+        {isAdmin && (
+          <button onClick={() => setEditing(blank())} className="btn-primary text-sm">
+            + Reys qo'shish
+          </button>
+        )}
+      </div>
+
+      <div className="grid sm:grid-cols-2 gap-3">
+        {visible.length === 0 && (
+          <div className="card p-8 text-center text-slate-500 sm:col-span-2">Reys yo'q.</div>
+        )}
+        {visible.map((r) => {
+          let arrived = '—', daysAgo: number | null = null, nextEta = '—', daysLeft: number | null = null;
+          if (r.lastArrivedDate) {
+            const last = new Date(r.lastArrivedDate + 'T00:00:00').getTime();
+            daysAgo = Math.max(0, Math.round((todayMs - last) / 86400000));
+            arrived = `${fmtDate(r.lastArrivedDate)} (${daysAgo} kun oldin)`;
+            const next = last + r.durationDays * 86400000;
+            daysLeft = Math.round((next - todayMs) / 86400000);
+            nextEta = `${fmtDate(new Date(next).toISOString().slice(0, 10))} (${daysLeft > 0 ? daysLeft + ' kundan keyin' : Math.abs(daysLeft) + ' kun oldin kutilgan'})`;
+          }
+          return (
+            <div key={r.id} className={`card p-5 ${!r.active ? 'opacity-60' : ''}`}>
+              <div className="flex items-start gap-2 mb-2">
+                <div className="flex-1 min-w-0">
+                  <div className="font-bold text-slate-800 dark:text-white text-base truncate">{r.name}</div>
+                  <div className="text-[12px] text-slate-500">~ {r.durationDays} kunda keladi</div>
+                </div>
+                {!r.active && <span className="text-[10px] uppercase px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-500">yashirin</span>}
+                {isAdmin && (
+                  <button onClick={() => setEditing(r)} className="text-xs text-brand-600 hover:underline">tahrirlash</button>
+                )}
+              </div>
+              <div className="space-y-1.5 mt-3">
+                <Row label="Oxirgi partiya" value={arrived} />
+                <Row label="Keyingi (taxminan)" value={nextEta} highlight={daysLeft !== null && daysLeft <= 3 && daysLeft >= 0} />
+                {r.notes && <Row label="Izoh" value={r.notes} />}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {editing && (
+        <RouteEditor
+          route={editing}
+          onClose={() => setEditing(null)}
+          onSave={async (r) => {
+            if (!r.name.trim()) { toast.error('Nomi kerak'); return; }
+            try { await saveTripRoute(r); toast.success('Saqlandi'); setEditing(null); } catch (e) { toast.error((e as Error).message); }
+          }}
+          onDelete={async () => {
+            if (!confirm(`"${editing.name}" reysi o'chirilsinmi?`)) return;
+            await deleteTripRoute(editing.id);
+            toast.success("O'chirildi");
+            setEditing(null);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function Row({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
+  return (
+    <div className={`flex items-baseline gap-2 text-sm ${highlight ? 'text-emerald-700 dark:text-emerald-400 font-semibold' : ''}`}>
+      <span className="text-[11px] uppercase tracking-wide text-slate-400 w-32 flex-shrink-0">{label}</span>
+      <span className="flex-1">{value}</span>
+    </div>
+  );
+}
+
+function RouteEditor({ route, onClose, onSave, onDelete }: { route: TripRoute; onClose: () => void; onSave: (r: TripRoute) => void; onDelete: () => void }) {
+  const [d, setD] = useState(route);
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+      <div className="w-full max-w-md rounded-2xl bg-white dark:bg-slate-900 shadow-2xl">
+        <div className="p-5 border-b border-slate-100 dark:border-slate-800 font-bold text-slate-800 dark:text-white">Reys</div>
+        <div className="p-5 space-y-3">
+          <div>
+            <label className="label">Nomi</label>
+            <input className="input mt-1" value={d.name} onChange={(e) => setD({ ...d, name: e.target.value })} placeholder="Guanchjou → Toshkent (aviadan)" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="label">Necha kunda keladi</label>
+              <input type="number" min={1} className="input mt-1" value={d.durationDays} onChange={(e) => setD({ ...d, durationDays: Math.max(1, parseInt(e.target.value) || 1) })} />
+            </div>
+            <div>
+              <label className="label">Oxirgi partiya sanasi</label>
+              <input type="date" className="input mt-1" value={d.lastArrivedDate ?? ''} onChange={(e) => setD({ ...d, lastArrivedDate: e.target.value || undefined })} />
+            </div>
+          </div>
+          <div>
+            <label className="label">Izoh (ixtiyoriy)</label>
+            <input className="input mt-1" value={d.notes ?? ''} onChange={(e) => setD({ ...d, notes: e.target.value })} />
+          </div>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={d.active} onChange={(e) => setD({ ...d, active: e.target.checked })} /> Faol
+          </label>
+        </div>
+        <div className="flex justify-between gap-2 p-5 border-t border-slate-100 dark:border-slate-800">
+          <button onClick={onDelete} className="text-sm text-rose-500 hover:underline">O'chirish</button>
+          <div className="flex gap-2">
+            <button onClick={onClose} className="btn-ghost">Bekor</button>
+            <button onClick={() => onSave(d)} className="btn-primary">Saqlash</button>
+          </div>
+        </div>
       </div>
     </div>
   );

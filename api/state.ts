@@ -28,7 +28,7 @@ const COLLECTIONS = [
   'users', 'stages', 'tickets', 'categories', 'announcements',
   'branches', 'tariff', 'settings', 'templates', 'notifications',
   'callLogs', 'cargoShipments', 'leads', 'tracks', 'lessons', 'learnerProgress',
-  'profileChanges', 'roles', 'trash',
+  'profileChanges', 'roles', 'trash', 'tripRoutes',
 ] as const;
 
 type Collection = typeof COLLECTIONS[number];
