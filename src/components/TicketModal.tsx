@@ -331,9 +331,20 @@ export default function TicketModal({ open, onClose, ticket, prefill, onCreated 
                 })}
               </div>
               {categoryId && (
-                <div className="text-xs text-slate-500 mt-1.5">
-                  {activeCategories.find((c) => c.id === categoryId)?.description}
-                </div>
+                <>
+                  <div className="text-xs text-slate-500 mt-1.5">
+                    {activeCategories.find((c) => c.id === categoryId)?.description}
+                  </div>
+                  <div className="mt-3">
+                    <label className="label">Mavzu izohi (qisqacha)</label>
+                    <input
+                      className="input mt-1"
+                      placeholder="Masalan: trek topilmadi, manzil noto'g'ri, yetkazib berishni kechiktirish..."
+                      value={details.topicNote ?? ''}
+                      onChange={(e) => setDetails((d) => ({ ...d, topicNote: e.target.value }))}
+                    />
+                  </div>
+                </>
               )}
             </div>
           )}

@@ -1429,22 +1429,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const saveAnnouncement = useCallback<AppState['saveAnnouncement']>(
     async (a) => {
       const next: Announcement = { ...a, updatedAt: Date.now() };
-      setAnnouncements((prev) => {
-        const exists = prev.some((x) => x.id === next.id);
-        const list = exists ? prev.map((x) => (x.id === next.id ? next : x)) : [next, ...prev];
-        return [...list].sort((x, y) => y.updatedAt - x.updatedAt);
-      });
+      const exists = announcements.some((x) => x.id === next.id);
+      const list = exists ? announcements.map((x) => (x.id === next.id ? next : x)) : [next, ...announcements];
+      const sorted = [...list].sort((x, y) => y.updatedAt - x.updatedAt);
+      setAnnouncements(sorted);
       await writeDoc('announcements', next.id, next);
+      await flushCollectionSave('announcements', sorted);
     },
-    [writeDoc]
+    [announcements, writeDoc, backend, kvConfigured, kvReady]
   );
 
   const deleteAnnouncement = useCallback<AppState['deleteAnnouncement']>(
     async (id) => {
-      setAnnouncements((prev) => prev.filter((a) => a.id !== id));
+      const next = announcements.filter((a) => a.id !== id);
+      setAnnouncements(next);
       await removeDoc('announcements', id);
+      await flushCollectionSave('announcements', next);
     },
-    [removeDoc]
+    [announcements, removeDoc, backend, kvConfigured, kvReady]
   );
 
   const saveBranch = useCallback<AppState['saveBranch']>(
@@ -1504,22 +1506,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const saveTemplate = useCallback<AppState['saveTemplate']>(
     async (tpl) => {
-      setTemplates((prev) => {
-        const exists = prev.some((x) => x.id === tpl.id);
-        const next = exists ? prev.map((x) => (x.id === tpl.id ? tpl : x)) : [...prev, tpl];
-        return next.sort((a, b) => a.order - b.order);
-      });
+      const exists = templates.some((x) => x.id === tpl.id);
+      const merged = exists ? templates.map((x) => (x.id === tpl.id ? tpl : x)) : [...templates, tpl];
+      const next = merged.sort((a, b) => a.order - b.order);
+      setTemplates(next);
       await writeDoc('templates', tpl.id, tpl);
+      await flushCollectionSave('templates', next);
     },
-    [writeDoc]
+    [templates, writeDoc, backend, kvConfigured, kvReady]
   );
 
   const deleteTemplate = useCallback<AppState['deleteTemplate']>(
     async (id) => {
-      setTemplates((prev) => prev.filter((t) => t.id !== id));
+      const next = templates.filter((t) => t.id !== id);
+      setTemplates(next);
       await removeDoc('templates', id);
+      await flushCollectionSave('templates', next);
     },
-    [removeDoc]
+    [templates, removeDoc, backend, kvConfigured, kvReady]
   );
 
   const pushNotification = useCallback<AppState['pushNotification']>((n) => {
