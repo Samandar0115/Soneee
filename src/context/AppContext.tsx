@@ -125,6 +125,7 @@ interface AppState {
   moveTicket: (id: string, stageId: string) => Promise<void>;
   resolveTicket: (id: string, resolution: string) => Promise<void>;
   deleteTicket: (id: string) => Promise<void>;
+  acceptTicket: (id: string) => Promise<void>;
   addAttachment: (ticketId: string, file: Attachment) => Promise<void>;
   removeAttachment: (ticketId: string, attachmentId: string) => Promise<void>;
   addNote: (ticketId: string, kind: 'internal' | 'public', text: string) => Promise<void>;
@@ -1155,6 +1156,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
           setNotifications((prev) => [fullNew, ...prev].slice(0, 200));
         }
       } catch { /* sezilmaydi */ }
+      // Yangi mas'ul operatorga bildirishnoma — "Sizga murojaat biriktirildi"
+      if (ticket.assigneeId && ticket.assigneeId !== currentUser?.id) {
+        const note: AppNotification = {
+          id: randomId('ntf'),
+          toUserId: ticket.assigneeId,
+          fromUserId: currentUser?.id,
+          fromUserName: currentUser?.fullName ?? currentUser?.username,
+          ticketId: ticket.id,
+          trackingNumber: ticket.trackingNumber,
+          type: 'assigned',
+          title: 'Sizga yangi murojaat biriktirildi',
+          body: `${ticket.customerName} (${ticket.customerPhone}). Trek: ${ticket.trackingNumber}. Qabul qilish uchun shu xabarni bosing.`,
+          createdAt: Date.now(),
+        };
+        setNotifications((prev) => [note, ...prev].slice(0, 200));
+      }
       return ticket;
     },
     [stages, users, tickets, settings, currentUser, writeDoc, backend, kvConfigured, kvReady]
@@ -1171,6 +1188,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const updateTicket = useCallback<AppState['updateTicket']>(
     async (id, patch, note) => {
+      const prev = tickets.find((t) => t.id === id);
       const nextTickets = tickets.map((t) => {
         if (t.id !== id) return t;
         let next = { ...t, ...patch, updatedAt: Date.now() } as Ticket;
@@ -1189,6 +1207,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const ok = await flushCollectionSave('tickets', nextTickets);
       if (!ok && backend === 'local' && kvConfigured) {
         throw new Error('Murojaat bazaga saqlanmadi');
+      }
+      // Mas'ul o'zgardimi va bu o'zimga emasmi — bildirishnoma
+      if (updated && patch.assigneeId !== undefined && patch.assigneeId !== prev?.assigneeId && updated.assigneeId && updated.assigneeId !== currentUser?.id) {
+        const ntf: AppNotification = {
+          id: randomId('ntf'),
+          toUserId: updated.assigneeId,
+          fromUserId: currentUser?.id,
+          fromUserName: currentUser?.fullName ?? currentUser?.username,
+          ticketId: updated.id,
+          trackingNumber: updated.trackingNumber,
+          type: 'assigned',
+          title: 'Sizga murojaat biriktirildi',
+          body: `${updated.customerName} (${updated.customerPhone}). Trek: ${updated.trackingNumber}. Qabul qilish uchun shu xabarni bosing.`,
+          createdAt: Date.now(),
+        };
+        setNotifications((prev) => [ntf, ...prev].slice(0, 200));
       }
     },
     [tickets, currentUser, writeDoc, backend, kvConfigured, kvReady]
@@ -1259,6 +1293,43 @@ export function AppProvider({ children }: { children: ReactNode }) {
       await flushCollectionSave('tickets', next);
     },
     [tickets, removeDoc, moveToTrash, backend, kvConfigured, kvReady]
+  );
+
+  // Mas'ul "qabul qildim" bosadi — biriktiruvchiga bildirishnoma
+  const acceptTicket = useCallback<AppState['acceptTicket']>(
+    async (id) => {
+      if (!currentUser) return;
+      const t = tickets.find((x) => x.id === id);
+      if (!t) return;
+      if (t.assigneeId !== currentUser.id) throw new Error('Bu sizga biriktirilmagan');
+      if (t.acceptedAt) return; // Avval qabul qilingan
+      const now = Date.now();
+      const nextTickets = tickets.map((x) => x.id === id ? appendHistory(
+        { ...x, acceptedAt: now, acceptedBy: currentUser.id, updatedAt: now },
+        { actorId: currentUser.id, actorName: currentUser.fullName ?? currentUser.username, action: 'Qabul qilindi' }
+      ) : x);
+      setTickets(nextTickets);
+      await flushCollectionSave('tickets', nextTickets);
+      // Mas'ulni biriktirgan operatorga bildirishnoma
+      const assignerNote = t.history.find((h) => h.action.includes('biriktirildi') || h.action.includes('Ticket yaratildi'));
+      const toUserId = assignerNote?.actorId || t.createdBy;
+      if (toUserId && toUserId !== currentUser.id) {
+        const ntf: AppNotification = {
+          id: randomId('ntf'),
+          toUserId,
+          fromUserId: currentUser.id,
+          fromUserName: currentUser.fullName ?? currentUser.username,
+          ticketId: t.id,
+          trackingNumber: t.trackingNumber,
+          type: 'system',
+          title: 'Murojaat qabul qilindi',
+          body: `${currentUser.fullName ?? currentUser.username} ${t.trackingNumber} murojaatini qabul qildi.`,
+          createdAt: now,
+        };
+        setNotifications((prev) => [ntf, ...prev].slice(0, 200));
+      }
+    },
+    [tickets, currentUser, backend, kvConfigured, kvReady]
   );
 
   const saveUser = useCallback<AppState['saveUser']>(
@@ -2205,6 +2276,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       moveTicket,
       resolveTicket,
       deleteTicket,
+      acceptTicket,
       addAttachment,
       removeAttachment,
       addNote,
@@ -2305,6 +2377,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       moveTicket,
       resolveTicket,
       deleteTicket,
+      acceptTicket,
       addAttachment,
       removeAttachment,
       addNote,

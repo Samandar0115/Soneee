@@ -60,6 +60,7 @@ export default function TicketModal({ open, onClose, ticket, prefill, onCreated 
     removeAttachment,
     addNote,
     notifyCallback,
+    acceptTicket,
     settings,
   } = useApp();
 
@@ -1193,6 +1194,26 @@ export default function TicketModal({ open, onClose, ticket, prefill, onCreated 
             <button onClick={handleSave} className="btn-primary">
               {isEdit ? 'Saqlash' : 'Murojaat yaratish'}
             </button>
+            {isEdit && ticket && ticket.assigneeId === currentUser?.id && !ticket.acceptedAt && (
+              <button
+                onClick={async () => {
+                  try {
+                    await acceptTicket(ticket.id);
+                    toast.success('Qabul qildingiz ✓');
+                  } catch (e) {
+                    toast.error((e as Error).message);
+                  }
+                }}
+                className="btn-primary bg-emerald-600 hover:bg-emerald-500"
+              >
+                ✓ Qabul qildim
+              </button>
+            )}
+            {isEdit && ticket?.acceptedAt && (
+              <div className="text-xs text-emerald-600 dark:text-emerald-400 text-center">
+                ✓ Qabul qilingan ({new Date(ticket.acceptedAt).toLocaleString('uz')})
+              </div>
+            )}
             {isEdit && currentUser?.role === 'admin' && (
               <button onClick={handleDelete} className="btn-danger">
                 <Trash2 className="h-4 w-4" /> O'chirish

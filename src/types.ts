@@ -97,6 +97,8 @@ export interface Ticket {
   rating?: CustomerRating;
   slaDueAt?: number;
   firstResponseAt?: number;
+  acceptedAt?: number;        // mas'ul "qabul qildim" bosgan vaqt
+  acceptedBy?: string;        // qaysi xodim qabul qildi
   misroute?: MisrouteDetails;
   warehouseTracks?: WarehouseTrack[];
 }
