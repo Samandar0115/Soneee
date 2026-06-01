@@ -353,12 +353,44 @@ export default function TicketModal({ open, onClose, ticket, prefill, onCreated 
                     </div>
                     <div>
                       <label className="label">Kimning nomidan zayavka qilish kerak</label>
-                      <input
+                      <select
                         className="input mt-1"
-                        placeholder="Masalan: Buvajonov nomidan"
                         value={details.orderedBy ?? ''}
-                        onChange={(e) => setDetails((d) => ({ ...d, orderedBy: e.target.value }))}
-                      />
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          if (v === '__customer__') {
+                            // Mijoz nomidan — pastdagi mijoz ismi/telefonidan olinadi (avto)
+                            setDetails((d) => ({
+                              ...d,
+                              orderedBy: customerName || 'Mijoz nomidan',
+                              orderedByPhone: customerPhone,
+                              orderedByFromCustomer: '1',
+                            }));
+                          } else if (!v) {
+                            setDetails((d) => ({ ...d, orderedBy: '', orderedByPhone: '', orderedByFromCustomer: '' }));
+                          } else {
+                            const ord = (settings.orderers ?? []).find((o) => o.name === v);
+                            setDetails((d) => ({
+                              ...d,
+                              orderedBy: v,
+                              orderedByPhone: ord?.phone ?? '',
+                              orderedByFromCustomer: '',
+                            }));
+                          }
+                        }}
+                      >
+                        <option value="">— Tanlang —</option>
+                        <option value="__customer__">👤 Mijoz nomidan</option>
+                        {(settings.orderers ?? []).map((o) => (
+                          <option key={o.id} value={o.name}>{o.name}</option>
+                        ))}
+                      </select>
+                      {(details.orderedByPhone || (details.orderedByFromCustomer && customerPhone)) && (
+                        <div className="text-[11px] text-slate-500 mt-1">
+                          📞 {details.orderedByFromCustomer ? customerPhone : details.orderedByPhone}
+                          {details.orderedByFromCustomer && customerName && ` · ${customerName}`}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </>
@@ -391,35 +423,6 @@ export default function TicketModal({ open, onClose, ticket, prefill, onCreated 
               <input className="input mt-1" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} />
             </div>
             <div>
-              <label className="label">Aloqa kanali</label>
-              <select className="input mt-1" value={channel} onChange={(e) => setChannel(e.target.value)}>
-                <option>Telefon</option>
-                <option>Telegram</option>
-                <option>WhatsApp</option>
-                <option>Web</option>
-                <option>Instagram</option>
-              </select>
-            </div>
-            <div>
-              <label className="label">Muhimlik</label>
-              <select className="input mt-1" value={priority} onChange={(e) => setPriority(e.target.value as NonNullable<Ticket['priority']>)}>
-                <option value="low">Past</option>
-                <option value="normal">Oddiy</option>
-                <option value="high">Yuqori</option>
-                <option value="urgent">Shoshilinch</option>
-              </select>
-            </div>
-            <div>
-              <label className="label">Bosqich</label>
-              <select className="input mt-1" value={stageId} onChange={(e) => setStageId(e.target.value)}>
-                {stages.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
               <label className="label">Mas'ul operator</label>
               <select className="input mt-1" value={assigneeId} onChange={(e) => setAssigneeId(e.target.value)}>
                 <option value="">— Tanlanmagan —</option>
@@ -430,11 +433,48 @@ export default function TicketModal({ open, onClose, ticket, prefill, onCreated 
                 ))}
               </select>
             </div>
+            {/* Qo'shimcha sozlamalar (yashirin, kerak bo'lganda ochiladi) */}
+            <details className="col-span-2 mt-1">
+              <summary className="cursor-pointer text-xs text-slate-500 hover:text-brand-600 select-none">
+                ▸ Qo'shimcha (aloqa kanali, muhimlik, bosqich)
+              </summary>
+              <div className="grid grid-cols-2 gap-3 mt-3">
+                <div>
+                  <label className="label">Aloqa kanali</label>
+                  <select className="input mt-1" value={channel} onChange={(e) => setChannel(e.target.value)}>
+                    <option>Telefon</option>
+                    <option>Telegram</option>
+                    <option>WhatsApp</option>
+                    <option>Web</option>
+                    <option>Instagram</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="label">Muhimlik</label>
+                  <select className="input mt-1" value={priority} onChange={(e) => setPriority(e.target.value as NonNullable<Ticket['priority']>)}>
+                    <option value="low">Past</option>
+                    <option value="normal">Oddiy</option>
+                    <option value="high">Yuqori</option>
+                    <option value="urgent">Shoshilinch</option>
+                  </select>
+                </div>
+                <div className="col-span-2">
+                  <label className="label">Bosqich</label>
+                  <select className="input mt-1" value={stageId} onChange={(e) => setStageId(e.target.value)}>
+                    {stages.map((s) => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </details>
           </div>
 
           {currentStage && currentStage.fields.length > 0 && (
-            <div className="rounded-xl border border-slate-200 p-4">
-              <div className="label mb-2">Bosqich maydonlari — {currentStage.name}</div>
+            <details className="rounded-xl border border-slate-200 p-4">
+              <summary className="label mb-2 cursor-pointer hover:text-brand-600 select-none">
+                ▸ Bosqich maydonlari — {currentStage.name}
+              </summary>
               <div className="grid grid-cols-2 gap-3">
                 {currentStage.fields.map((f) => (
                   <div key={f.key} className={f.type === 'textarea' ? 'col-span-2' : ''}>
@@ -472,7 +512,7 @@ export default function TicketModal({ open, onClose, ticket, prefill, onCreated 
                   </div>
                 ))}
               </div>
-            </div>
+            </details>
           )}
 
           {isMisroute && (

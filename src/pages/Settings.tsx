@@ -6,7 +6,7 @@ import PageHeader from '../components/PageHeader';
 import { useApp } from '../context/AppContext';
 import { sipManager, type SipState } from '../utils/sip';
 import { sendTelegramMessage } from '../utils/telegram';
-import { Send } from 'lucide-react';
+import { Send, Users, Plus } from 'lucide-react';
 import type { AppSettings, SipConfig, TelegramConfig } from '../types';
 
 const DEFAULT_SIP: SipConfig = {
@@ -551,6 +551,71 @@ export default function SettingsPage() {
               <Send className="h-3.5 w-3.5" /> Test xabar yuborish
             </button>
             <span className="text-[11px] text-slate-400">Sozlamani avval saqlang (avto-saqlanadi), keyin test bosing.</span>
+          </div>
+        </div>
+
+        {/* === ZAYAVKA BERUVCHILAR === */}
+        <div className="card p-6 lg:col-span-2">
+          <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+            <div className="flex items-center gap-2">
+              <Users className="h-5 w-5 text-brand-600" />
+              <h3 className="font-bold">Zayavka beruvchilar</h3>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                const list = draft.orderers ?? [];
+                setDraft({ ...draft, orderers: [...list, { id: 'ord-' + Date.now(), name: '', phone: '' }] });
+              }}
+              className="btn-ghost text-sm"
+            >
+              <Plus className="h-3.5 w-3.5" /> Qo'shish
+            </button>
+          </div>
+          <p className="text-xs text-slate-500 mb-3">
+            Murojaat formasidagi "Kim nomidan zayavka" ro'yxati. Bu yerga qo'shgan ismlar
+            tanlovdan chiqadi va telefon avto-to'ldiriladi.
+          </p>
+
+          <div className="space-y-2">
+            {(draft.orderers ?? []).length === 0 && (
+              <p className="text-xs text-slate-400">Hozircha hech kim qo'shilmagan. "Qo'shish" tugmasini bosing.</p>
+            )}
+            {(draft.orderers ?? []).map((o, i) => (
+              <div key={o.id} className="flex gap-2 items-center">
+                <input
+                  className="input text-sm flex-1"
+                  placeholder="Ism familiya (masalan: Buvajonov Hamidjon)"
+                  value={o.name}
+                  onChange={(e) => {
+                    const list = [...(draft.orderers ?? [])];
+                    list[i] = { ...list[i], name: e.target.value };
+                    setDraft({ ...draft, orderers: list });
+                  }}
+                />
+                <input
+                  className="input text-sm w-44 font-mono"
+                  placeholder="+998..."
+                  value={o.phone}
+                  onChange={(e) => {
+                    const list = [...(draft.orderers ?? [])];
+                    list[i] = { ...list[i], phone: e.target.value };
+                    setDraft({ ...draft, orderers: list });
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    const list = (draft.orderers ?? []).filter((_, idx) => idx !== i);
+                    setDraft({ ...draft, orderers: list });
+                  }}
+                  className="p-2 rounded-lg text-rose-500 hover:bg-rose-50"
+                  title="O'chirish"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+            ))}
           </div>
         </div>
 
