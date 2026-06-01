@@ -60,6 +60,7 @@ export default function TicketModal({ open, onClose, ticket, prefill, onCreated 
     removeAttachment,
     addNote,
     notifyCallback,
+    settings,
   } = useApp();
 
   // Boshqa operatorga tegishli aktiv ticket ochilsa eslatma
@@ -481,6 +482,67 @@ export default function TicketModal({ open, onClose, ticket, prefill, onCreated 
                 <h4 className="font-bold text-amber-900 dark:text-amber-200">Yuk adashishi — qo'shimcha ma'lumotlar</h4>
               </div>
 
+              {/* Mas'ul kompaniya — bu shabolnni belgilaydi (EMU/BTS/Boshqa) */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+                <div>
+                  <label className="label">Mas'ul kompaniya <span className="text-rose-500">*</span></label>
+                  <select
+                    className="input mt-1"
+                    value={misroute.responsibleCompany ?? ''}
+                    onChange={(e) => setMisroute({ ...misroute, responsibleCompany: (e.target.value || undefined) as 'EMU' | 'BTS' | 'OTHER' })}
+                  >
+                    <option value="">— Tanlang —</option>
+                    <option value="EMU">EMU</option>
+                    <option value="BTS">BTS</option>
+                    <option value="OTHER">Boshqa</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="label">Kim nomidan zayavka</label>
+                  <select
+                    className="input mt-1"
+                    value={misroute.orderedBy ?? ''}
+                    onChange={(e) => {
+                      const nm = e.target.value;
+                      const ord = (settings.orderers ?? []).find((o) => o.name === nm);
+                      setMisroute({ ...misroute, orderedBy: nm || undefined, orderedByPhone: ord?.phone });
+                    }}
+                  >
+                    <option value="">— Tanlang —</option>
+                    {(settings.orderers ?? []).map((o) => (
+                      <option key={o.id} value={o.name}>{o.name}</option>
+                    ))}
+                  </select>
+                  {misroute.orderedByPhone && (
+                    <div className="text-[11px] text-slate-500 mt-1">📞 {misroute.orderedByPhone}</div>
+                  )}
+                </div>
+              </div>
+
+              {/* Bir nechta trek / ID lar (probel yoki yangi qator bilan ajratiladi) */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+                <div>
+                  <label className="label">Trek raqam(lar) <span className="text-slate-400">— bittadan ortiq bo'lsa</span></label>
+                  <textarea
+                    rows={2}
+                    className="input mt-1 font-mono text-xs"
+                    placeholder="Bir nechtasi bo'lsa probel yoki yangi qator bilan ajrating"
+                    value={misroute.trekList ?? ''}
+                    onChange={(e) => setMisroute({ ...misroute, trekList: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="label">Mijoz ID(lar) <span className="text-slate-400">— bittadan ortiq bo'lsa</span></label>
+                  <textarea
+                    rows={2}
+                    className="input mt-1 font-mono text-xs"
+                    placeholder="EMU... yoki BTS kodlar — probel/yangi qator"
+                    value={misroute.customerIdList ?? ''}
+                    onChange={(e) => setMisroute({ ...misroute, customerIdList: e.target.value })}
+                  />
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="rounded-xl border border-rose-200 dark:border-rose-800 bg-rose-50/50 dark:bg-rose-900/10 p-3">
                   <div className="font-semibold text-sm text-rose-700 dark:text-rose-300 mb-2 flex items-center gap-1.5">
@@ -563,9 +625,15 @@ export default function TicketModal({ open, onClose, ticket, prefill, onCreated 
                     />
                     <input
                       className="input text-sm"
-                      placeholder="Buyurtma kim nomida qilingan?"
-                      value={misroute.orderedBy ?? ''}
-                      onChange={(e) => setMisroute({ ...misroute, orderedBy: e.target.value })}
+                      placeholder="Filial / BTS tel raqami (manzil egasiniki)"
+                      value={misroute.destinationPhone ?? ''}
+                      onChange={(e) => setMisroute({ ...misroute, destinationPhone: e.target.value })}
+                    />
+                    <input
+                      className="input text-sm font-mono"
+                      placeholder="BTS kod yoki filial kodi (ixtiyoriy)"
+                      value={misroute.destinationCode ?? ''}
+                      onChange={(e) => setMisroute({ ...misroute, destinationCode: e.target.value })}
                     />
                   </div>
                 </div>

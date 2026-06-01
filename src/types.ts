@@ -144,6 +144,25 @@ export interface AppDataSnapshot {
   roles?: RoleDef[];
   trash?: TrashItem[];
   tripRoutes?: TripRoute[];
+  trekRequests?: TrekRequest[];
+}
+
+// Trek uzish / boshqa Mijoz ID ga birkitirish so'rovi
+export type TrekRequestType = 'detach' | 'attach';
+export type TrekRequestStatus = 'pending' | 'done' | 'cancelled';
+export interface TrekRequest {
+  id: string;
+  type: TrekRequestType;
+  treks: string[];              // trek raqamlari ro'yxati
+  wrongCustomerId?: string;     // (attach uchun) noto'g'ri ulangan Mijoz ID
+  correctCustomerId?: string;   // (attach uchun) to'g'ri ulanishi kerak ID
+  notes?: string;
+  status: TrekRequestStatus;
+  createdAt: number;
+  createdBy: string;
+  createdByName?: string;
+  doneAt?: number;
+  doneBy?: string;
 }
 
 // Reys (yo'nalish) — qaysi yo'nalishdan yuk necha kunda keladi va oxirgisi qachon keldi
@@ -395,6 +414,7 @@ export interface AppSettings {
   faceMatchThreshold: number;
   sip?: SipConfig;
   telegram?: TelegramConfig;
+  orderers?: Orderer[];   // zayavka beruvchi shaxslar ro'yxati (Buvajonov, ...)
   updatedAt: number;
 }
 
@@ -480,6 +500,8 @@ export type TrackingType =
   | 'MIJOZ-UYIGA'
   | 'OTHER';
 
+export type ResponsibleCompany = 'EMU' | 'BTS' | 'OTHER';
+
 export interface MisrouteDetails {
   wrongCustomerName?: string;
   wrongCustomerPhone?: string;
@@ -491,6 +513,19 @@ export interface MisrouteDetails {
   trackingType?: TrackingType;
   postalId?: string;
   orderedBy?: string;
+  orderedByPhone?: string;        // tanlangan zayavka beruvchining telefoni
+  responsibleCompany?: ResponsibleCompany;  // EMU / BTS / Boshqa — qaysi shablon
+  trekList?: string;              // bir nechta trek bo'lsa — chiziqlangan ro'yxat
+  customerIdList?: string;        // bir nechta ID bo'lsa
+  destinationPhone?: string;      // BTS / IPOST filial tel raqami
+  destinationCode?: string;       // BTS kod yoki shunga o'xshash
   notes?: string;
+}
+
+// Zayavka beruvchi — sozlamadan tanlanadi, telefoni avto to'ldiriladi
+export interface Orderer {
+  id: string;
+  name: string;     // "Buvajonov Hamidjon"
+  phone: string;    // "+998990280848"
 }
 

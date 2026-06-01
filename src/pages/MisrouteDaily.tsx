@@ -27,42 +27,142 @@ function directionOf(t: Ticket, categoryName?: string): string {
   return 'OTHER';
 }
 
-// Yuk adashishi (misroute) uchun — to'liq logistika shabloni
-function formatMisrouteTicket(t: Ticket, direction: string, branchPhone: string, operatorPhone: string): string {
+// Shabolnda joriy operator telefoni o'rniga (operator nomidan emas)
+// "kim nomidan" tanlangan shaxs telefonini ko'rsatamiz (bo'lmasa operator)
+function callerLine(m: NonNullable<Ticket['misroute']>, operatorPhone: string): string {
+  return m.orderedByPhone || operatorPhone || '—';
+}
+
+// EMU shabolni (EMU warehouse → BTS filial)
+function formatEMU(t: Ticket, branchPhone: string, operatorPhone: string): string {
+  const m = t.misroute ?? {};
+  const orderedBy = m.orderedBy || '—';
+  const fromWarehouse = m.wrongAddress || '—';
+  const trekList = m.trekList?.trim() || t.trackingNumber;
+  const customerPhone = m.correctCustomerPhone || t.customerPhone || '—';
+  const customerName = m.correctCustomerName || t.customerName || '—';
+  const customerId = m.customerIdList?.trim() || m.postalId || '—';
+  const btsAddress = m.correctAddress || '—';
+  const btsPhone = m.destinationPhone || '—';
+  const note = m.notes || t.details?.topicNote || '';
+
+  const lines = [
+    `Заказчик: ${COMPANY_NAME}`,
+    `${orderedBy} nomidan zayavka qilish kerak`,
+    callerLine(m, operatorPhone),
+    '',
+    'Товар олинадиган манзил:',
+    `EMU: ${fromWarehouse}`,
+    '',
+    'Trek raqam:',
+    trekList,
+    '',
+    'Олувчининг маълумотлари',
+    `Mijoz tel raqami: ${customerPhone}`,
+    `Mijoz ism familiyasi: ${customerName}`,
+    `Mijoz ID: ${customerId}`,
+    '',
+    '"EMU" orqali "BTS" FILIALI ga',
+    `BTS: ${btsAddress}`,
+    '',
+    `BTS tel: ${btsPhone}`,
+    '',
+    'ДО ОФИС',
+  ];
+  if (note) { lines.push(''); lines.push(`📝 ${note}`); }
+  return lines.join('\n');
+}
+
+// BTS shabolni (BTS filial → mijoz uyiga)
+function formatBTS(t: Ticket, branchPhone: string, operatorPhone: string): string {
+  const m = t.misroute ?? {};
+  const orderedBy = m.orderedBy || '—';
+  const fromWarehouse = m.wrongAddress || '—';
+  const trekList = m.trekList?.trim() || t.trackingNumber;
+  const btsCode = m.destinationCode || m.postalId || '—';
+  const btsPhone = m.destinationPhone || branchPhone || '—';
+  const customerPhone = m.correctCustomerPhone || t.customerPhone || '—';
+  const customerName = m.correctCustomerName || t.customerName || '—';
+  const customerId = m.customerIdList?.trim() || m.postalId || '—';
+  const customerAddress = m.correctAddress || '—';
+  const note = m.notes || t.details?.topicNote || '';
+
+  const lines = [
+    `заказчик:`,
+    `${orderedBy} nomidan zayavka qilish kerak`,
+    callerLine(m, operatorPhone),
+    '',
+    `Товар олинадиган манзил: Bts filiali: ${fromWarehouse}`,
+    '',
+    'Trek raqam:',
+    trekList,
+    '',
+    `Bts kod: ${btsCode}`,
+    '',
+    `Bts tel raqami: ${btsPhone}`,
+    '',
+    'Олувчининг маълумотлари',
+    '',
+    `Mijoz tel raqami: ${customerPhone}`,
+    '',
+    `Mijoz ism familiyasi: ${customerName}`,
+    '',
+    `Mijoz ID: ${customerId}`,
+    '',
+    `Mijoz manzili: Uygacha: ${customerAddress}`,
+    '',
+    `Bts filaldan Uygacha Bts orqali`,
+  ];
+  if (note) { lines.push(''); lines.push(`📝 ${note}`); }
+  return lines.join('\n');
+}
+
+// Standart misroute shabloni (Boshqa — IPOST FILIAL ga yetkazish)
+function formatGenericMisroute(t: Ticket, direction: string, branchPhone: string, operatorPhone: string): string {
   const m = t.misroute ?? {};
   const fromWarehouse = m.wrongAddress || '—';
   const fromPhone = branchPhone || '—';
+  const trekList = m.trekList?.trim() || t.trackingNumber;
   const customerName = m.correctCustomerName || t.customerName || '—';
   const customerPhone = m.correctCustomerPhone || t.customerPhone || '—';
-  const customerId = m.postalId || t.details?.customerId || '—';
+  const customerId = m.customerIdList?.trim() || m.postalId || '—';
   const toAddress = m.correctAddress || '—';
-  const toPhone = (t.details?.destinationPhone as string) || branchPhone || '—';
-  const orderedBy = m.orderedBy || (t.details?.orderedBy as string) || '—';
+  const toPhone = m.destinationPhone || branchPhone || '—';
+  const orderedBy = m.orderedBy || '—';
   const note = m.notes || t.details?.topicNote || '';
 
-  const lines: string[] = [];
-  lines.push(`Заказчик: ${COMPANY_NAME}`);
-  lines.push(`${orderedBy} nomidan zayavka qilish kerak`);
-  lines.push(`${operatorPhone || '—'}`);
-  lines.push('');
-  lines.push(`Товар олинадиган манзил: "${fromWarehouse}"`);
-  lines.push(`Filial tel raqami: ${fromPhone}`);
-  lines.push('');
-  lines.push(`Trek raqam: ${t.trackingNumber}`);
-  lines.push('');
-  lines.push('Олувчининг маълумотлари');
-  lines.push('');
-  lines.push(`Mijoz tel raqami: ${customerPhone}`);
-  lines.push('');
-  lines.push(`Mijoz ism familiyasi: ${customerName}`);
-  lines.push('');
-  lines.push(`Mijoz ID: ${customerId}`);
-  lines.push('');
-  lines.push(`"${fromWarehouse}dan" "IPOST FILIAL" ga yetkazish ${direction} orqali`);
-  lines.push(`Manzil: ${toAddress}`);
-  lines.push(`Filial tel raqami: ${toPhone}`);
+  const lines = [
+    `Заказчик: ${COMPANY_NAME}`,
+    `${orderedBy} nomidan zayavka qilish kerak`,
+    callerLine(m, operatorPhone),
+    '',
+    `Товар олинадиган манзил: "${fromWarehouse}"`,
+    `Filial tel raqami: ${fromPhone}`,
+    '',
+    `Trek raqam: ${trekList}`,
+    '',
+    'Олувчининг маълумотлари',
+    '',
+    `Mijoz tel raqami: ${customerPhone}`,
+    '',
+    `Mijoz ism familiyasi: ${customerName}`,
+    '',
+    `Mijoz ID: ${customerId}`,
+    '',
+    `"${fromWarehouse}dan" "IPOST FILIAL" ga yetkazish ${direction} orqali`,
+    `Manzil: ${toAddress}`,
+    `Filial tel raqami: ${toPhone}`,
+  ];
   if (note) { lines.push(''); lines.push(`📝 Izoh: ${note}`); }
   return lines.join('\n');
+}
+
+// Mas'ul kompaniyaga qarab to'g'ri shablonni tanlash
+function formatMisrouteTicket(t: Ticket, direction: string, branchPhone: string, operatorPhone: string): string {
+  const company = t.misroute?.responsibleCompany;
+  if (company === 'EMU') return formatEMU(t, branchPhone, operatorPhone);
+  if (company === 'BTS') return formatBTS(t, branchPhone, operatorPhone);
+  return formatGenericMisroute(t, direction, branchPhone, operatorPhone);
 }
 
 // Oddiy murojaat — qisqa format: trek + nima bolgani + qachon
@@ -202,24 +302,36 @@ export default function DailyTickets() {
     return lines.join('\n');
   }
 
+  // Bitta murojaat uchun chat ID — misroute bo'lsa responsibleCompany,
+  // aks holda direction, oxirida default
+  function chatFor(t: Ticket): string {
+    if (!tg) return '';
+    const company = t.misroute?.responsibleCompany;
+    if (company === 'EMU' && tg.emuChatId) return tg.emuChatId;
+    if (company === 'BTS' && tg.btsChatId) return tg.btsChatId;
+    const d = direction(t);
+    if (d === 'EMU' && tg.emuChatId) return tg.emuChatId;
+    if (d === 'BTS' && tg.btsChatId) return tg.btsChatId;
+    return tg.defaultChatId;
+  }
+
   // Har murojaatni alohida xabar qilib yuborish — boshida xulosa
   async function sendTelegram() {
     if (dayFiltered.length === 0) throw new Error('Yuborish uchun yozuv yo\'q');
     if (!tg?.enabled || !tg.botToken) throw new Error('Avval Sozlamalardan Telegram botni yoqing');
-    let chatId = tg.defaultChatId;
-    if (tab === 'EMU' && tg.emuChatId) chatId = tg.emuChatId;
-    else if (tab === 'BTS' && tg.btsChatId) chatId = tg.btsChatId;
-    if (!chatId) throw new Error('Chat ID Sozlamalarda kiritilmagan');
+    if (!tg.defaultChatId) throw new Error('Standart chat ID Sozlamalarda kiritilmagan');
 
-    // 1) Xulosa (yo'nalish bo'yicha sanoq)
-    const hdr = await sendTelegramMessage(tg.botToken, chatId, summaryHeader(dayFiltered));
+    // 1) Xulosa (default chatga)
+    const hdr = await sendTelegramMessage(tg.botToken, tg.defaultChatId, summaryHeader(dayFiltered));
     if (!hdr.ok) throw new Error(hdr.error || 'Telegram xatosi');
 
-    // 2) Har birini alohida
+    // 2) Har birini alohida — har birining mas'ul kompaniyasiga qarab to'g'ri chatga
     let sent = 0, failed = 0;
     for (const t of dayFiltered) {
+      const chat = chatFor(t);
+      if (!chat) { failed++; continue; }
       const text = formatTicket(t, direction(t), branchPhoneFor(t), operatorPhone);
-      const r = await sendTelegramMessage(tg.botToken, chatId, text);
+      const r = await sendTelegramMessage(tg.botToken, chat, text);
       if (r.ok) sent++; else failed++;
     }
     if (failed === 0) toast.success(`${sent} ta murojaat alohida yuborildi`);

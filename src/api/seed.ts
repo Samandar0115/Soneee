@@ -48,6 +48,9 @@ export const seedAppSettings: AppSettings = {
     botToken: '8613686825:AAGxhfEi6PG4rFi3-uyTx_QxXdcXzUfygUE',
     defaultChatId: '',
   },
+  orderers: [
+    { id: 'ord-buvajonov', name: 'Buvajonov Hamidjon', phone: '+998990280848' },
+  ],
   updatedAt: Date.now(),
 };
 
