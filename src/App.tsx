@@ -22,6 +22,7 @@ import ProfilePage from './pages/Profile';
 import RolesPage from './pages/Roles';
 import TrashPage from './pages/Trash';
 import MisrouteDailyPage from './pages/MisrouteDaily';
+import TrekRequestsPage from './pages/TrekRequests';
 import Track from './pages/Track';
 import GlobalSearch from './components/GlobalSearch';
 import KeyboardShortcuts from './components/KeyboardShortcuts';
@@ -104,6 +105,7 @@ export default function App() {
           <Route path="roles" element={<RequireManage><RolesPage /></RequireManage>} />
           <Route path="trash" element={<RequireManage><TrashPage /></RequireManage>} />
           <Route path="misroute-daily" element={<RequireManage><MisrouteDailyPage /></RequireManage>} />
+          <Route path="trek-requests" element={<Protected><TrekRequestsPage /></Protected>} />
           <Route path="stages" element={<RequireManage><StagesPage /></RequireManage>} />
           <Route path="categories" element={<RequireManage><CategoriesPage /></RequireManage>} />
           <Route path="settings" element={<RequireManage><SettingsPage /></RequireManage>} />

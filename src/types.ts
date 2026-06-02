@@ -160,11 +160,13 @@ export interface TrekRequest {
   correctCustomerId?: string;   // (attach uchun) to'g'ri ulanishi kerak ID
   notes?: string;
   status: TrekRequestStatus;
+  assignedAdminId?: string;     // mas'ul admin (kim hal qilishi kerak)
   createdAt: number;
   createdBy: string;
   createdByName?: string;
   doneAt?: number;
   doneBy?: string;
+  doneByName?: string;
 }
 
 // Reys (yo'nalish) — qaysi yo'nalishdan yuk necha kunda keladi va oxirgisi qachon keldi

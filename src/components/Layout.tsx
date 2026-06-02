@@ -26,6 +26,7 @@ import {
   Tags,
   Trash2,
   Truck,
+  Unplug,
   Ticket as TicketIcon,
   Users,
   Database,
@@ -158,6 +159,7 @@ export default function Layout() {
     { to: '/warehouse', page: 'warehouse', label: 'Sklad navbati', icon: Warehouse },
     { to: '/knowledge', page: 'knowledge', label: t('nav.knowledge'), icon: BookOpen },
     { to: '/learn', page: 'learn', label: "O'quv markazi", icon: GraduationCap },
+    { to: '/trek-requests', page: 'tickets', label: "Trek tuzatish", icon: Unplug },
   ];
   const links = allLinks.filter((l) => can(l.page));
   const adminLinks = [
