@@ -342,7 +342,7 @@ export default function TicketModal({ open, onClose, ticket, prefill, onCreated 
                   <div className="text-xs text-slate-500 mt-1.5">
                     {activeCategories.find((c) => c.id === categoryId)?.description}
                   </div>
-                  <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className={`mt-3 grid grid-cols-1 ${isMisroute ? 'md:grid-cols-2' : ''} gap-3`}>
                     <div>
                       <label className="label">Mavzu izohi (qisqacha)</label>
                       <input
@@ -352,6 +352,7 @@ export default function TicketModal({ open, onClose, ticket, prefill, onCreated 
                         onChange={(e) => setDetails((d) => ({ ...d, topicNote: e.target.value }))}
                       />
                     </div>
+                    {isMisroute && (
                     <div>
                       <label className="label">Kimning nomidan zayavka qilish kerak</label>
                       <select
@@ -393,6 +394,7 @@ export default function TicketModal({ open, onClose, ticket, prefill, onCreated 
                         </div>
                       )}
                     </div>
+                    )}
                   </div>
                 </>
               )}

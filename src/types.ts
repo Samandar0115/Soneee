@@ -147,6 +147,24 @@ export interface AppDataSnapshot {
   trash?: TrashItem[];
   tripRoutes?: TripRoute[];
   trekRequests?: TrekRequest[];
+  complaints?: Complaint[];
+}
+
+// Shikoyat — xodimlar profilidan yuboriladi
+export type ComplaintDirection = 'IT' | 'Logistika' | 'Xitoy ombor' | "UZB ombor" | 'Boshqa';
+export type ComplaintStatus = 'pending' | 'done' | 'cancelled';
+export interface Complaint {
+  id: string;
+  direction: ComplaintDirection;
+  trek?: string;
+  note: string;
+  status: ComplaintStatus;
+  createdAt: number;
+  createdBy: string;
+  createdByName?: string;
+  doneAt?: number;
+  doneBy?: string;
+  doneByName?: string;
 }
 
 // Trek uzish / boshqa Mijoz ID ga birkitirish so'rovi

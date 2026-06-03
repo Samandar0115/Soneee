@@ -1,11 +1,23 @@
 import { useRef, useState } from 'react';
-import { Camera, KeyRound, Save, User as UserIcon, Upload, ShieldCheck } from 'lucide-react';
+import { Camera, KeyRound, Save, User as UserIcon, Upload, ShieldCheck, MessageSquareWarning, Send, CheckCircle2, Clock } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useApp } from '../context/AppContext';
+import AsyncButton from '../components/AsyncButton';
 import { compressImageDataUrl } from '../utils/image';
+import { sendTelegramMessage } from '../utils/telegram';
+import type { ComplaintDirection } from '../types';
+
+const COMPLAINT_DIRS: ComplaintDirection[] = ['IT', 'Logistika', 'Xitoy ombor', 'UZB ombor', 'Boshqa'];
 
 export default function Profile() {
-  const { currentUser, updateOwnProfile } = useApp();
+  const { currentUser, updateOwnProfile, complaints, createComplaint, resolveComplaint, perms, settings } = useApp();
+  const isAdmin = perms.manage;
+
+  const [cDir, setCDir] = useState<ComplaintDirection>('IT');
+  const [cTrek, setCTrek] = useState('');
+  const [cNote, setCNote] = useState('');
+
+  const myComplaints = (complaints ?? []).filter((c) => isAdmin || c.createdBy === currentUser?.id).sort((a, b) => b.createdAt - a.createdAt);
   const fileRef = useRef<HTMLInputElement | null>(null);
   const [photo, setPhoto] = useState<string | undefined>(currentUser?.photo);
   const [fullName, setFullName] = useState(currentUser?.fullName ?? '');
@@ -128,6 +140,122 @@ export default function Profile() {
             <Save className="h-4 w-4" /> {busy ? 'Saqlanmoqda...' : 'Saqlash'}
           </button>
         </div>
+      </div>
+
+      {/* === SHIKOYATLAR === */}
+      <div className="card p-6 mt-5">
+        <div className="flex items-center gap-2 mb-3">
+          <MessageSquareWarning className="h-5 w-5 text-rose-500" />
+          <h2 className="font-bold text-slate-800 dark:text-white">Shikoyatlar</h2>
+        </div>
+        <p className="text-xs text-slate-500 mb-4">
+          Ish davomida muammo bo'lsa shikoyat qoldiring — Telegram orqali kerakli bo'limga avtomatik yetkaziladi.
+        </p>
+
+        <div className="grid sm:grid-cols-2 gap-3 mb-3">
+          <div>
+            <label className="label">Yo'nalish</label>
+            <select className="input mt-1" value={cDir} onChange={(e) => setCDir(e.target.value as ComplaintDirection)}>
+              {COMPLAINT_DIRS.map((d) => <option key={d} value={d}>{d}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="label">Trek raqami <span className="text-slate-400">(ixtiyoriy)</span></label>
+            <input className="input mt-1 font-mono" value={cTrek} onChange={(e) => setCTrek(e.target.value)} placeholder="YT123..." />
+          </div>
+        </div>
+        <div>
+          <label className="label">Izoh <span className="text-rose-500">*</span></label>
+          <textarea
+            rows={3}
+            className="input mt-1"
+            placeholder="Muammoni qisqacha tushuntiring"
+            value={cNote}
+            onChange={(e) => setCNote(e.target.value)}
+          />
+        </div>
+
+        <AsyncButton
+          onClick={async () => {
+            if (!cNote.trim()) throw new Error('Izoh kerak');
+            const c = await createComplaint({
+              direction: cDir,
+              trek: cTrek.trim() || undefined,
+              note: cNote.trim(),
+            });
+            // Telegram'ga yuborish
+            const tg = settings.telegram;
+            if (tg?.enabled && tg.botToken && tg.defaultChatId) {
+              const txt = [
+                '⚠️ YANGI SHIKOYAT',
+                '━━━━━━━━━━━━━━━━━━━',
+                `Yo'nalish: ${c.direction}`,
+                `Operator: ${c.createdByName}`,
+                `Vaqt: ${new Date(c.createdAt).toLocaleString('uz')}`,
+                c.trek ? `Trek: ${c.trek}` : '',
+                '',
+                `Izoh: ${c.note}`,
+              ].filter(Boolean).join('\n');
+              await sendTelegramMessage(tg.botToken, tg.defaultChatId, txt);
+            }
+            setCTrek('');
+            setCNote('');
+            toast.success('Shikoyat yuborildi');
+          }}
+          className="btn-primary w-full mt-3"
+          loadingText="Yuborilmoqda..."
+        >
+          <Send className="h-4 w-4" /> Shikoyat yuborish
+        </AsyncButton>
+
+        {myComplaints.length > 0 && (
+          <div className="mt-5">
+            <div className="text-xs uppercase tracking-wider text-slate-500 font-semibold mb-2">
+              {isAdmin ? 'Barcha shikoyatlar' : 'Mening shikoyatlarim'} ({myComplaints.length})
+            </div>
+            <div className="space-y-2 max-h-96 overflow-y-auto scroll-thin">
+              {myComplaints.map((c) => (
+                <div key={c.id} className="border border-slate-200 dark:border-slate-700 rounded-xl p-3">
+                  <div className="flex items-center justify-between gap-2 flex-wrap mb-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] uppercase px-1.5 py-0.5 rounded bg-brand-100 dark:bg-brand-900/30 text-brand-700 dark:text-brand-300">
+                        {c.direction}
+                      </span>
+                      {c.status === 'pending' && (
+                        <span className="text-[10px] uppercase px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 inline-flex items-center gap-1">
+                          <Clock className="h-3 w-3" /> Kutilmoqda
+                        </span>
+                      )}
+                      {c.status === 'done' && (
+                        <span className="text-[10px] uppercase px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 inline-flex items-center gap-1">
+                          <CheckCircle2 className="h-3 w-3" /> Bajarildi
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-[11px] text-slate-400">{new Date(c.createdAt).toLocaleString('uz')}</div>
+                  </div>
+                  {c.trek && <div className="font-mono text-xs text-brand-600 dark:text-brand-400 mb-1">{c.trek}</div>}
+                  <div className="text-sm text-slate-700 dark:text-slate-200 whitespace-pre-wrap">{c.note}</div>
+                  <div className="flex items-center justify-between gap-2 mt-2 flex-wrap">
+                    <div className="text-[11px] text-slate-500">
+                      {c.createdByName ?? '—'}
+                      {c.status === 'done' && c.doneByName && ` · Bajardi: ${c.doneByName}`}
+                    </div>
+                    {isAdmin && c.status === 'pending' && (
+                      <AsyncButton
+                        onClick={() => resolveComplaint(c.id)}
+                        successToast="Bajarildi"
+                        className="px-2 py-1 rounded text-[11px] bg-emerald-600 hover:bg-emerald-500 text-white font-semibold"
+                      >
+                        ✓ Bajardim
+                      </AsyncButton>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

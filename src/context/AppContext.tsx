@@ -38,6 +38,7 @@ import type {
   TrashType,
   TripRoute,
   TrekRequest,
+  Complaint,
   CustomerRating,
   Lang,
   NotificationType,
@@ -115,6 +116,9 @@ interface AppState {
   createTrekRequest: (data: Omit<TrekRequest, 'id' | 'status' | 'createdAt' | 'createdBy' | 'createdByName'>) => Promise<TrekRequest>;
   resolveTrekRequest: (id: string) => Promise<void>;
   cancelTrekRequest: (id: string) => Promise<void>;
+  complaints: Complaint[];
+  createComplaint: (data: Omit<Complaint, 'id' | 'status' | 'createdAt' | 'createdBy' | 'createdByName'>) => Promise<Complaint>;
+  resolveComplaint: (id: string) => Promise<void>;
   kvConfigured: boolean;
   kvReady: boolean;
   lang: Lang;
@@ -209,6 +213,7 @@ const STORAGE_KEYS = {
   trash: 'ipost.trash',
   tripRoutes: 'ipost.tripRoutes',
   trekRequests: 'ipost.trekRequests',
+  complaints: 'ipost.complaints',
   userPhotos: 'ipost.userPhotos',
   lang: 'ipost.lang',
   theme: 'ipost.theme',
@@ -281,6 +286,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [trash, setTrash] = useState<TrashItem[]>([]);
   const [tripRoutes, setTripRoutes] = useState<TripRoute[]>(seedTripRoutes);
   const [trekRequests, setTrekRequests] = useState<TrekRequest[]>([]);
+  const [complaints, setComplaints] = useState<Complaint[]>([]);
   const [lang, setLangState] = useState<Lang>(() => (localStorage.getItem(STORAGE_KEYS.lang) as Lang) || 'uz');
   const [theme, setThemeState] = useState<'light' | 'dark'>(
     () => (localStorage.getItem(STORAGE_KEYS.theme) as 'light' | 'dark') || 'light'
@@ -420,6 +426,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setTrash(loadLocal<TrashItem[]>(STORAGE_KEYS.trash, []));
     setTripRoutes(loadLocal<TripRoute[]>(STORAGE_KEYS.tripRoutes, seedTripRoutes));
     setTrekRequests(loadLocal<TrekRequest[]>(STORAGE_KEYS.trekRequests, []));
+    setComplaints(loadLocal<Complaint[]>(STORAGE_KEYS.complaints, []));
     if (!localStorage.getItem(STORAGE_KEYS.tripRoutes)) saveLocal(STORAGE_KEYS.tripRoutes, seedTripRoutes);
     if (!localStorage.getItem(STORAGE_KEYS.roles)) saveLocal(STORAGE_KEYS.roles, seedRoles);
     if (!localStorage.getItem(STORAGE_KEYS.tracks)) saveLocal(STORAGE_KEYS.tracks, seedTracks);
@@ -540,6 +547,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (backend === 'local' && ready) saveLocal(STORAGE_KEYS.trekRequests, trekRequests);
   }, [trekRequests, backend, ready]);
 
+  useEffect(() => {
+    if (backend === 'local' && ready) saveLocal(STORAGE_KEYS.complaints, complaints);
+  }, [complaints, backend, ready]);
+
   /* ---------------- Session restore ---------------- */
   useEffect(() => {
     if (!ready) return;
@@ -569,7 +580,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const ALL_COLLECTIONS: CollectionName[] = [
     'users', 'stages', 'tickets', 'categories', 'announcements', 'branches',
     'tariff', 'settings', 'templates', 'notifications', 'callLogs', 'cargoShipments', 'leads',
-    'tracks', 'lessons', 'learnerProgress', 'profileChanges', 'roles', 'trash', 'tripRoutes', 'trekRequests',
+    'tracks', 'lessons', 'learnerProgress', 'profileChanges', 'roles', 'trash', 'tripRoutes', 'trekRequests', 'complaints',
   ];
 
   useEffect(() => {
@@ -628,6 +639,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           if (Array.isArray(d.trash)) setTrash(d.trash);
           if (Array.isArray(d.tripRoutes) && d.tripRoutes.length > 0) setTripRoutes(d.tripRoutes);
           if (Array.isArray(d.trekRequests)) setTrekRequests(d.trekRequests);
+          if (Array.isArray(d.complaints)) setComplaints(d.complaints);
         }
       } catch {
         // jim — fallback localStorage
@@ -742,6 +754,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => { scheduleCollectionSave('trash', trash); }, [trash, backend, kvReady, kvConfigured]);
   useEffect(() => { scheduleCollectionSave('tripRoutes', tripRoutes); }, [tripRoutes, backend, kvReady, kvConfigured]);
   useEffect(() => { scheduleCollectionSave('trekRequests', trekRequests); }, [trekRequests, backend, kvReady, kvConfigured]);
+  useEffect(() => { scheduleCollectionSave('complaints', complaints); }, [complaints, backend, kvReady, kvConfigured]);
 
   useEffect(() => {
     return () => {
@@ -774,6 +787,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => { pendingStateRef.current.trash = trash; }, [trash]);
   useEffect(() => { pendingStateRef.current.tripRoutes = tripRoutes; }, [tripRoutes]);
   useEffect(() => { pendingStateRef.current.trekRequests = trekRequests; }, [trekRequests]);
+  useEffect(() => { pendingStateRef.current.complaints = complaints; }, [complaints]);
 
   useEffect(() => {
     if (backend !== 'local' || !kvReady || !kvConfigured) return;
@@ -868,6 +882,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       case 'trash': return (v) => Array.isArray(v) && setTrash(v);
       case 'tripRoutes': return (v) => Array.isArray(v) && v.length > 0 && setTripRoutes(v);
       case 'trekRequests': return (v) => Array.isArray(v) && setTrekRequests(v);
+      case 'complaints': return (v) => Array.isArray(v) && setComplaints(v);
     }
   }
 
@@ -921,6 +936,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => { lastLocalChangeRef.current.trash = Date.now(); }, [trash]);
   useEffect(() => { lastLocalChangeRef.current.tripRoutes = Date.now(); }, [tripRoutes]);
   useEffect(() => { lastLocalChangeRef.current.trekRequests = Date.now(); }, [trekRequests]);
+  useEffect(() => { lastLocalChangeRef.current.complaints = Date.now(); }, [complaints]);
 
   // Meta polling — visibility-aware: tab aktiv bo'lganda har 15 sek, yashirin bo'lsa to'xtaydi.
   // Bu Vercel Fast Origin Transfer'ni ~80% kamaytiradi (avval 5s × doimiy edi).
@@ -1512,6 +1528,60 @@ export function AppProvider({ children }: { children: ReactNode }) {
       await flushCollectionSave('trekRequests', next);
     },
     [trekRequests, backend, kvConfigured, kvReady]
+  );
+
+  // === Shikoyatlar (xodim profilidan yuboriladi) ===
+  const createComplaint = useCallback<AppState['createComplaint']>(
+    async (data) => {
+      if (!currentUser) throw new Error('Kirish kerak');
+      const c: Complaint = {
+        ...data,
+        id: randomId('cmp'),
+        status: 'pending',
+        createdAt: Date.now(),
+        createdBy: currentUser.id,
+        createdByName: currentUser.fullName ?? currentUser.username,
+      };
+      const next = [c, ...complaints].slice(0, 5000);
+      setComplaints(next);
+      const ok = await flushCollectionSave('complaints', next);
+      if (!ok && backend === 'local' && kvConfigured) throw new Error('Saqlanmadi');
+      return c;
+    },
+    [complaints, currentUser, backend, kvConfigured, kvReady]
+  );
+
+  const resolveComplaint = useCallback<AppState['resolveComplaint']>(
+    async (id) => {
+      if (!currentUser) throw new Error('Kirish kerak');
+      const c = complaints.find((x) => x.id === id);
+      if (!c) return;
+      const now = Date.now();
+      const updated: Complaint = {
+        ...c,
+        status: 'done',
+        doneAt: now,
+        doneBy: currentUser.id,
+        doneByName: currentUser.fullName ?? currentUser.username,
+      };
+      const next = complaints.map((x) => x.id === id ? updated : x);
+      setComplaints(next);
+      await flushCollectionSave('complaints', next);
+      if (c.createdBy && c.createdBy !== currentUser.id) {
+        const ntf: AppNotification = {
+          id: randomId('ntf'),
+          toUserId: c.createdBy,
+          fromUserId: currentUser.id,
+          fromUserName: currentUser.fullName ?? currentUser.username,
+          type: 'system',
+          title: 'Shikoyatingiz hal qilindi',
+          body: `${c.direction} bo'yicha shikoyatingiz bajarildi.`,
+          createdAt: now,
+        };
+        setNotifications((prev) => [ntf, ...prev].slice(0, 200));
+      }
+    },
+    [complaints, currentUser, backend, kvConfigured, kvReady]
   );
 
   // === Rollar (admin) ===
@@ -2350,6 +2420,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       createTrekRequest,
       resolveTrekRequest,
       cancelTrekRequest,
+      complaints,
+      createComplaint,
+      resolveComplaint,
       users,
       stages,
       tickets,
@@ -2452,6 +2525,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       createTrekRequest,
       resolveTrekRequest,
       cancelTrekRequest,
+      complaints,
+      createComplaint,
+      resolveComplaint,
       roles,
       saveRole,
       deleteRole,
