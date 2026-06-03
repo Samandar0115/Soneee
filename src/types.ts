@@ -27,6 +27,7 @@ export interface Category {
   icon?: string;
   order: number;
   active: boolean;
+  fields?: StageField[];   // shu toifa tanlanganda murojaatda chiqadigan maydonlar
 }
 
 export interface User {

@@ -401,6 +401,43 @@ export default function TicketModal({ open, onClose, ticket, prefill, onCreated 
             </div>
           )}
 
+          {/* Toifaga moslashtirilgan maydonlar — admin Kategoriyalardan sozlaydi */}
+          {(() => {
+            const cat = activeCategories.find((c) => c.id === categoryId);
+            const fields = cat?.fields ?? [];
+            if (fields.length === 0) return null;
+            return (
+              <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-3">
+                <div className="label mb-2 text-xs">{cat?.icon ?? '📋'} {cat?.name} — qisqa ma'lumot</div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {fields.map((f) => (
+                    <div key={f.key} className={f.type === 'textarea' ? 'md:col-span-2' : ''}>
+                      <label className="label text-xs">
+                        {f.label}
+                        {f.required && <span className="text-rose-500"> *</span>}
+                      </label>
+                      {f.type === 'textarea' ? (
+                        <textarea
+                          rows={2}
+                          className="input mt-1 text-sm"
+                          value={details[f.key] ?? ''}
+                          onChange={(e) => setDetails((d) => ({ ...d, [f.key]: e.target.value }))}
+                        />
+                      ) : (
+                        <input
+                          className="input mt-1 text-sm"
+                          type={f.type === 'number' ? 'number' : f.type === 'phone' ? 'tel' : 'text'}
+                          value={details[f.key] ?? ''}
+                          onChange={(e) => setDetails((d) => ({ ...d, [f.key]: e.target.value }))}
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="label">Mijoz ismi</label>

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Plus, Trash2, Power, PowerOff } from 'lucide-react';
+import AsyncButton from '../components/AsyncButton';
 import toast from 'react-hot-toast';
 import { motion } from 'framer-motion';
 import PageHeader from '../components/PageHeader';
@@ -112,20 +113,22 @@ export default function CategoriesPage() {
                 <button onClick={() => startEdit(c)} className="btn-ghost flex-1 text-xs">
                   Tahrirlash
                 </button>
-                <button
+                <AsyncButton
                   onClick={() => toggleActive(c)}
                   title={c.active ? 'Faolsizlantirish' : 'Faollashtirish'}
                   className="p-2 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-600"
+                  loadingText="..."
                 >
                   {c.active ? <PowerOff className="h-4 w-4" /> : <Power className="h-4 w-4" />}
-                </button>
-                <button
+                </AsyncButton>
+                <AsyncButton
                   onClick={() => remove(c)}
                   title="O'chirish"
                   className="p-2 rounded-xl border border-rose-200 hover:bg-rose-50 text-rose-600"
+                  loadingText="..."
                 >
                   <Trash2 className="h-4 w-4" />
-                </button>
+                </AsyncButton>
               </div>
             </motion.div>
           );
@@ -243,6 +246,81 @@ export default function CategoriesPage() {
               <p className="text-[11px] text-slate-400 mt-1">
                 O'zingizning emoji yoki belgini ham kirita olasiz
               </p>
+            </div>
+
+            {/* MAYDONLAR — operator shu toifa tanlaganda chiqadigan kichik maydonlar */}
+            <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-3">
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <div className="text-sm font-semibold text-slate-800 dark:text-slate-200">To'ldiriladigan maydonlar</div>
+                  <div className="text-[11px] text-slate-500">Operator shu toifani tanlaganda chiqadi. Qisqa va aniq qiling.</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setEditing({
+                    ...editing,
+                    fields: [...(editing.fields ?? []), { key: 'f_' + Date.now(), label: '', type: 'text', required: false }],
+                  })}
+                  className="btn-ghost text-xs"
+                >
+                  <Plus className="h-3.5 w-3.5" /> Maydon
+                </button>
+              </div>
+              {(editing.fields ?? []).length === 0 && (
+                <p className="text-[11px] text-slate-400">Hozircha maydon yo'q. "+ Maydon" bossangiz qo'shiladi.</p>
+              )}
+              <div className="space-y-2">
+                {(editing.fields ?? []).map((f, i) => (
+                  <div key={f.key} className="flex gap-1.5 items-center flex-wrap">
+                    <input
+                      className="input text-xs flex-1 min-w-[140px]"
+                      placeholder="Maydon nomi"
+                      value={f.label}
+                      onChange={(e) => {
+                        const fields = [...(editing.fields ?? [])];
+                        fields[i] = { ...fields[i], label: e.target.value };
+                        setEditing({ ...editing, fields });
+                      }}
+                    />
+                    <select
+                      className="input text-xs w-28"
+                      value={f.type}
+                      onChange={(e) => {
+                        const fields = [...(editing.fields ?? [])];
+                        fields[i] = { ...fields[i], type: e.target.value as 'text' };
+                        setEditing({ ...editing, fields });
+                      }}
+                    >
+                      <option value="text">Matn</option>
+                      <option value="textarea">Uzun matn</option>
+                      <option value="number">Raqam</option>
+                      <option value="phone">Telefon</option>
+                    </select>
+                    <label className="flex items-center gap-1 text-[11px] text-slate-600">
+                      <input
+                        type="checkbox"
+                        checked={!!f.required}
+                        onChange={(e) => {
+                          const fields = [...(editing.fields ?? [])];
+                          fields[i] = { ...fields[i], required: e.target.checked };
+                          setEditing({ ...editing, fields });
+                        }}
+                      />
+                      Majburiy
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const fields = (editing.fields ?? []).filter((_, idx) => idx !== i);
+                        setEditing({ ...editing, fields });
+                      }}
+                      className="p-1 text-rose-500 hover:bg-rose-50 rounded"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
 
             <button onClick={save} className="btn-primary w-full">
