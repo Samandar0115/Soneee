@@ -211,18 +211,16 @@ function AnnouncementsTab({ isAdmin }: { isAdmin: boolean }) {
                     >
                       {a.active ? <PowerOff className="h-3.5 w-3.5" /> : <Power className="h-3.5 w-3.5" />}
                     </IconBtn>
-                    <IconBtn
+                    <AsyncButton
+                      onClick={() => deleteAnnouncement(a.id)}
+                      confirmText="E'lonni o'chirishni tasdiqlaysizmi?"
+                      successToast="O'chirildi"
                       title="O‘chirish"
-                      danger
-                      onClick={() => {
-                        if (confirm("E'lonni o'chirishni tasdiqlaysizmi?")) {
-                          deleteAnnouncement(a.id);
-                          toast.success("O'chirildi");
-                        }
-                      }}
+                      className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50"
+                      loadingText="..."
                     >
                       <Trash2 className="h-3.5 w-3.5" />
-                    </IconBtn>
+                    </AsyncButton>
                   </div>
                 )}
               </div>
@@ -1169,21 +1167,16 @@ function RoutesTab({ isAdmin }: { isAdmin: boolean }) {
                     >
                       <Pencil className="h-3.5 w-3.5" />
                     </button>
-                    <button
-                      onClick={async () => {
-                        if (!confirm(`"${r.name}" reysi o'chirilsinmi?`)) return;
-                        try {
-                          await deleteTripRoute(r.id);
-                          toast.success("O'chirildi");
-                        } catch (e) {
-                          toast.error((e as Error).message);
-                        }
-                      }}
+                    <AsyncButton
+                      onClick={() => deleteTripRoute(r.id)}
+                      confirmText={`"${r.name}" reysi o'chirilsinmi?`}
+                      successToast="O'chirildi"
                       className="p-1.5 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-900/20 text-rose-500"
                       title="O'chirish"
+                      loadingText="..."
                     >
                       <Trash2 className="h-3.5 w-3.5" />
-                    </button>
+                    </AsyncButton>
                   </div>
                 )}
               </div>

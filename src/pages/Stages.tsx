@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Plus, Trash2, GripVertical } from 'lucide-react';
 import toast from 'react-hot-toast';
+import AsyncButton from '../components/AsyncButton';
 import PageHeader from '../components/PageHeader';
 import Modal from '../components/Modal';
 import { useApp } from '../context/AppContext';
@@ -83,12 +84,14 @@ export default function StagesPage() {
             <div className="flex items-center gap-2">
               <span className="h-3 w-3 rounded-full" style={{ background: s.color }} />
               <div className="font-bold text-slate-800 flex-1">{s.name}</div>
-              <button
+              <AsyncButton
                 onClick={() => remove(s)}
+                title="O'chirish"
                 className="p-1.5 rounded-lg hover:bg-rose-50 text-rose-600"
+                loadingText="..."
               >
                 <Trash2 className="h-4 w-4" />
-              </button>
+              </AsyncButton>
             </div>
             <div className="text-xs text-slate-500 mt-1">
               {s.fields.length} ta dinamik maydon · tartib #{s.order}

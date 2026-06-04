@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Plus, Trash2, MessageSquare, Power, PowerOff } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { motion } from 'framer-motion';
+import AsyncButton from '../components/AsyncButton';
 import PageHeader from '../components/PageHeader';
 import Modal from '../components/Modal';
 import { useApp } from '../context/AppContext';
@@ -93,24 +94,24 @@ export default function TemplatesPage() {
               >
                 Tahrirlash
               </button>
-              <button
+              <AsyncButton
                 onClick={() => saveTemplate({ ...tpl, active: !tpl.active })}
                 className="p-2 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300"
                 title={tpl.active ? 'Faolsizlantirish' : 'Faollashtirish'}
+                loadingText="..."
               >
                 {tpl.active ? <PowerOff className="h-4 w-4" /> : <Power className="h-4 w-4" />}
-              </button>
-              <button
-                onClick={() => {
-                  if (confirm("Shablon o'chirilsinmi?")) {
-                    deleteTemplate(tpl.id);
-                    toast.success("O'chirildi");
-                  }
-                }}
+              </AsyncButton>
+              <AsyncButton
+                onClick={() => deleteTemplate(tpl.id)}
+                confirmText="Shablon o'chirilsinmi?"
+                successToast="O'chirildi"
                 className="p-2 rounded-xl border border-rose-200 dark:border-rose-800 hover:bg-rose-50 dark:hover:bg-rose-900/30 text-rose-600"
+                title="O'chirish"
+                loadingText="..."
               >
                 <Trash2 className="h-4 w-4" />
-              </button>
+              </AsyncButton>
             </div>
           </motion.div>
         ))}
