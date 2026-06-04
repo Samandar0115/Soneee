@@ -56,7 +56,7 @@ function exportCSV(rows: Ticket[], stages: Stage[], categories: Category[], user
 }
 
 export default function Tickets() {
-  const { tickets, stages, users, categories, currentUser, moveTicket, updateTicket, deleteTicket } = useApp();
+  const { tickets, stages, users, categories, currentUser, moveTicket, updateTicket, deleteTicket, resolveTicket } = useApp();
 
   const [searchParams, setSearchParams] = useSearchParams();
   const isAdminInit = useApp().currentUser?.role === 'admin';
@@ -247,6 +247,42 @@ export default function Tickets() {
     setSelected(new Set());
   }
 
+  async function bulkResolve() {
+    if (!selected.size) return;
+    const ids = [...selected].filter((id) => {
+      const t = scope.find((x) => x.id === id);
+      return t && t.status !== 'resolved';
+    });
+    if (ids.length === 0) {
+      toast.error('Tanlanganlar allaqachon hal qilingan');
+      return;
+    }
+    if (!confirm(`${ids.length} ta murojaat "Hal qilindi" deb belgilansinmi?`)) return;
+    for (const id of ids) {
+      await resolveTicket(id, 'Massaviy hal qilindi');
+    }
+    toast.success(`${ids.length} ta murojaat hal qilindi`);
+    setSelected(new Set());
+  }
+
+  async function bulkReopen() {
+    if (!selected.size) return;
+    const ids = [...selected].filter((id) => {
+      const t = scope.find((x) => x.id === id);
+      return t && t.status === 'resolved';
+    });
+    if (ids.length === 0) {
+      toast.error('Tanlanganlar allaqachon kutilmoqda');
+      return;
+    }
+    if (!confirm(`${ids.length} ta murojaat "Kutilmoqda" ga qaytarilsinmi?`)) return;
+    for (const id of ids) {
+      await updateTicket(id, { status: 'pending', resolvedAt: undefined }, 'Massaviy qayta ochildi');
+    }
+    toast.success(`${ids.length} ta murojaat qayta ochildi`);
+    setSelected(new Set());
+  }
+
   return (
     <div className="p-6 max-w-[1600px] mx-auto">
       <PageHeader
@@ -340,10 +376,26 @@ export default function Tickets() {
 
       {/* Bulk action bar */}
       {selected.size > 0 && (
-        <div className="card p-3 mb-3 flex items-center gap-3 flex-wrap bg-brand-50 dark:bg-brand-900/20 border-brand-200">
+        <div className="card p-3 mb-3 flex items-center gap-2 flex-wrap bg-brand-50 dark:bg-brand-900/20 border-brand-200">
           <span className="text-sm font-semibold text-brand-800 dark:text-brand-300">
             {selected.size} ta tanlangan
           </span>
+          <AsyncButton
+            onClick={bulkResolve}
+            className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold inline-flex items-center gap-1"
+            loadingText="Hal qilinmoqda..."
+            successToast=""
+          >
+            <CheckSquare className="h-3.5 w-3.5" /> Hal qilindi
+          </AsyncButton>
+          <AsyncButton
+            onClick={bulkReopen}
+            className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-white text-xs font-semibold inline-flex items-center gap-1"
+            loadingText="Qaytarilmoqda..."
+            successToast=""
+          >
+            <Calendar className="h-3.5 w-3.5" /> Kutilmoqda
+          </AsyncButton>
           <select
             className="input w-auto text-sm"
             onChange={(e) => {
