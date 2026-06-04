@@ -1423,12 +1423,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
         case 'cargo': { const n = [item.data as CargoShipment, ...cargoShipments]; setCargoShipments(n); void flushCollectionSave('cargoShipments', n); break; }
         case 'callLog': { const n = [item.data as CallLog, ...callLogs]; setCallLogs(n); void flushCollectionSave('callLogs', n); break; }
         case 'user': { void saveUser(item.data as User); break; }
+        case 'category': { const n = [...categories, item.data as Category].sort((a, b) => a.order - b.order); setCategories(n); void flushCollectionSave('categories', n); break; }
+        case 'stage': { const n = [...stages, item.data as Stage].sort((a, b) => a.order - b.order); setStages(n); void flushCollectionSave('stages', n); break; }
+        case 'announcement': { const n = [item.data as Announcement, ...announcements]; setAnnouncements(n); void flushCollectionSave('announcements', n); break; }
+        case 'branch': { const n = [...branches, item.data as Branch].sort((a, b) => a.order - b.order); setBranches(n); void flushCollectionSave('branches', n); break; }
+        case 'template': { const n = [...templates, item.data as ResponseTemplate].sort((a, b) => a.order - b.order); setTemplates(n); void flushCollectionSave('templates', n); break; }
+        case 'tripRoute': { const n = [...tripRoutes, item.data as TripRoute].sort((a, b) => a.order - b.order); setTripRoutes(n); void flushCollectionSave('tripRoutes', n); break; }
+        case 'complaint': { const n = [item.data as Complaint, ...complaints]; setComplaints(n); void flushCollectionSave('complaints', n); break; }
+        case 'trekRequest': { const n = [item.data as TrekRequest, ...trekRequests]; setTrekRequests(n); void flushCollectionSave('trekRequests', n); break; }
       }
       const restTrash = trash.filter((t) => t.id !== id);
       setTrash(restTrash);
       void flushCollectionSave('trash', restTrash);
     },
-    [trash, tickets, leads, cargoShipments, callLogs, saveUser, backend, kvConfigured, kvReady]
+    [trash, tickets, leads, cargoShipments, callLogs, saveUser, categories, stages, announcements, branches, templates, tripRoutes, complaints, trekRequests, backend, kvConfigured, kvReady]
   );
 
   // === Reyslar (Bilim bazasi → Reyslar) ===
@@ -1445,11 +1453,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const deleteTripRoute = useCallback<AppState['deleteTripRoute']>(
     async (id) => {
+      const r = tripRoutes.find((x) => x.id === id);
       const next = tripRoutes.filter((x) => x.id !== id);
       setTripRoutes(next);
       await flushCollectionSave('tripRoutes', next);
+      if (r) moveToTrash('tripRoute', [{ label: r.name, data: r }]);
     },
-    [tripRoutes, backend, kvConfigured, kvReady]
+    [tripRoutes, moveToTrash, backend, kvConfigured, kvReady]
   );
 
   // === Trek tuzatish so'rovlari (uzish / birkitirish) ===
@@ -1660,12 +1670,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const deleteStage = useCallback<AppState['deleteStage']>(
     async (id) => {
-      const next = stages.filter((s) => s.id !== id);
+      const s = stages.find((x) => x.id === id);
+      const next = stages.filter((x) => x.id !== id);
       setStages(next);
       await removeDoc('stages', id);
       await flushCollectionSave('stages', next);
+      if (s) moveToTrash('stage', [{ label: s.name, data: s }]);
     },
-    [stages, removeDoc, backend, kvConfigured, kvReady]
+    [stages, removeDoc, moveToTrash, backend, kvConfigured, kvReady]
   );
 
   const saveCategory = useCallback<AppState['saveCategory']>(
@@ -1685,12 +1697,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const deleteCategory = useCallback<AppState['deleteCategory']>(
     async (id) => {
-      const next = categories.filter((c) => c.id !== id);
+      const c = categories.find((x) => x.id === id);
+      const next = categories.filter((x) => x.id !== id);
       setCategories(next);
       await removeDoc('categories', id);
       await flushCollectionSave('categories', next);
+      if (c) moveToTrash('category', [{ label: c.name, data: c }]);
     },
-    [categories, removeDoc, backend, kvConfigured, kvReady]
+    [categories, removeDoc, moveToTrash, backend, kvConfigured, kvReady]
   );
 
   const saveAnnouncement = useCallback<AppState['saveAnnouncement']>(
@@ -1708,12 +1722,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const deleteAnnouncement = useCallback<AppState['deleteAnnouncement']>(
     async (id) => {
-      const next = announcements.filter((a) => a.id !== id);
+      const a = announcements.find((x) => x.id === id);
+      const next = announcements.filter((x) => x.id !== id);
       setAnnouncements(next);
       await removeDoc('announcements', id);
       await flushCollectionSave('announcements', next);
+      if (a) moveToTrash('announcement', [{ label: a.title || a.category, data: a }]);
     },
-    [announcements, removeDoc, backend, kvConfigured, kvReady]
+    [announcements, removeDoc, moveToTrash, backend, kvConfigured, kvReady]
   );
 
   const saveBranch = useCallback<AppState['saveBranch']>(
@@ -1731,12 +1747,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const deleteBranch = useCallback<AppState['deleteBranch']>(
     async (id) => {
-      const next = branches.filter((b) => b.id !== id);
+      const b = branches.find((x) => x.id === id);
+      const next = branches.filter((x) => x.id !== id);
       setBranches(next);
       await removeDoc('branches', id);
       await flushCollectionSave('branches', next);
+      if (b) moveToTrash('branch', [{ label: b.name, data: b }]);
     },
-    [branches, removeDoc, backend, kvConfigured, kvReady]
+    [branches, removeDoc, moveToTrash, backend, kvConfigured, kvReady]
   );
 
   const saveTariff = useCallback<AppState['saveTariff']>(
@@ -1785,12 +1803,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const deleteTemplate = useCallback<AppState['deleteTemplate']>(
     async (id) => {
-      const next = templates.filter((t) => t.id !== id);
+      const t = templates.find((x) => x.id === id);
+      const next = templates.filter((x) => x.id !== id);
       setTemplates(next);
       await removeDoc('templates', id);
       await flushCollectionSave('templates', next);
+      if (t) moveToTrash('template', [{ label: t.title, data: t }]);
     },
-    [templates, removeDoc, backend, kvConfigured, kvReady]
+    [templates, removeDoc, moveToTrash, backend, kvConfigured, kvReady]
   );
 
   const pushNotification = useCallback<AppState['pushNotification']>((n) => {

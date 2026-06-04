@@ -13,6 +13,14 @@ const TYPE_LABELS: Record<TrashType, string> = {
   cargo: 'Vozvrat yuk',
   callLog: "Qo'ng'iroq",
   user: 'Xodim',
+  category: 'Toifa',
+  stage: 'Bosqich',
+  announcement: "E'lon",
+  branch: 'Filial',
+  template: 'Shablon',
+  tripRoute: 'Reys',
+  complaint: 'Shikoyat',
+  trekRequest: "Trek so'rovi",
 };
 
 function buildRows(items: TrashItem[]) {
@@ -90,7 +98,7 @@ export default function Trash() {
       />
 
       <div className="flex flex-wrap items-center gap-2 mb-4">
-        {(['all', 'ticket', 'lead', 'cargo', 'callLog', 'user'] as const).map((f) => (
+        {(['all', 'ticket', 'lead', 'cargo', 'callLog', 'user', 'category', 'stage', 'announcement', 'branch', 'template', 'tripRoute', 'complaint', 'trekRequest'] as const).map((f) => (
           <button
             key={f}
             onClick={() => setFilter(f)}

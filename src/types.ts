@@ -202,7 +202,20 @@ export interface TripRoute {
 
 // O'chirilgan yozuvlar — hech narsa butunlay yo'qolmaydi. Admin tiklaydi yoki
 // Excel/CSV qilib yuklab, keyin bazadan butunlay o'chiradi.
-export type TrashType = 'ticket' | 'lead' | 'cargo' | 'callLog' | 'user';
+export type TrashType =
+  | 'ticket'
+  | 'lead'
+  | 'cargo'
+  | 'callLog'
+  | 'user'
+  | 'category'
+  | 'stage'
+  | 'announcement'
+  | 'branch'
+  | 'template'
+  | 'tripRoute'
+  | 'complaint'
+  | 'trekRequest';
 export interface TrashItem {
   id: string;
   type: TrashType;
