@@ -27,7 +27,11 @@ export default function TrekRequests() {
   const [correctId, setCorrectId] = useState('');
   const [attachAdmin, setAttachAdmin] = useState('');
 
-  const admins = useMemo(() => users.filter((u) => u.role === 'admin'), [users]);
+  // Mas'ul xodim — operator va o'quvchidan boshqa hamma (admin + maxsus rollar)
+  const responsibles = useMemo(
+    () => users.filter((u) => u.role !== 'operator' && u.role !== 'learner'),
+    [users]
+  );
   const isAdmin = perms.manage;
   const tg = settings.telegram;
 
@@ -150,11 +154,11 @@ export default function TrekRequests() {
             </div>
           </div>
           <div>
-            <label className="label">Mas'ul admin (ixtiyoriy)</label>
+            <label className="label">Mas'ul xodim (ixtiyoriy)</label>
             <select className="input mt-1" value={detachAdmin} onChange={(e) => setDetachAdmin(e.target.value)}>
               <option value="">— Hammasiga —</option>
-              {admins.map((u) => (
-                <option key={u.id} value={u.id}>{u.fullName ?? u.username}</option>
+              {responsibles.map((u) => (
+                <option key={u.id} value={u.id}>{u.fullName ?? u.username} ({u.role})</option>
               ))}
             </select>
           </div>
@@ -210,11 +214,11 @@ export default function TrekRequests() {
             />
           </div>
           <div>
-            <label className="label">Mas'ul admin (ixtiyoriy)</label>
+            <label className="label">Mas'ul xodim (ixtiyoriy)</label>
             <select className="input mt-1" value={attachAdmin} onChange={(e) => setAttachAdmin(e.target.value)}>
               <option value="">— Hammasiga —</option>
-              {admins.map((u) => (
-                <option key={u.id} value={u.id}>{u.fullName ?? u.username}</option>
+              {responsibles.map((u) => (
+                <option key={u.id} value={u.id}>{u.fullName ?? u.username} ({u.role})</option>
               ))}
             </select>
           </div>

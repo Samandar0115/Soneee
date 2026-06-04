@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { Plus, Trash2, ShieldAlert, Lock, Camera, ScanFace, CheckCircle2, Upload } from 'lucide-react';
 import toast from 'react-hot-toast';
+import AsyncButton from '../components/AsyncButton';
 import PageHeader from '../components/PageHeader';
 import Modal from '../components/Modal';
 import CameraCapture from '../components/CameraCapture';
@@ -216,7 +217,7 @@ export default function UsersPage() {
                     </div>
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <button
+                    <AsyncButton
                       onClick={() => remove(u)}
                       disabled={locked || u.id === currentUser?.id}
                       title={locked ? `Aktiv ${s.active} ta murojaat bor` : "O'chirish"}
@@ -225,9 +226,10 @@ export default function UsersPage() {
                           ? 'text-slate-300 cursor-not-allowed'
                           : 'hover:bg-rose-50 text-rose-600'
                       }`}
+                      loadingText="..."
                     >
                       {locked ? <Lock className="h-4 w-4" /> : <Trash2 className="h-4 w-4" />}
-                    </button>
+                    </AsyncButton>
                   </td>
                 </tr>
               );

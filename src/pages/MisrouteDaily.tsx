@@ -202,7 +202,7 @@ async function copy(text: string, msg = 'Nusxalandi') {
 }
 
 export default function DailyTickets() {
-  const { tickets, branches, categories, currentUser, settings } = useApp();
+  const { tickets, branches, categories, currentUser, settings, complaints } = useApp();
   const [date, setDate] = useState<string>(toYmd(new Date()));
   const [tab, setTab] = useState<string>('ALL');
 
@@ -216,6 +216,27 @@ export default function DailyTickets() {
       .filter((t) => t.createdAt >= start && t.createdAt <= end)
       .sort((a, b) => a.createdAt - b.createdAt);
   }, [tickets, date]);
+
+  // Kun ichidagi BARCHA shikoyatlar (guruh sendiga qo'shiladi)
+  const dayComplaints = useMemo(() => {
+    const { start, end } = dayBounds(date);
+    return (complaints ?? [])
+      .filter((c) => c.createdAt >= start && c.createdAt <= end)
+      .sort((a, b) => a.createdAt - b.createdAt);
+  }, [complaints, date]);
+
+  function formatComplaint(c: typeof dayComplaints[number]): string {
+    const time = new Date(c.createdAt).toLocaleString('uz', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+    const lines = [
+      `⚠️ SHIKOYAT — ${c.direction}`,
+      `   Vaqt: ${time}`,
+      `   Yuborgan: ${c.createdByName ?? '—'}`,
+    ];
+    if (c.trek) lines.push(`   Trek: ${c.trek}`);
+    lines.push(`   Izoh: ${c.note}`);
+    if (c.status === 'done') lines.push(`   ✅ Hal qilindi`);
+    return lines.join('\n');
+  }
 
   // Har birining yo'nalishi
   const direction = (t: Ticket) => {
@@ -299,6 +320,14 @@ export default function DailyTickets() {
     for (const [d, c] of sorted) {
       lines.push(`• ${d}: ${c} ta`);
     }
+    // Shikoyatlar — yo'nalish bo'yicha sanasi
+    if (dayComplaints.length > 0) {
+      lines.push('');
+      lines.push(`⚠️ Shikoyatlar (${dayComplaints.length} ta):`);
+      const byDirC = new Map<string, number>();
+      for (const c of dayComplaints) byDirC.set(c.direction, (byDirC.get(c.direction) ?? 0) + 1);
+      for (const [d, c] of byDirC) lines.push(`• ${d}: ${c} ta`);
+    }
     return lines.join('\n');
   }
 
@@ -317,15 +346,15 @@ export default function DailyTickets() {
 
   // Har murojaatni alohida xabar qilib yuborish — boshida xulosa
   async function sendTelegram() {
-    if (dayFiltered.length === 0) throw new Error('Yuborish uchun yozuv yo\'q');
+    if (dayFiltered.length === 0 && dayComplaints.length === 0) throw new Error('Yuborish uchun yozuv yo\'q');
     if (!tg?.enabled || !tg.botToken) throw new Error('Avval Sozlamalardan Telegram botni yoqing');
     if (!tg.defaultChatId) throw new Error('Standart chat ID Sozlamalarda kiritilmagan');
 
-    // 1) Xulosa (default chatga)
+    // 1) Xulosa (default chatga) — murojaatlar + shikoyatlar bir joyda
     const hdr = await sendTelegramMessage(tg.botToken, tg.defaultChatId, summaryHeader(dayFiltered));
     if (!hdr.ok) throw new Error(hdr.error || 'Telegram xatosi');
 
-    // 2) Har birini alohida — har birining mas'ul kompaniyasiga qarab to'g'ri chatga
+    // 2) Har murojaatni alohida — mas'ul kompaniyasiga qarab to'g'ri chatga
     let sent = 0, failed = 0;
     for (const t of dayFiltered) {
       const chat = chatFor(t);
@@ -334,7 +363,61 @@ export default function DailyTickets() {
       const r = await sendTelegramMessage(tg.botToken, chat, text);
       if (r.ok) sent++; else failed++;
     }
-    if (failed === 0) toast.success(`${sent} ta murojaat alohida yuborildi`);
+
+    // 3) Shikoyatlarni ham guruhga qo'shib jonatish (default chatga)
+    for (const c of dayComplaints) {
+      const r = await sendTelegramMessage(tg.botToken, tg.defaultChatId, formatComplaint(c));
+      if (r.ok) sent++; else failed++;
+    }
+
+    if (failed === 0) toast.success(`${sent} ta yozuv yuborildi (murojaat + shikoyat)`);
+    else throw new Error(`${sent} muvaffaqiyatli, ${failed} ta xato`);
+  }
+
+  // Kun yakuni — har yo'nalish uchun BITTA jamlangan xabar (hammasi ichida)
+  async function sendGroupedSummary() {
+    if (!tg?.enabled || !tg.botToken) throw new Error('Avval Sozlamalardan Telegram botni yoqing');
+    if (!tg.defaultChatId) throw new Error('Standart chat ID kiritilmagan');
+    if (dayAll.length === 0 && dayComplaints.length === 0) throw new Error('Yuborish uchun yozuv yo\'q');
+
+    let sent = 0, failed = 0;
+    // Har yo'nalish uchun bitta jamlangan xabar
+    for (const [dir] of directions) {
+      const items = dayAll.filter((t) => direction(t) === dir);
+      if (items.length === 0) continue;
+      let chat = tg.defaultChatId;
+      if (dir === 'EMU' && tg.emuChatId) chat = tg.emuChatId;
+      else if (dir === 'BTS' && tg.btsChatId) chat = tg.btsChatId;
+
+      const blocks: string[] = [];
+      blocks.push(`📋 ${date} — ${dir} (${items.length} ta murojaat)`);
+      blocks.push('━━━━━━━━━━━━━━━━━━━');
+      for (const t of items) {
+        blocks.push(formatTicket(t, dir, branchPhoneFor(t), operatorPhone));
+      }
+      const r = await sendTelegramMessage(tg.botToken, chat, blocks.join('\n\n══════════════════\n\n'));
+      if (r.ok) sent++; else failed++;
+    }
+
+    // Shikoyatlar — yo'nalish bo'yicha guruhlab BITTA xabar
+    if (dayComplaints.length > 0) {
+      const byDir = new Map<string, typeof dayComplaints>();
+      for (const c of dayComplaints) {
+        const arr = byDir.get(c.direction) ?? [];
+        arr.push(c);
+        byDir.set(c.direction, arr);
+      }
+      for (const [dir, items] of byDir) {
+        const blocks: string[] = [];
+        blocks.push(`⚠️ ${date} — Shikoyatlar: ${dir} (${items.length} ta)`);
+        blocks.push('━━━━━━━━━━━━━━━━━━━');
+        for (const c of items) blocks.push(formatComplaint(c));
+        const r = await sendTelegramMessage(tg.botToken, tg.defaultChatId, blocks.join('\n\n──────────────────\n\n'));
+        if (r.ok) sent++; else failed++;
+      }
+    }
+
+    if (failed === 0) toast.success(`${sent} ta jamlangan xabar yuborildi (yo'nalish bo'yicha)`);
     else throw new Error(`${sent} muvaffaqiyatli, ${failed} ta xato`);
   }
 
@@ -362,7 +445,18 @@ export default function DailyTickets() {
         if (r.ok) sentTotal++; else failedTotal++;
       }
     }
-    if (failedTotal === 0) toast.success(`${sentTotal} ta murojaat yo'nalish bo'yicha yuborildi`);
+    // Shikoyatlarni ham qo'shib jonatish — default chatga
+    if (dayComplaints.length > 0) {
+      const hdrC = `⚠️ ${date} — Shikoyatlar (${dayComplaints.length} ta)`;
+      const rh = await sendTelegramMessage(tg.botToken, tg.defaultChatId, hdrC);
+      if (!rh.ok) failedTotal++;
+      for (const c of dayComplaints) {
+        const r = await sendTelegramMessage(tg.botToken, tg.defaultChatId, formatComplaint(c));
+        if (r.ok) sentTotal++; else failedTotal++;
+      }
+    }
+
+    if (failedTotal === 0) toast.success(`${sentTotal} ta yozuv yo'nalish bo'yicha yuborildi`);
     else throw new Error(`${sentTotal} muvaffaqiyatli, ${failedTotal} ta xato`);
   }
 
@@ -398,11 +492,11 @@ export default function DailyTickets() {
             </AsyncButton>
             <AsyncButton
               onClick={sendTelegram}
-              disabled={dayFiltered.length === 0}
+              disabled={dayFiltered.length === 0 && dayComplaints.length === 0}
               className="btn-ghost text-sm disabled:opacity-50"
               loadingText="Yuborilmoqda..."
             >
-              <Send className="h-4 w-4" /> Telegram
+              <Send className="h-4 w-4" /> Telegram {dayComplaints.length > 0 ? `(+${dayComplaints.length} shikoyat)` : ''}
             </AsyncButton>
           </div>
         }
@@ -418,15 +512,28 @@ export default function DailyTickets() {
             {dayFiltered.length} <span className="text-base font-normal text-slate-500">ta murojaat ({tab === 'ALL' ? 'hammasi' : tab})</span>
           </div>
         </div>
-        {directions.length > 1 && (
-          <AsyncButton
-            onClick={sendAllByDirection}
-            className="btn-primary text-sm"
-            loadingText="Yuborilmoqda..."
-          >
-            <Send className="h-4 w-4" /> Hamma yo'nalishni alohida yuborish ({directions.length})
-          </AsyncButton>
-        )}
+        <div className="flex flex-wrap gap-2">
+          {(dayAll.length > 0 || dayComplaints.length > 0) && (
+            <AsyncButton
+              onClick={sendGroupedSummary}
+              className="btn-primary text-sm"
+              loadingText="Yuborilmoqda..."
+              title="Har yo'nalish uchun bitta jamlangan xabar"
+            >
+              <Send className="h-4 w-4" /> Kun yakuni — bitta xabar/yo'nalish
+            </AsyncButton>
+          )}
+          {directions.length > 1 && (
+            <AsyncButton
+              onClick={sendAllByDirection}
+              className="btn-ghost text-sm"
+              loadingText="Yuborilmoqda..."
+              title="Har murojaatni alohida xabar"
+            >
+              <Send className="h-4 w-4" /> Alohida ({directions.length} yo'nalish)
+            </AsyncButton>
+          )}
+        </div>
       </div>
 
       {/* Yo'nalish bo'yicha tab'lar — dinamik */}
