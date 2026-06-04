@@ -17,6 +17,7 @@ import {
   LogOut,
   Menu,
   MessageSquare,
+  MessageSquareWarning,
   Moon,
   Search,
   Settings,
@@ -171,6 +172,7 @@ export default function Layout() {
     { to: '/categories', label: t('nav.categories'), icon: Tags },
     { to: '/templates', label: 'Javob shablonlari', icon: MessageSquare },
     { to: '/misroute-daily', label: 'Kunlik murojaatlar', icon: Truck },
+    { to: '/complaints', label: 'Shikoyatlar', icon: MessageSquareWarning },
     { to: '/trash', label: "Korzina (o'chirilganlar)", icon: Trash2 },
     { to: '/settings', label: t('nav.settings'), icon: Settings },
   ];
