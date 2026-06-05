@@ -494,37 +494,37 @@ export default function SettingsPage() {
             <p className="text-xs text-rose-600 dark:text-rose-400 mt-2">Xato: {sip.lastError}</p>
           )}
 
-          {/* MicroSIP — tashqi softphone (operator kompyuteriga) */}
+          {/* Ichki softphone — hech narsa o'rnatish kerak emas */}
           <div className="mt-5 pt-4 border-t border-slate-200 dark:border-slate-700">
             <div className="flex items-start gap-3 flex-wrap">
-              <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-sky-500 to-blue-700 text-white flex items-center justify-center flex-shrink-0">
+              <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 text-white flex items-center justify-center flex-shrink-0">
                 <PhoneCall className="h-6 w-6" />
               </div>
               <div className="flex-1 min-w-[200px]">
-                <div className="font-bold text-sm">MicroSIP (Windows softphone)</div>
+                <div className="font-bold text-sm flex items-center gap-2">
+                  Ichki telefon — o'rnatish kerak emas
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 font-bold">
+                    BUILT-IN
+                  </span>
+                </div>
                 <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
-                  Operator kompyuteriga o'rnatiladigan tashqi SIP softphone.
-                  Brauzer telefonidan farqli — ovoz sifati yaxshiroq va arqa fonida ishlaydi.
-                  <b className="block mt-1">O'rnatish:</b>
-                  <span className="block">1. <b>"Yuklab olish"</b> tugmasini bosing — ZIP yuklanadi</span>
-                  <span className="block">2. Zip'ni oching va papkani <code className="px-1 bg-slate-100 dark:bg-slate-800 rounded">C:\Program Files\MicroSIP</code> ga ko'chiring</span>
-                  <span className="block">3. <code className="px-1 bg-slate-100 dark:bg-slate-800 rounded">microsip.exe</code> ni ishga tushiring</span>
-                  <span className="block">4. Sozlamalardan domen, raqam va parolni kiriting (xodim profilidagi sip kengaytmasi)</span>
+                  Qo'ng'iroqlar to'g'ridan-to'g'ri CRM ichida amalga oshiriladi
+                  (brauzerda WebRTC orqali). Hech qanday dastur o'rnatish, ZIP yuklab
+                  olish yoki sozlash kerak emas. Yuqoridagi sozlamalar to'ldirilsa va
+                  liniya <b>yashil</b> bo'lsa — o'ng pastdagi telefon tugmasini bosib,
+                  raqam terib qo'ng'iroq qiling.
+                </p>
+                <p className="text-[11px] text-slate-500 mt-1.5 leading-relaxed">
+                  <b>Talablar:</b> brauzerga mikrofon ruxsati va SIP-over-WebSocket
+                  qo'llab-quvvatlaydigan PBX (yuqorida sozlangan).
                 </p>
               </div>
-              <a
-                href="/microsip.zip"
-                download="MicroSIP.zip"
-                className="btn-primary text-sm flex-shrink-0"
-              >
-                <Download className="h-4 w-4" /> Yuklab olish (8.4 MB)
-              </a>
             </div>
 
             {(currentUser?.sipExtension || sipCfg.username) && (
-              <div className="mt-3 p-3 rounded-xl bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800">
-                <div className="text-[11px] uppercase tracking-wider text-sky-700 dark:text-sky-400 font-bold mb-2">
-                  Sizning MicroSIP sozlamalaringiz
+              <div className="mt-3 p-3 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800">
+                <div className="text-[11px] uppercase tracking-wider text-emerald-700 dark:text-emerald-400 font-bold mb-2">
+                  Sizning liniya ma'lumotlaringiz
                 </div>
                 <div className="grid sm:grid-cols-2 gap-2 text-xs font-mono">
                   <div className="p-2 bg-white dark:bg-slate-900 rounded">
@@ -540,10 +540,21 @@ export default function SettingsPage() {
                     <div className="font-semibold">{currentUser?.fullName ?? currentUser?.username ?? sipCfg.displayName ?? '—'}</div>
                   </div>
                 </div>
-                <p className="text-[11px] text-slate-500 mt-2">
-                  MicroSIP'da: Account → Add → Domain/Username/Password kiriting.
-                  Parolni admindan oling (xavfsizlik sababli bu yerda ko'rsatilmaydi).
-                </p>
+                <div className="mt-2 flex items-center gap-2">
+                  <span
+                    className={`h-2.5 w-2.5 rounded-full ${
+                      sip.reg === 'registered' ? 'bg-emerald-500'
+                      : sip.reg === 'failed' ? 'bg-rose-500'
+                      : 'bg-amber-500'
+                    }`}
+                  />
+                  <span className="text-[11px] font-semibold">
+                    {sip.reg === 'registered' ? "Liniya ulangan — qo'ng'iroq qilishingiz mumkin"
+                      : sip.reg === 'failed' ? `Ulanishda xato: ${sip.lastError ?? "noma'lum"}`
+                      : sip.reg === 'connecting' ? 'Liniyaga ulanmoqda...'
+                      : 'Liniya yoqilmagan'}
+                  </span>
+                </div>
               </div>
             )}
           </div>
