@@ -7,15 +7,19 @@ import { compressImageDataUrl } from '../utils/image';
 import { sendTelegramMessage } from '../utils/telegram';
 import type { ComplaintDirection } from '../types';
 
-const COMPLAINT_DIRS: ComplaintDirection[] = ['IT', 'Logistika', 'Xitoy ombor', 'UZB ombor', 'Boshqa'];
+const COMPLAINT_DIRS: ComplaintDirection[] = ['IT', 'Logistika', 'Xitoy ombor', 'UZB ombor', 'Moliya', 'Sifat nazorati', 'Boshqa'];
 
 export default function Profile() {
   const { currentUser, updateOwnProfile, complaints, createComplaint, resolveComplaint, perms, settings } = useApp();
   const isAdmin = perms.manage;
 
   const [cDir, setCDir] = useState<ComplaintDirection>('IT');
+  const [cSubtype, setCSubtype] = useState<string>('');
   const [cTrek, setCTrek] = useState('');
   const [cNote, setCNote] = useState('');
+
+  // Yo'nalishga tegishli ichki turlar (admin sozlamalardan)
+  const subtypes = settings.complaintSubtypes?.[cDir] ?? [];
 
   const myComplaints = (complaints ?? []).filter((c) => isAdmin || c.createdBy === currentUser?.id).sort((a, b) => b.createdAt - a.createdAt);
   const fileRef = useRef<HTMLInputElement | null>(null);
@@ -155,11 +159,20 @@ export default function Profile() {
         <div className="grid sm:grid-cols-2 gap-3 mb-3">
           <div>
             <label className="label">Yo'nalish</label>
-            <select className="input mt-1" value={cDir} onChange={(e) => setCDir(e.target.value as ComplaintDirection)}>
+            <select className="input mt-1" value={cDir} onChange={(e) => { setCDir(e.target.value as ComplaintDirection); setCSubtype(''); }}>
               {COMPLAINT_DIRS.map((d) => <option key={d} value={d}>{d}</option>)}
             </select>
           </div>
-          <div>
+          {subtypes.length > 0 && (
+            <div>
+              <label className="label">Ichki turi</label>
+              <select className="input mt-1" value={cSubtype} onChange={(e) => setCSubtype(e.target.value)}>
+                <option value="">— Tanlang —</option>
+                {subtypes.map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+          )}
+          <div className={subtypes.length > 0 ? 'sm:col-span-2' : ''}>
             <label className="label">Trek raqami <span className="text-slate-400">(ixtiyoriy)</span></label>
             <input className="input mt-1 font-mono" value={cTrek} onChange={(e) => setCTrek(e.target.value)} placeholder="YT123..." />
           </div>
@@ -180,6 +193,7 @@ export default function Profile() {
             if (!cNote.trim()) throw new Error('Izoh kerak');
             const c = await createComplaint({
               direction: cDir,
+              subtype: cSubtype || undefined,
               trek: cTrek.trim() || undefined,
               note: cNote.trim(),
             });
@@ -189,7 +203,7 @@ export default function Profile() {
               const txt = [
                 '⚠️ YANGI SHIKOYAT',
                 '━━━━━━━━━━━━━━━━━━━',
-                `Yo'nalish: ${c.direction}`,
+                `Yo'nalish: ${c.direction}${c.subtype ? ` · ${c.subtype}` : ''}`,
                 `Operator: ${c.createdByName}`,
                 `Vaqt: ${new Date(c.createdAt).toLocaleString('uz')}`,
                 c.trek ? `Trek: ${c.trek}` : '',
@@ -198,6 +212,7 @@ export default function Profile() {
               ].filter(Boolean).join('\n');
               await sendTelegramMessage(tg.botToken, tg.defaultChatId, txt);
             }
+            setCSubtype('');
             setCTrek('');
             setCNote('');
             toast.success('Shikoyat yuborildi');
@@ -219,7 +234,7 @@ export default function Profile() {
                   <div className="flex items-center justify-between gap-2 flex-wrap mb-1">
                     <div className="flex items-center gap-2">
                       <span className="text-[10px] uppercase px-1.5 py-0.5 rounded bg-brand-100 dark:bg-brand-900/30 text-brand-700 dark:text-brand-300">
-                        {c.direction}
+                        {c.direction}{c.subtype ? ` · ${c.subtype}` : ''}
                       </span>
                       {c.status === 'pending' && (
                         <span className="text-[10px] uppercase px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 inline-flex items-center gap-1">

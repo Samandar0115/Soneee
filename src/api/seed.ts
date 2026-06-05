@@ -51,6 +51,15 @@ export const seedAppSettings: AppSettings = {
   orderers: [
     { id: 'ord-buvajonov', name: 'Buvajonov Hamidjon', phone: '+998990280848' },
   ],
+  complaintSubtypes: {
+    'IT': ["To'lov", 'Status', 'Manzil'],
+    'Logistika': ['Hududiy ombor', 'Filial', 'Xitoyda kelish', 'Shuttle'],
+    'UZB ombor': ['Vozvrat bo\'lgan', "To'lovi qilingan"],
+    'Xitoy ombor': ['Chiqarilmagan', 'Summasi xato hisoblangan', 'Trekni karobkali jonatish kerak'],
+    'Moliya': ['Qoplab berish', 'Qayta tashlab berish', "Summasini o'zgartirib berish"],
+    'Sifat nazorati': ['Mijoz muammosi qaror talab qiladi'],
+    'Boshqa': [],
+  },
   updatedAt: Date.now(),
 };
 

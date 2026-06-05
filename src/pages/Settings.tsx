@@ -7,7 +7,9 @@ import { useApp } from '../context/AppContext';
 import { sipManager, type SipState } from '../utils/sip';
 import { sendTelegramMessage } from '../utils/telegram';
 import { Send, Users, Plus } from 'lucide-react';
-import type { AppSettings, SipConfig, TelegramConfig } from '../types';
+import type { AppSettings, ComplaintDirection, SipConfig, TelegramConfig } from '../types';
+
+const COMPLAINT_DIRS: ComplaintDirection[] = ['IT', 'Logistika', 'Xitoy ombor', 'UZB ombor', 'Moliya', 'Sifat nazorati', 'Boshqa'];
 
 const DEFAULT_SIP: SipConfig = {
   enabled: false, wsUrl: '', domain: '', username: '', password: '', displayName: '',
@@ -192,7 +194,12 @@ export default function SettingsPage() {
   }
 
   async function save() {
-    await saveSettings(draft);
+    // bo'sh subtype qatorlarini olib tashlaymiz
+    const cleaned: Partial<Record<ComplaintDirection, string[]>> = {};
+    for (const [dir, list] of Object.entries(draft.complaintSubtypes ?? {})) {
+      cleaned[dir as ComplaintDirection] = (list as string[]).map((s) => s.trim()).filter(Boolean);
+    }
+    await saveSettings({ ...draft, complaintSubtypes: cleaned });
     toast.success('Sozlamalar saqlandi');
   }
 
@@ -616,6 +623,72 @@ export default function SettingsPage() {
                 </button>
               </div>
             ))}
+          </div>
+        </div>
+
+        {/* === SHIKOYAT YO'NALISH ICHKI TURLARI === */}
+        <div className="card p-6 lg:col-span-2">
+          <div className="flex items-center gap-2 mb-3">
+            <SettingsIcon className="h-5 w-5 text-rose-600" />
+            <h3 className="font-bold">Shikoyat yo'nalishlari — ichki turlar</h3>
+          </div>
+          <p className="text-xs text-slate-500 mb-4">
+            Har bir yo'nalish uchun ichki turlar ro'yxati. Operator shikoyat qoldirishda yo'nalish va ichki turini tanlaydi.
+          </p>
+          <div className="grid sm:grid-cols-2 gap-3">
+            {COMPLAINT_DIRS.map((dir) => {
+              const list = draft.complaintSubtypes?.[dir] ?? [];
+              return (
+                <div key={dir} className="rounded-xl border border-slate-200 dark:border-slate-700 p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="font-semibold text-sm text-slate-800 dark:text-slate-200">{dir}</div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = { ...(draft.complaintSubtypes ?? {}) };
+                        next[dir] = [...list, ''];
+                        setDraft({ ...draft, complaintSubtypes: next });
+                      }}
+                      className="btn-ghost text-xs"
+                    >
+                      <Plus className="h-3 w-3" /> Tur
+                    </button>
+                  </div>
+                  {list.length === 0 && (
+                    <p className="text-[11px] text-slate-400">Hozircha tur yo'q.</p>
+                  )}
+                  <div className="space-y-1.5">
+                    {list.map((s, i) => (
+                      <div key={i} className="flex gap-1.5 items-center">
+                        <input
+                          className="input text-xs flex-1"
+                          placeholder="Tur nomi"
+                          value={s}
+                          onChange={(e) => {
+                            const next = { ...(draft.complaintSubtypes ?? {}) };
+                            const arr = [...list];
+                            arr[i] = e.target.value;
+                            next[dir] = arr;
+                            setDraft({ ...draft, complaintSubtypes: next });
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const next = { ...(draft.complaintSubtypes ?? {}) };
+                            next[dir] = list.filter((_, idx) => idx !== i);
+                            setDraft({ ...draft, complaintSubtypes: next });
+                          }}
+                          className="p-1 text-rose-500 hover:bg-rose-50 rounded"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
 

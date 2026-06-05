@@ -152,11 +152,12 @@ export interface AppDataSnapshot {
 }
 
 // Shikoyat — xodimlar profilidan yuboriladi
-export type ComplaintDirection = 'IT' | 'Logistika' | 'Xitoy ombor' | "UZB ombor" | 'Boshqa';
+export type ComplaintDirection = 'IT' | 'Logistika' | 'Xitoy ombor' | 'UZB ombor' | 'Moliya' | 'Sifat nazorati' | 'Boshqa';
 export type ComplaintStatus = 'pending' | 'done' | 'cancelled';
 export interface Complaint {
   id: string;
   direction: ComplaintDirection;
+  subtype?: string;            // ichki tur (admin sozlamalardan boshqaradi)
   trek?: string;
   note: string;
   status: ComplaintStatus;
@@ -451,6 +452,7 @@ export interface AppSettings {
   sip?: SipConfig;
   telegram?: TelegramConfig;
   orderers?: Orderer[];   // zayavka beruvchi shaxslar ro'yxati (Buvajonov, ...)
+  complaintSubtypes?: Partial<Record<ComplaintDirection, string[]>>; // har yo'nalish uchun ichki turlar
   updatedAt: number;
 }
 

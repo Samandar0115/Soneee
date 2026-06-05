@@ -9,7 +9,7 @@ import type { Complaint, ComplaintDirection } from '../types';
 
 type Range = 'day' | 'week';
 
-const COMPLAINT_DIRS: ComplaintDirection[] = ['IT', 'Logistika', 'Xitoy ombor', 'UZB ombor', 'Boshqa'];
+const COMPLAINT_DIRS: ComplaintDirection[] = ['IT', 'Logistika', 'Xitoy ombor', 'UZB ombor', 'Moliya', 'Sifat nazorati', 'Boshqa'];
 
 function pad(n: number) { return n < 10 ? '0' + n : String(n); }
 function toYmd(d: Date) { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
@@ -34,7 +34,7 @@ function weekBoundsContaining(ymd: string) {
 function formatComplaint(c: Complaint): string {
   const time = new Date(c.createdAt).toLocaleString('uz', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
   const lines = [
-    `⚠️ ${c.direction}`,
+    `⚠️ ${c.direction}${c.subtype ? ` · ${c.subtype}` : ''}`,
     `   Vaqt: ${time}`,
     `   Yuborgan: ${c.createdByName ?? '—'}`,
   ];
@@ -276,6 +276,11 @@ export default function ComplaintsPage() {
                       </div>
                       <div className="text-[11px] text-slate-400">{new Date(c.createdAt).toLocaleString('uz')}</div>
                     </div>
+                    {c.subtype && (
+                      <div className="text-[11px] text-slate-500 mb-1">
+                        <span className="inline-block px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800">{c.subtype}</span>
+                      </div>
+                    )}
                     {c.trek && <div className="font-mono text-xs text-brand-600 dark:text-brand-400 mb-1">{c.trek}</div>}
                     <div className="text-sm text-slate-700 dark:text-slate-200 whitespace-pre-wrap">{c.note}</div>
                     <div className="flex items-center justify-between gap-2 mt-2 flex-wrap">
