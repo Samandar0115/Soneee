@@ -152,10 +152,7 @@ export default function Layout() {
   const can = (p: string) => perms.manage || perms.pages.includes(p as never);
   const allLinks = [
     { to: '/', page: 'dashboard', label: t('nav.dashboard'), icon: LayoutDashboard, end: true },
-    { to: '/leads', page: 'leads', label: 'Yangi murojaatlar', icon: Inbox },
-    { to: '/pipeline', page: 'pipeline', label: t('nav.pipeline'), icon: KanbanSquare },
-    { to: '/tickets', page: 'tickets', label: t('nav.tickets'), icon: TicketIcon },
-    { to: '/calls', page: 'calls', label: "Qo'ng'iroqlar", icon: Phone },
+    // Qo'ng'iroqlar — endi pastdagi softphone ichida (tarix tab'i)
     { to: '/cargo', page: 'cargo', label: 'Vozvrat yuklar', icon: Package },
     { to: '/warehouse', page: 'warehouse', label: 'Sklad navbati', icon: Warehouse },
     { to: '/knowledge', page: 'knowledge', label: t('nav.knowledge'), icon: BookOpen },
@@ -163,6 +160,13 @@ export default function Layout() {
     { to: '/trek-requests', page: 'tickets', label: "Trek tuzatish", icon: Unplug },
   ];
   const links = allLinks.filter((l) => can(l.page));
+
+  // Murojaatlar guruhi — yangi, pipeline, hammasi
+  const ticketsGroup = [
+    { to: '/leads', page: 'leads', label: 'Yangi', icon: Inbox },
+    { to: '/pipeline', page: 'pipeline', label: 'Pipeline', icon: KanbanSquare },
+    { to: '/tickets', page: 'tickets', label: 'Hammasi', icon: TicketIcon },
+  ].filter((l) => can(l.page));
   const adminLinks = [
     { to: '/analytics', label: 'Analitika', icon: BarChart3 },
     { to: '/curriculum', label: 'Darslik boshqaruvi', icon: GraduationCap },
@@ -207,7 +211,24 @@ export default function Layout() {
         </div>
 
         <nav className={`flex-1 py-4 space-y-1 overflow-y-auto scroll-thin ${isCompact ? 'px-2' : 'px-3'}`}>
-          {links.map((l) => (
+          {/* Dashboard */}
+          {links.filter((l) => l.to === '/').map((l) => (
+            <NavItem key={l.to} {...l} compact={isCompact} />
+          ))}
+
+          {/* MUROJAATLAR — guruh (Yangi / Pipeline / Hammasi) */}
+          {ticketsGroup.length > 0 && (
+            <NavGroup
+              label="Murojaatlar"
+              icon={TicketIcon}
+              compact={isCompact}
+              items={ticketsGroup}
+              currentPath={location.pathname}
+            />
+          )}
+
+          {/* Boshqa toza linklar (dashboard'dan tashqari) */}
+          {links.filter((l) => l.to !== '/').map((l) => (
             <NavItem key={l.to} {...l} compact={isCompact} />
           ))}
           {perms.manage && (
@@ -455,9 +476,13 @@ export default function Layout() {
 
         <Softphone />
 
-        {/* Mobile bottom nav */}
+        {/* Mobile bottom nav — Murojaatlar uchun /tickets ga olib boradi */}
         <nav className="md:hidden flex items-center justify-around bg-slate-900 dark:bg-[#020409] text-slate-200 border-t border-white/5 px-2 pb-safe">
-          {links.map((l) => (
+          {[
+            ...(links.filter((l) => l.to === '/')),
+            ...(ticketsGroup.length > 0 ? [{ to: '/tickets', page: 'tickets' as const, label: 'Murojaatlar', icon: TicketIcon }] : []),
+            ...(links.filter((l) => l.to !== '/')),
+          ].map((l) => (
             <NavLink
               key={l.to}
               to={l.to}
@@ -478,6 +503,94 @@ export default function Layout() {
           ))}
         </nav>
       </div>
+    </div>
+  );
+}
+
+function NavGroup({
+  label,
+  icon: Icon,
+  items,
+  compact,
+  currentPath,
+}: {
+  label: string;
+  icon: typeof Headphones;
+  items: { to: string; label: string; icon: typeof Headphones }[];
+  compact?: boolean;
+  currentPath: string;
+}) {
+  const isActiveAny = items.some((i) => currentPath === i.to || currentPath.startsWith(i.to + '/'));
+  const [openGroup, setOpenGroup] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem(`ipost.nav.group.${label}`);
+      if (saved !== null) return saved === '1';
+    } catch { /* ignore */ }
+    return isActiveAny;
+  });
+
+  useEffect(() => {
+    if (isActiveAny) setOpenGroup(true);
+  }, [isActiveAny]);
+
+  useEffect(() => {
+    try { localStorage.setItem(`ipost.nav.group.${label}`, openGroup ? '1' : '0'); } catch { /* ignore */ }
+  }, [openGroup, label]);
+
+  if (compact) {
+    // Compact rejimda har birini alohida ko'rsatamiz (joy kam)
+    return (
+      <>
+        {items.map((it) => (
+          <NavItem key={it.to} to={it.to} label={`${label}: ${it.label}`} icon={it.icon} compact />
+        ))}
+      </>
+    );
+  }
+
+  return (
+    <div className="space-y-0.5">
+      <button
+        type="button"
+        onClick={() => setOpenGroup((v) => !v)}
+        className={`w-full group relative flex items-center gap-3 rounded-xl px-3 py-2 text-sm transition-all duration-200 ${
+          isActiveAny
+            ? 'bg-white/5 text-white'
+            : 'text-slate-200 hover:bg-orange-400/20 hover:text-orange-200'
+        }`}
+      >
+        <Icon className="h-4 w-4 flex-shrink-0" />
+        <span className="flex-1 text-left truncate">{label}</span>
+        <ChevronRight className={`h-3.5 w-3.5 transition-transform ${openGroup ? 'rotate-90' : ''}`} />
+      </button>
+      <AnimatePresence initial={false}>
+        {openGroup && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.15 }}
+            className="overflow-hidden pl-3 border-l border-white/10 ml-3 space-y-0.5"
+          >
+            {items.map((it) => (
+              <NavLink
+                key={it.to}
+                to={it.to}
+                className={({ isActive }) =>
+                  `flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-[13px] transition ${
+                    isActive
+                      ? 'bg-gradient-to-r from-brand-600 to-brand-500 text-white shadow shadow-brand-900/30'
+                      : 'text-slate-300 hover:bg-orange-400/15 hover:text-orange-200'
+                  }`
+                }
+              >
+                <it.icon className="h-3.5 w-3.5 flex-shrink-0" />
+                <span className="truncate">{it.label}</span>
+              </NavLink>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

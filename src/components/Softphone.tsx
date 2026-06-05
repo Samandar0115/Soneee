@@ -13,6 +13,8 @@ import {
   PhoneIncoming,
   Wifi,
   WifiOff,
+  History,
+  Hash,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { detectOS } from '../utils/platform';
@@ -59,8 +61,9 @@ function formatDuration(sec: number) {
 }
 
 export default function Softphone() {
-  const { currentUser, settings, startCallLog, updateCallLog, tickets } = useApp();
+  const { currentUser, settings, startCallLog, updateCallLog, tickets, callLogs } = useApp();
   const [open, setOpen] = useState(false);
+  const [tab, setTab] = useState<'dial' | 'history'>('dial');
   const [dialer, setDialer] = useState('');
   const [activeCall, setActiveCall] = useState<CallLog | null>(null);
   const [sipCall, setSipCall] = useState(false); // joriy qo'ng'iroq SIP orqalimi
@@ -340,6 +343,23 @@ export default function Softphone() {
               </div>
             </div>
 
+            {!inCall && (
+              <div className="flex border-b border-white/10">
+                <button
+                  onClick={() => setTab('dial')}
+                  className={`flex-1 px-3 py-2 text-xs font-semibold inline-flex items-center justify-center gap-1.5 ${tab === 'dial' ? 'bg-white/15 text-white' : 'text-white/70 hover:bg-white/5'}`}
+                >
+                  <Hash className="h-3.5 w-3.5" /> Klaviatura
+                </button>
+                <button
+                  onClick={() => setTab('history')}
+                  className={`flex-1 px-3 py-2 text-xs font-semibold inline-flex items-center justify-center gap-1.5 ${tab === 'history' ? 'bg-white/15 text-white' : 'text-white/70 hover:bg-white/5'}`}
+                >
+                  <History className="h-3.5 w-3.5" /> Mening tarixim
+                </button>
+              </div>
+            )}
+
             <div className="p-4">
               {inCall ? (
                 <div className="space-y-3">
@@ -407,7 +427,7 @@ export default function Softphone() {
                     )
                   )}
                 </div>
-              ) : (
+              ) : tab === 'dial' ? (
                 <>
                   <div className="flex gap-1 mb-2">
                     <input
@@ -440,6 +460,56 @@ export default function Softphone() {
                       : 'Liniya sozlanmagan — Sozlamalar → Telefon liniyasi'}
                   </p>
                 </>
+              ) : (
+                /* TARIX — joriy operator qo'ng'iroqlari */
+                (() => {
+                  const myCalls = (callLogs ?? [])
+                    .filter((c) => c.operatorId === currentUser?.id)
+                    .sort((a, b) => b.startedAt - a.startedAt)
+                    .slice(0, 25);
+                  if (myCalls.length === 0) {
+                    return (
+                      <div className="text-center py-8 text-white/70 text-sm">
+                        Hozircha qo'ng'iroq tarixi yo'q
+                      </div>
+                    );
+                  }
+                  return (
+                    <div className="space-y-1.5 max-h-80 overflow-y-auto scroll-thin -mx-1 px-1">
+                      {myCalls.map((c) => {
+                        const dur = c.durationSec ?? 0;
+                        const outcome = c.outcome ?? '—';
+                        const ts = new Date(c.startedAt).toLocaleString('uz', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+                        const isOut = c.direction === 'outbound';
+                        return (
+                          <button
+                            key={c.id}
+                            onClick={() => { setDialer(c.number); setTab('dial'); }}
+                            className="w-full text-left px-2.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 transition flex items-center gap-2"
+                          >
+                            <span className={`flex-shrink-0 h-7 w-7 rounded-full flex items-center justify-center ${
+                              outcome === 'answered' || outcome === 'connected' ? 'bg-emerald-500/30 text-emerald-100'
+                              : outcome === 'no_answer' ? 'bg-amber-500/30 text-amber-100'
+                              : 'bg-rose-500/30 text-rose-100'
+                            }`}>
+                              {isOut ? <Phone className="h-3.5 w-3.5" /> : <PhoneIncoming className="h-3.5 w-3.5" />}
+                            </span>
+                            <div className="flex-1 min-w-0">
+                              <div className="font-mono text-xs text-white truncate">{c.number}</div>
+                              <div className="text-[10px] text-white/70 truncate">
+                                {c.customerName ?? ts}
+                              </div>
+                            </div>
+                            <div className="text-right flex-shrink-0">
+                              <div className="text-[10px] text-white/80">{formatDuration(dur)}</div>
+                              <div className="text-[9px] text-white/60">{ts.split(' ')[1] ?? ts}</div>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  );
+                })()
               )}
             </div>
           </motion.div>
