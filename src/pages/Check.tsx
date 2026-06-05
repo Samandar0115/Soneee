@@ -49,17 +49,32 @@ const ALL_KEYWORDS_RE = /收货人|收件人|联系人|姓名|姓\s*名|Имя|�
 // OCR matnidan qora overlay/toast/yo'l-yo'riq matnlarini olib tashlash
 // (Poizon va 1688 da koordinatalar/lokatsiya ogohlantirishlari rasm ustidan tushadi)
 const OVERLAY_PHRASES = [
+  // Lokatsiya/karta tooltip'lari
   '未找到位置信息', '当前定位无信息', '去设置',
   '地址定位不准', '请在地图上选择地址',
-  '找不到地址', '试试搜索吧', '智能粘贴', '智能填写', '智能填',
+  '找不到地址', '试试搜索吧',
+  // Auto-fill tugmalari
+  '智能粘贴', '智能填写', '智能填', '点击识别', '识别', '清除',
+  // Yuklash holatlari
   '正在加载', '正在加载...', '加载中',
-  '点击识别', '识别', '清除',
+  // 1688 qidiruv label
   '搜索小区', '写字楼', '学校等', '搜索地址', '更快填写',
+  // Validation xatolari
   '你输入的收货人姓名过长',
+  // Sarlavhalar
   '编辑地址', '修改收货地址', '收货地址', '新增地址', '管理', '删除',
+  // Taobao rus UI
   'Редактировать адрес получения', 'Вставьте сюда адрес',
   'Автозаполнение', 'Очистить одним кликом', 'Сохранить', 'Установить адрес по умолчанию',
+  // Qo'shimcha label maydonlari
   '地址标签', '收件偏好', '默认地址', '未设置',
+  // 1688 label suffix'lari (qator oxirida — ekstraksiyani buzmasligi uchun olib tashlanadi)
+  '/乡村名称', '乡村名称',
+  '(Street,number,apt,suite,floor,etc.)',
+  '(Street, number, apt, suite, floor, etc.)',
+  'Street,number,apt,suite,floor,etc.',
+  '(Phone Number)', '(Phone Number)', 'Phone Number',
+  '(不含港澳台)', '中国境内', // Taobao davlat tanlovi label'i
 ];
 
 function stripOverlayText(raw: string): string {
@@ -70,15 +85,22 @@ function stripOverlayText(raw: string): string {
   return t;
 }
 
-// Platforma aniqlash — OCR matnidagi belgilardan
+// Platforma aniqlash — OCR matnidagi belgilardan.
+// Tartib: eng o'ziga xos belgilardan boshlab.
 type Platform = 'pinduoduo' | 'taobao' | '1688' | 'poizon' | 'unknown';
 
 function detectPlatform(rawText: string): Platform {
   const t = rawText;
-  if (/得物|编辑地址|你输入的收货人姓名过长/.test(t)) return 'poizon';
-  if (/Имя|Регион|Адрес|Сохранить|Редактировать|Мобильный/i.test(t) || /手机号\s*\(Phone\s*Number\)/i.test(t)) return 'taobao';
-  if (/1688|新增地址|智能粘贴|小区楼栋|乡村名称|Street.*number.*apt/i.test(t)) return '1688';
+  // 1688 ga xos: 小区楼栋, 乡村名称, 智能粘贴 — boshqa platformalarda yo'q
+  if (/小区楼栋|乡村名称|智能粘贴|新增地址|高德地图/.test(t)) return '1688';
+  // Poizon (得物App) — brand nomi yoki uzun ism xato
+  if (/得物|你输入的收货人姓名过长/.test(t)) return 'poizon';
+  // Taobao — rus tilidagi UI
+  if (/Имя|Регион|Адрес|Сохранить|Редактировать|Мобильный/i.test(t)) return 'taobao';
+  // Pinduoduo
   if (/修改收货地址|拼多多|pinduoduo/i.test(t)) return 'pinduoduo';
+  // Ehtimoliy fallback: 编辑地址 — Poizon va boshqalarda ham bo'lishi mumkin
+  if (/编辑地址/.test(t)) return 'poizon';
   return 'unknown';
 }
 
@@ -164,26 +186,33 @@ function findFieldBbox(lines: OcrLineData[], keywords: string[]): OcrLineData['b
 }
 
 function extractFields(rawText: string): Extracted {
-  // Avval overlay/toast matnlarini olib tashlaymiz
   const cleaned = stripOverlayText(rawText);
-  // 1688 va Taobao'da qo'shimcha label'lar bor — ko'p variant bilan qidiramiz
   const recipient = findAfter(
     cleaned,
     '收货人', '收件人', '联系人', '姓名', '姓 名', 'Имя',
   );
-  const phone = findAfter(
+  // Telefon — avval keyword orqali, bo'lmasa Xitoy mobil pattern bilan butun matndan
+  let phone = findAfter(
     cleaned,
     '手机号码', '手机号', '联系电话', '电话', '手机', 'Мобильный телефон', 'Мобильный',
   );
+  if (!/\d{7,}/.test(phone)) {
+    const m = cleaned.match(/\+?\s*(?:86\s*)?1\d{2}[\s\-]*\d{4}[\s\-]*\d{4}/);
+    if (m) phone = m[0];
+  }
   const region = findAfter(
     cleaned,
     '所在地区', '省市区', '地区', '区域', 'Регион',
   );
-  // 1688'da maydon nomi `小区楼栋/乡村名称(Street...)` — keng variant
-  const address = findAfter(
+  // Manzil — avval keyword, bo'lmasa 苏溪苏福路 pattern bilan butun matndan
+  let address = findAfter(
     cleaned,
     '详细地址', '街道地址', '小区楼栋', '乡村名称', '地址', 'Адрес',
   );
+  if (!address || address.length < 6) {
+    const m = cleaned.match(/[一-鿿]{2,}路\d+号[^\n]{0,80}/);
+    if (m) address = m[0];
+  }
   const postalCode = findAfter(
     cleaned,
     '邮编', '邮政编码', 'Почтовый индекс', 'Почтовый',
@@ -267,28 +296,31 @@ function instructRecipient(detected: string, id: string, platform: Platform): { 
   return { kind: 'replace', action: `ID xato (${detectedId || 'topilmadi'}). Almashtiring:`, payload: expected };
 }
 
+// +86 prefiks va bo'shliqlarni hisobga olib, faqat oxirgi 11 raqamni (Xitoy mobil) solishtiramiz
+function phoneCore(s: string): string {
+  return (s || '').replace(/\D/g, '').slice(-11);
+}
+
 function instructPhone(detected: string, expected: string): { kind: InstructionKind; action: string; payload: string } {
-  const eDigits = expected.replace(/\D/g, '');
-  const dDigits = detected.replace(/\D/g, '');
   if (!detected) {
     return { kind: 'fill', action: "Telefon bo'sh — yozing:", payload: expected };
   }
-  if (dDigits === eDigits) return { kind: 'ok', action: "To'g'ri yozilgan", payload: '' };
-  // Qisman moslik (oxirgi 7 raqam)
-  if (eDigits.endsWith(dDigits) || dDigits.endsWith(eDigits.slice(-9))) {
-    return { kind: 'replace', action: "Telefon qisman to'g'ri. Almashtiring:", payload: expected };
-  }
+  const dCore = phoneCore(detected);
+  const eCore = phoneCore(expected);
+  if (dCore && eCore && dCore === eCore) return { kind: 'ok', action: "To'g'ri yozilgan", payload: '' };
   return { kind: 'replace', action: "Telefon noto'g'ri. Almashtiring:", payload: expected };
 }
 
-function instructRegion(detected: string, tpl: ChineseAddressTemplate): { kind: InstructionKind; action: string; payload: string } {
+function instructRegion(detected: string, tpl: ChineseAddressTemplate, fullText: string): { kind: InstructionKind; action: string; payload: string } {
   const expected = `${tpl.province} ${tpl.city} ${tpl.district}`;
-  if (!detected) return { kind: 'fill', action: "Hudud tanlanmagan — tanlang:", payload: expected };
-  const n = norm(detected);
-  const okProv = n.includes(norm(tpl.province));
-  const okCity = n.includes(norm(tpl.city));
-  const okDist = n.includes(norm(tpl.district));
+  // Region maydon topilmasligi yoki "中国境内(不含港澳台)" kabi davlat tanlovi bo'lishi mumkin —
+  // bu holda butun matndan viloyat/shahar/tuman izlaymiz (Russian Taobao'da region keyingi qatorda)
+  const haystack = norm(detected) + ' ' + norm(fullText);
+  const okProv = haystack.includes(norm(tpl.province));
+  const okCity = haystack.includes(norm(tpl.city));
+  const okDist = haystack.includes(norm(tpl.district));
   if (okProv && okCity && okDist) return { kind: 'ok', action: "To'g'ri tanlangan", payload: '' };
+  if (!detected) return { kind: 'fill', action: "Hudud tanlanmagan — tanlang:", payload: expected };
   return { kind: 'replace', action: "Hududni o'zgartiring:", payload: expected };
 }
 
@@ -340,7 +372,7 @@ function instructPostal(detected: string, expected: string): { kind: Instruction
   return { kind: 'replace', action: "Pochta indeksini almashtiring:", payload: expected };
 }
 
-function buildChecks(tpl: ChineseAddressTemplate, id: string, ex: Extracted, platform: Platform): FieldCheck[] {
+function buildChecks(tpl: ChineseAddressTemplate, id: string, ex: Extracted, platform: Platform, fullText: string): FieldCheck[] {
   const idTag = id ? `077库房/${id}号` : '';
   const expectedRecipient = recipientExpected(platform, id);
   const expectedRegion = `${tpl.province} ${tpl.city} ${tpl.district}`;
@@ -348,7 +380,7 @@ function buildChecks(tpl: ChineseAddressTemplate, id: string, ex: Extracted, pla
 
   const r = instructRecipient(ex.recipientName, id, platform);
   const p = instructPhone(ex.phone, tpl.phone);
-  const g = instructRegion(ex.region, tpl);
+  const g = instructRegion(ex.region, tpl, fullText);
   const a = instructAddress(ex.address, idTag, id, expectedAddress, tpl);
   const z = instructPostal(ex.postalCode, tpl.postalCode);
 
@@ -497,7 +529,7 @@ export default function Check() {
 
   const platform: Platform = scanned ? detectPlatform(ocrText) : 'unknown';
   const extracted = extractFields(ocrText);
-  const checks = scanned ? buildChecks(tpl, effectiveId, extracted, platform) : [];
+  const checks = scanned ? buildChecks(tpl, effectiveId, extracted, platform, ocrText) : [];
   const wrongCount = checks.filter((c) => c.kind !== 'ok' && c.kind !== 'optional-empty').length;
   const allOk = scanned && checks.length > 0 && wrongCount === 0;
 
