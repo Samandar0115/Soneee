@@ -62,6 +62,7 @@ export default function TicketModal({ open, onClose, ticket, prefill, onCreated 
     notifyCallback,
     acceptTicket,
     settings,
+    complaints,
   } = useApp();
 
   // Boshqa operatorga tegishli aktiv ticket ochilsa eslatma
@@ -296,6 +297,22 @@ export default function TicketModal({ open, onClose, ticket, prefill, onCreated 
                   </div>
                 </div>
               )}
+              {(() => {
+                const tn = customTracking.trim().toLowerCase();
+                if (!tn) return null;
+                const c = (complaints ?? []).find(
+                  (x) => x.status === 'pending' && (x.trek || '').toLowerCase().trim() === tn
+                );
+                if (!c) return null;
+                return (
+                  <div className="mt-2 flex items-start gap-2 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-900 text-xs">
+                    <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <b>Diqqat — shikoyat bor!</b> Trek {c.trek} bo'yicha <b>{c.createdByName ?? 'operator'}</b> "{c.direction}{c.subtype ? ' · ' + c.subtype : ''}" shikoyatini qoldirgan. Duplikat olmaslik uchun avval shikoyat egasi bilan kelishing.
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           )}
 

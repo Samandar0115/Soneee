@@ -1189,6 +1189,51 @@ export function AppProvider({ children }: { children: ReactNode }) {
           setNotifications((prev) => [fullNew, ...prev].slice(0, 200));
         }
       } catch { /* sezilmaydi */ }
+
+      // SHIKOYAT-DUPLICATE: trek bo'yicha mavjud (pending) shikoyat bormi?
+      // Agar topilsa — shikoyat egasiga va yangi murojaat egasiga bildirishnoma.
+      try {
+        const normTrek = (ticket.trackingNumber || '').toLowerCase().trim();
+        if (normTrek) {
+          const matches = (complaints ?? []).filter(
+            (c) => c.status === 'pending'
+              && (c.trek || '').toLowerCase().trim() === normTrek
+          );
+          for (const c of matches) {
+            // Shikoyatni qoldirgan operatorga xabar
+            if (c.createdBy && c.createdBy !== currentUser?.id) {
+              const n1: AppNotification = {
+                id: randomId('ntf'),
+                toUserId: c.createdBy,
+                fromUserId: currentUser?.id,
+                fromUserName: currentUser?.fullName ?? currentUser?.username,
+                ticketId: ticket.id,
+                trackingNumber: ticket.trackingNumber,
+                type: 'mention',
+                title: 'Sizning shikoyatingiz treki — yangi murojaatda',
+                body: `Trek ${ticket.trackingNumber} bo'yicha siz "${c.direction}${c.subtype ? ' · ' + c.subtype : ''}" shikoyatini qoldirgan edingiz. Hozir ${currentUser?.fullName ?? currentUser?.username} yangi murojaat ochdi.`,
+                createdAt: Date.now(),
+              };
+              setNotifications((prev) => [n1, ...prev].slice(0, 200));
+            }
+            // Yangi murojaat egasiga ham eslatma (duplikat oldini olish)
+            if (currentUser) {
+              const n2: AppNotification = {
+                id: randomId('ntf'),
+                toUserId: currentUser.id,
+                ticketId: ticket.id,
+                trackingNumber: ticket.trackingNumber,
+                type: 'callback',
+                title: 'Bu trek bo\'yicha shikoyat bor!',
+                body: `Trek ${ticket.trackingNumber} — ${c.createdByName ?? 'operator'} tomonidan "${c.direction}${c.subtype ? ' · ' + c.subtype : ''}" shikoyat qoldirilgan. Murojaat ochishdan oldin tekshiring.`,
+                createdAt: Date.now(),
+              };
+              setNotifications((prev) => [n2, ...prev].slice(0, 200));
+            }
+          }
+        }
+      } catch { /* sezilmaydi */ }
+
       // Yangi mas'ul operatorga bildirishnoma — "Sizga murojaat biriktirildi"
       if (ticket.assigneeId && ticket.assigneeId !== currentUser?.id) {
         const note: AppNotification = {
@@ -1207,7 +1252,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
       return ticket;
     },
-    [stages, users, tickets, settings, currentUser, writeDoc, backend, kvConfigured, kvReady]
+    [stages, users, tickets, settings, currentUser, writeDoc, backend, kvConfigured, kvReady, complaints]
   );
 
   const appendHistory = (ticket: Ticket, entry: Omit<TicketHistoryEntry, 'id' | 'timestamp'>) => {
