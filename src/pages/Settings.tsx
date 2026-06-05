@@ -28,7 +28,7 @@ const PRIORITY_LABELS: Record<string, string> = {
 };
 
 export default function SettingsPage() {
-  const { settings, saveSettings, exportBackup, importBackup, archiveOldResolved, tickets } = useApp();
+  const { settings, saveSettings, exportBackup, importBackup, archiveOldResolved, tickets, currentUser } = useApp();
   const [draft, setDraft] = useState<AppSettings>(settings);
   const fileRef = useRef<HTMLInputElement | null>(null);
   const [kv, setKV] = useState<KVStatus | null>(null);
@@ -493,6 +493,60 @@ export default function SettingsPage() {
           {sipCfg.enabled && sip.reg === 'failed' && sip.lastError && (
             <p className="text-xs text-rose-600 dark:text-rose-400 mt-2">Xato: {sip.lastError}</p>
           )}
+
+          {/* MicroSIP — tashqi softphone (operator kompyuteriga) */}
+          <div className="mt-5 pt-4 border-t border-slate-200 dark:border-slate-700">
+            <div className="flex items-start gap-3 flex-wrap">
+              <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-sky-500 to-blue-700 text-white flex items-center justify-center flex-shrink-0">
+                <PhoneCall className="h-6 w-6" />
+              </div>
+              <div className="flex-1 min-w-[200px]">
+                <div className="font-bold text-sm">MicroSIP (Windows softphone)</div>
+                <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
+                  Operator kompyuteriga o'rnatiladigan tashqi SIP softphone.
+                  Brauzer telefonidan farqli — ovoz sifati yaxshiroq va arqa fonida ishlaydi.
+                  <b className="block mt-1">O'rnatish:</b>
+                  <span className="block">1. <b>"Yuklab olish"</b> tugmasini bosing — ZIP yuklanadi</span>
+                  <span className="block">2. Zip'ni oching va papkani <code className="px-1 bg-slate-100 dark:bg-slate-800 rounded">C:\Program Files\MicroSIP</code> ga ko'chiring</span>
+                  <span className="block">3. <code className="px-1 bg-slate-100 dark:bg-slate-800 rounded">microsip.exe</code> ni ishga tushiring</span>
+                  <span className="block">4. Sozlamalardan domen, raqam va parolni kiriting (xodim profilidagi sip kengaytmasi)</span>
+                </p>
+              </div>
+              <a
+                href="/microsip.zip"
+                download="MicroSIP.zip"
+                className="btn-primary text-sm flex-shrink-0"
+              >
+                <Download className="h-4 w-4" /> Yuklab olish (8.4 MB)
+              </a>
+            </div>
+
+            {(currentUser?.sipExtension || sipCfg.username) && (
+              <div className="mt-3 p-3 rounded-xl bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800">
+                <div className="text-[11px] uppercase tracking-wider text-sky-700 dark:text-sky-400 font-bold mb-2">
+                  Sizning MicroSIP sozlamalaringiz
+                </div>
+                <div className="grid sm:grid-cols-2 gap-2 text-xs font-mono">
+                  <div className="p-2 bg-white dark:bg-slate-900 rounded">
+                    <div className="text-[10px] text-slate-500 uppercase">SIP server / domen</div>
+                    <div className="font-semibold">{sipCfg.domain || '—'}</div>
+                  </div>
+                  <div className="p-2 bg-white dark:bg-slate-900 rounded">
+                    <div className="text-[10px] text-slate-500 uppercase">Sizning raqam (extension)</div>
+                    <div className="font-semibold">{currentUser?.sipExtension || sipCfg.username || '—'}</div>
+                  </div>
+                  <div className="p-2 bg-white dark:bg-slate-900 rounded sm:col-span-2">
+                    <div className="text-[10px] text-slate-500 uppercase">Display nom</div>
+                    <div className="font-semibold">{currentUser?.fullName ?? currentUser?.username ?? sipCfg.displayName ?? '—'}</div>
+                  </div>
+                </div>
+                <p className="text-[11px] text-slate-500 mt-2">
+                  MicroSIP'da: Account → Add → Domain/Username/Password kiriting.
+                  Parolni admindan oling (xavfsizlik sababli bu yerda ko'rsatilmaydi).
+                </p>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* === TELEGRAM BOT === */}
