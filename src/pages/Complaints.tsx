@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react';
-import { MessageSquareWarning, Send, CheckCircle2, Clock, ClipboardCopy } from 'lucide-react';
+import { MessageSquareWarning, Send, CheckCircle2, Clock, ClipboardCopy, FileSpreadsheet } from 'lucide-react';
 import toast from 'react-hot-toast';
 import PageHeader from '../components/PageHeader';
 import AsyncButton from '../components/AsyncButton';
 import { useApp } from '../context/AppContext';
 import { sendTelegramMessage } from '../utils/telegram';
+import { buildComplaintsWorkbook, dateRangeYmd, saveWorkbook, toYmd as ymd, weekStartMonday } from '../utils/excelReports';
 import type { Complaint, ComplaintDirection } from '../types';
 
 type Range = 'day' | 'week';
@@ -195,6 +196,24 @@ export default function ComplaintsPage() {
           loadingText="..."
         >
           <ClipboardCopy className="h-4 w-4" /> Nusxalash
+        </AsyncButton>
+        <AsyncButton
+          onClick={() => {
+            // Joriy hafta (dushanbadan-bugungacha) — bitta Excel, 7 sheet
+            const monday = weekStartMonday(new Date(date));
+            const today = new Date();
+            const upTo = range === 'week' ? new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6) : new Date(date);
+            const days = dateRangeYmd(monday, upTo > today ? today : upTo);
+            const wb = buildComplaintsWorkbook(complaints ?? [], days);
+            saveWorkbook(wb, `ipost-shikoyatlar-hafta-${ymd(monday)}.xlsx`);
+            toast.success(`Excel saqlandi: hafta ${ymd(monday)}`);
+          }}
+          disabled={(complaints ?? []).length === 0}
+          className="btn-ghost text-sm disabled:opacity-50"
+          loadingText="..."
+          title="Joriy haftadan boshlab — har kun pastdan qo'shilib boradi, sanasi bilan"
+        >
+          <FileSpreadsheet className="h-4 w-4" /> Excel (haftalik)
         </AsyncButton>
         <AsyncButton
           onClick={sendByDirection}

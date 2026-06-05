@@ -1,11 +1,11 @@
 import { useMemo, useState } from 'react';
-import * as XLSX from 'xlsx';
-import { ClipboardCopy, FileSpreadsheet, Send, Inbox, Truck } from 'lucide-react';
+import { ClipboardCopy, FileSpreadsheet, Send, Inbox } from 'lucide-react';
 import toast from 'react-hot-toast';
 import PageHeader from '../components/PageHeader';
 import { useApp } from '../context/AppContext';
 import { sendTelegramMessage } from '../utils/telegram';
 import AsyncButton from '../components/AsyncButton';
+import { buildTicketsWorkbook, dateRangeYmd, saveWorkbook, weekStartMonday, toYmd as ymdU } from '../utils/excelReports';
 import type { Ticket } from '../types';
 
 const COMPANY_NAME = 'ABUSAXIYTEZ';
@@ -202,7 +202,7 @@ async function copy(text: string, msg = 'Nusxalandi') {
 }
 
 export default function DailyTickets() {
-  const { tickets, branches, categories, currentUser, settings, complaints } = useApp();
+  const { tickets, branches, categories, currentUser, settings, complaints, users } = useApp();
   const [date, setDate] = useState<string>(toYmd(new Date()));
   const [tab, setTab] = useState<string>('ALL');
 
@@ -274,28 +274,16 @@ export default function DailyTickets() {
     [dayFiltered, branches, operatorPhone, categories]
   );
 
-  function exportExcel() {
-    if (dayFiltered.length === 0) { toast.error('Yozuv yo\'q'); return; }
-    const rows = dayFiltered.map((t) => {
-      const m = t.misroute ?? {};
-      return {
-        'Vaqt': new Date(t.createdAt).toLocaleString('uz'),
-        "Yo'nalish": direction(t),
-        'Trek': t.trackingNumber,
-        'Mijoz ismi': m.correctCustomerName || t.customerName || '',
-        'Mijoz tel': m.correctCustomerPhone || t.customerPhone || '',
-        'Mijoz ID': m.postalId || t.details?.customerId || '',
-        'Olinadigan manzil': m.wrongAddress || '',
-        'Yetkazib beriladigan manzil': m.correctAddress || '',
-        'Buyurtmachi': m.orderedBy || '',
-        'Izoh': m.notes || t.details?.topicNote || '',
-      };
-    });
-    const ws = XLSX.utils.json_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Kunlik murojaatlar');
-    XLSX.writeFile(wb, `murojaatlar-${date}-${tab === 'ALL' ? 'hammasi' : tab}.xlsx`);
-    toast.success(`${rows.length} ta yozuv Excel'ga yuklandi`);
+  function exportExcelWeek() {
+    if (tickets.length === 0) { toast.error('Yozuv yo\'q'); return; }
+    const monday = weekStartMonday(new Date(date));
+    const today = new Date();
+    const upTo = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6);
+    const end = upTo > today ? today : upTo;
+    const days = dateRangeYmd(monday, end);
+    const wb = buildTicketsWorkbook(tickets, categories, users, days);
+    saveWorkbook(wb, `ipost-murojaatlar-hafta-${ymdU(monday)}.xlsx`);
+    toast.success(`Excel saqlandi: hafta ${ymdU(monday)}`);
   }
 
   // Kunlik xulosa — TIZIMDAGI BARCHA murojaat turlari sanaladi
@@ -483,12 +471,13 @@ export default function DailyTickets() {
               <ClipboardCopy className="h-4 w-4" /> Nusxalash
             </AsyncButton>
             <AsyncButton
-              onClick={exportExcel}
-              disabled={dayFiltered.length === 0}
+              onClick={exportExcelWeek}
+              disabled={tickets.length === 0}
               className="btn-ghost text-sm disabled:opacity-50"
               loadingText="..."
+              title="Joriy haftadan boshlab — har kategoriya alohida sheet, sanasi bilan. Yuk adashishi vertikal"
             >
-              <FileSpreadsheet className="h-4 w-4" /> Excel
+              <FileSpreadsheet className="h-4 w-4" /> Excel (haftalik)
             </AsyncButton>
             <AsyncButton
               onClick={sendTelegram}
