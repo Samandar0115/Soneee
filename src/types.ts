@@ -469,17 +469,20 @@ export interface AppSettings {
 }
 
 // Xitoy ombor manzili — mijoz screen shot bilan tekshirishi uchun standart
+// Maydonlar ichida {ID} placeholder bo'lishi mumkin — mijoz o'z ID sini kiritganda
+// avtomatik almashtiriladi. Masalan: "号门 077库房/{ID}号"
 export interface ChineseAddressTemplate {
-  recipientName: string;       // 收件人 — qabul qiluvchi (ya'ni bizning ombor nomi)
-  phone: string;               // 电话 — telefon
+  recipientName: string;       // 收件人 — qabul qiluvchi (mas: "号门 077库房/{ID}号")
+  phone: string;               // 手机号 — telefon
   province: string;            // 省
   city: string;                // 市
   district: string;            // 区
-  detailedAddress: string;     // 详细地址 — to'liq manzil
+  detailedAddress: string;     // 详细地址 — to'liq manzil (mas: "苏溪苏福路255号主楼5号门 077库房/{ID}号")
   postalCode: string;          // 邮编 — pochta indeksi
-  customerIdHint: string;      // "kichik izoh — mijoz ID qayerga yozilishi kerak" (masalan: "Tag/iD-IPOST-XXXXX")
+  customerIdHint: string;      // "kichik izoh — mijoz ID qayerga yozilishi kerak"
   notes?: string;              // qo'shimcha ko'rsatma
 }
+export const ADDRESS_ID_PLACEHOLDER = '{ID}';
 
 // Telegram bot sozlamalari — kunlik hisobotlar va misroute eksport uchun
 export interface TelegramConfig {
