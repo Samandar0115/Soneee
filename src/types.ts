@@ -486,7 +486,7 @@ export const ADDRESS_ID_PLACEHOLDER = '{ID}';
 
 // /check sahifasi uchun fallback — settings yuklanmagan bo'lsa ham ishlaydi
 export const DEFAULT_CHINESE_ADDRESS: ChineseAddressTemplate = {
-  recipientName: '号门 077库房/{ID}号',
+  recipientName: '077库房/{ID}号',
   phone: '13335957161',
   province: '浙江省',
   city: '金华市',

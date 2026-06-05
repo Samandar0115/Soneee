@@ -52,7 +52,7 @@ export const seedAppSettings: AppSettings = {
     { id: 'ord-buvajonov', name: 'Buvajonov Hamidjon', phone: '+998990280848' },
   ],
   chineseAddress: {
-    recipientName: '号门 077库房/{ID}号',
+    recipientName: '077库房/{ID}号',
     phone: '13335957161',
     province: '浙江省',
     city: '金华市',
