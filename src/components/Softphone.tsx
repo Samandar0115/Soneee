@@ -488,7 +488,7 @@ export default function Softphone() {
                             className="w-full text-left px-2.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 transition flex items-center gap-2"
                           >
                             <span className={`flex-shrink-0 h-7 w-7 rounded-full flex items-center justify-center ${
-                              outcome === 'answered' || outcome === 'connected' ? 'bg-emerald-500/30 text-emerald-100'
+                              outcome === 'answered' ? 'bg-emerald-500/30 text-emerald-100'
                               : outcome === 'no_answer' ? 'bg-amber-500/30 text-amber-100'
                               : 'bg-rose-500/30 text-rose-100'
                             }`}>

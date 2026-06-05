@@ -544,7 +544,7 @@ export default function Layout() {
             <NavLink
               key={l.to}
               to={l.to}
-              end={l.end}
+              end={l.to === '/'}
               className={({ isActive }) =>
                 `flex flex-col items-center justify-center gap-0.5 py-2 px-3 flex-1 rounded-lg text-[10px] font-semibold transition ${
                   isActive ? 'text-brand-400 bg-brand-500/10' : 'text-slate-400 active:bg-orange-400/20 active:text-orange-200'
