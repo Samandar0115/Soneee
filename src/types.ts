@@ -484,6 +484,19 @@ export interface ChineseAddressTemplate {
 }
 export const ADDRESS_ID_PLACEHOLDER = '{ID}';
 
+// /check sahifasi uchun fallback — settings yuklanmagan bo'lsa ham ishlaydi
+export const DEFAULT_CHINESE_ADDRESS: ChineseAddressTemplate = {
+  recipientName: '号门 077库房/{ID}号',
+  phone: '13335957161',
+  province: '浙江省',
+  city: '金华市',
+  district: '义乌市',
+  detailedAddress: '苏溪苏福路255号主楼5号门 077库房/{ID}号',
+  postalCode: '322000',
+  customerIdHint: "{ID} o'rniga o'zingizning iPOST mijoz raqamingizni yozing (masalan: 111982). ID bo'lmasa, yukingiz biriktirilmaydi!",
+  notes: "Diqqat: ID raqamingizni 收货人 (Qabul qiluvchi) va 详细地址 (To'liq manzil) maydonlariga yozish majburiy. Aks holda yukingiz uzoq vaqt omborda qoladi.",
+};
+
 // Telegram bot sozlamalari — kunlik hisobotlar va misroute eksport uchun
 export interface TelegramConfig {
   enabled: boolean;
