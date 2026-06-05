@@ -18,9 +18,21 @@ function copyText(text: string) {
   );
 }
 
+// Ko'p formatdagi ID placeholder'larni qo'llab-quvvatlaydi: {ID}, <ID>, (ID), [ID], 【ID】
+const ID_PLACEHOLDER_RE = /\{\s*ID\s*\}|<\s*ID\s*>|\(\s*ID\s*\)|\[\s*ID\s*\]|【\s*ID\s*】/gi;
+
 function fillId(text: string, id: string): string {
   if (!text) return '';
-  return text.split(ADDRESS_ID_PLACEHOLDER).join(id || ADDRESS_ID_PLACEHOLDER);
+  if (id) return text.replace(ID_PLACEHOLDER_RE, id);
+  // ID yo'q bo'lsa — birlashtirilgan ko'rinishda qoldiramiz, oxirgi UI'da '___' bilan almashtiramiz
+  return text;
+}
+
+// Foydalanuvchi uchun chiroyli ko'rinish — placeholder'ni '______' bilan almashtiradi
+function renderForUi(text: string, id: string): string {
+  if (!text) return '';
+  if (id) return text.replace(ID_PLACEHOLDER_RE, id);
+  return text.replace(ID_PLACEHOLDER_RE, '______');
 }
 
 // Belgilarni normallashtirish — taqqoslash uchun bo'shliq/tinish belgilarini olib tashlaydi
@@ -31,26 +43,88 @@ function norm(s: string): string {
     .replace(/[(),，。．．:：;；、（）\[\]【】「」｜|\-—_·.]/g, '');
 }
 
-// Xitoy keyword'idan keyingi matnni qidirib olish (qator yoki ikki nuqtali shaklda)
+// Hamma Xitoy keyword'lari (boshqa maydonni "to'xtash belgisi" sifatida ham ishlatamiz)
+const ALL_KEYWORDS_RE = /收货人|收件人|联系人|姓名|姓\s*名|Имя|手机号码|手机号|手机|电话|联系电话|Мобильный\s*телефон|所在地区|地区|区域|省市区|Регион|详细地址|街道地址|小区楼栋|乡村名称|地址|Адрес|邮编|邮政编码|Почтовый\s*индекс|保存|Сохранить|定位/i;
+
+// OCR matnidan qora overlay/toast/yo'l-yo'riq matnlarini olib tashlash
+// (Poizon va 1688 da koordinatalar/lokatsiya ogohlantirishlari rasm ustidan tushadi)
+const OVERLAY_PHRASES = [
+  '未找到位置信息', '当前定位无信息', '去设置',
+  '地址定位不准', '请在地图上选择地址',
+  '找不到地址', '试试搜索吧', '智能粘贴', '智能填写', '智能填',
+  '正在加载', '正在加载...', '加载中',
+  '点击识别', '识别', '清除',
+  '搜索小区', '写字楼', '学校等', '搜索地址', '更快填写',
+  '你输入的收货人姓名过长',
+  '编辑地址', '修改收货地址', '收货地址', '新增地址', '管理', '删除',
+  'Редактировать адрес получения', 'Вставьте сюда адрес',
+  'Автозаполнение', 'Очистить одним кликом', 'Сохранить', 'Установить адрес по умолчанию',
+  '地址标签', '收件偏好', '默认地址', '未设置',
+];
+
+function stripOverlayText(raw: string): string {
+  let t = raw;
+  for (const ph of OVERLAY_PHRASES) {
+    t = t.split(ph).join(' ');
+  }
+  return t;
+}
+
+// Platforma aniqlash — OCR matnidagi belgilardan
+type Platform = 'pinduoduo' | 'taobao' | '1688' | 'poizon' | 'unknown';
+
+function detectPlatform(rawText: string): Platform {
+  const t = rawText;
+  if (/得物|编辑地址|你输入的收货人姓名过长/.test(t)) return 'poizon';
+  if (/Имя|Регион|Адрес|Сохранить|Редактировать|Мобильный/i.test(t) || /手机号\s*\(Phone\s*Number\)/i.test(t)) return 'taobao';
+  if (/1688|新增地址|智能粘贴|小区楼栋|乡村名称|Street.*number.*apt/i.test(t)) return '1688';
+  if (/修改收货地址|拼多多|pinduoduo/i.test(t)) return 'pinduoduo';
+  return 'unknown';
+}
+
+const PLATFORM_LABEL: Record<Platform, string> = {
+  pinduoduo: 'Pinduoduo',
+  taobao: 'Taobao',
+  '1688': '1688',
+  poizon: 'Poizon (得物)',
+  unknown: "Aniqlanmagan",
+};
+
+// Xitoy keyword'idan keyingi matnni qidirib olish — bir qator ichida, qo'shni qatorda yoki butun matnda
 function findAfter(ocrText: string, ...keywords: string[]): string {
-  const lines = ocrText.split('\n');
+  const lines = ocrText.split('\n').map((l) => l.trim()).filter(Boolean);
+  // 1) Bir qator ichida — kw dan keyin matn bo'lsa
   for (const kw of keywords) {
-    for (const raw of lines) {
-      const line = raw.trim();
-      if (!line) continue;
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
       const idx = line.indexOf(kw);
       if (idx === -1) continue;
       let rest = line.slice(idx + kw.length).trim();
-      // ":" yoki shunga o'xshashlarni kesib tashlash
-      rest = rest.replace(/^[:：\-—\s]+/, '').trim();
-      if (rest) return rest;
-      // Keyingi qatorda bo'lishi mumkin
-      const nextIdx = lines.indexOf(raw) + 1;
-      if (nextIdx < lines.length) {
-        const next = lines[nextIdx]?.trim();
-        if (next) return next;
+      rest = rest.replace(/^[:：\-—\s|·]+/, '').trim();
+      // Boshqa maydon nomini kesib tashlash
+      const nextKwMatch = rest.match(ALL_KEYWORDS_RE);
+      if (nextKwMatch && nextKwMatch.index !== undefined) {
+        rest = rest.slice(0, nextKwMatch.index).trim();
       }
+      if (rest) return rest;
+      // Keyingi qatorda bo'lsa
+      const next = lines[i + 1];
+      if (next && !ALL_KEYWORDS_RE.test(next)) return next;
     }
+  }
+  // 2) Butun matnda (qator yo'q rejimda)
+  const full = ocrText.replace(/\n/g, ' ').replace(/\s+/g, ' ');
+  for (const kw of keywords) {
+    const idx = full.indexOf(kw);
+    if (idx === -1) continue;
+    let after = full.slice(idx + kw.length).trim();
+    after = after.replace(/^[:：\-—\s|·]+/, '');
+    const nextKwMatch = after.match(ALL_KEYWORDS_RE);
+    if (nextKwMatch && nextKwMatch.index !== undefined) {
+      after = after.slice(0, nextKwMatch.index);
+    }
+    after = after.trim();
+    if (after) return after;
   }
   return '';
 }
@@ -75,136 +149,216 @@ interface Extracted {
   postalCode: string;
 }
 
-function extractFields(ocrText: string): Extracted {
+interface OcrLineData {
+  text: string;
+  bbox: { x0: number; y0: number; x1: number; y1: number };
+}
+
+function findFieldBbox(lines: OcrLineData[], keywords: string[]): OcrLineData['bbox'] | null {
+  for (const kw of keywords) {
+    for (const ln of lines) {
+      if (ln.text.includes(kw)) return ln.bbox;
+    }
+  }
+  return null;
+}
+
+function extractFields(rawText: string): Extracted {
+  // Avval overlay/toast matnlarini olib tashlaymiz
+  const cleaned = stripOverlayText(rawText);
+  // 1688 va Taobao'da qo'shimcha label'lar bor — ko'p variant bilan qidiramiz
+  const recipient = findAfter(
+    cleaned,
+    '收货人', '收件人', '联系人', '姓名', '姓 名', 'Имя',
+  );
+  const phone = findAfter(
+    cleaned,
+    '手机号码', '手机号', '联系电话', '电话', '手机', 'Мобильный телефон', 'Мобильный',
+  );
+  const region = findAfter(
+    cleaned,
+    '所在地区', '省市区', '地区', '区域', 'Регион',
+  );
+  // 1688'da maydon nomi `小区楼栋/乡村名称(Street...)` — keng variant
+  const address = findAfter(
+    cleaned,
+    '详细地址', '街道地址', '小区楼栋', '乡村名称', '地址', 'Адрес',
+  );
+  const postalCode = findAfter(
+    cleaned,
+    '邮编', '邮政编码', 'Почтовый индекс', 'Почтовый',
+  );
   return {
-    recipientName: findAfter(ocrText, '收货人', '收件人'),
-    phone: findAfter(ocrText, '手机号', '电话', '联系电话'),
-    region: findAfter(ocrText, '所在地区', '地区', '区域'),
-    address: findAfter(ocrText, '详细地址', '街道地址', '地址'),
-    postalCode: findAfter(ocrText, '邮编', '邮政编码'),
+    recipientName: recipient,
+    phone,
+    region,
+    address,
+    postalCode,
   };
 }
 
 type FieldKey = 'recipientName' | 'phone' | 'region' | 'address' | 'postalCode';
 
+// Instruksiya turi — UI ranglar va belgilar uchun
+type InstructionKind =
+  | 'ok'              // ✓ — hech narsa qilmaslik
+  | 'add'             // ➕ — shuni qo'shing (existing matnga)
+  | 'replace'         // ✏️ — buni yozing (mavjudini o'zgartirib)
+  | 'fill'            // 📝 — bo'sh maydonga shuni yozing
+  | 'optional-empty'; // ⚪ — bu maydon yo'q (lekin OK)
+
 interface FieldCheck {
   key: FieldKey;
   zh: string;
   label: string;
-  expected: string;        // mijoz nima yozishi kerak
-  detected: string;        // OCR rasmdan topgan matn
-  status: 'ok' | 'missing' | 'wrong' | 'optional-skipped';
-  hint: string;
+  expected: string;       // mijoz nima yozishi kerak (to'liq, foydalanuvchi ko'radi)
+  detected: string;       // OCR rasmdan topgan matn
+  kind: InstructionKind;
+  action: string;         // qisqacha bosh harfli ko'rsatma ("Bu yerga qo'shing", "Almashtiring", ...)
+  payload: string;        // qaysi matnni qo'shish/almashtirish — copy tugmasi shuni nusxalaydi
 }
 
-function buildChecks(tpl: ChineseAddressTemplate, id: string, ex: Extracted): FieldCheck[] {
-  const idTag = id ? `077库房/${id}号` : '';
-  const expectedRecipient = fillId(tpl.recipientName, id);
-  const expectedRegion = `${tpl.province} ${tpl.city} ${tpl.district}`;
-  const expectedAddress = fillId(tpl.detailedAddress, id);
-
-  const checks: FieldCheck[] = [];
-
-  // 1) 收货人 — 077库房/{ID}号 namunasini o'z ichiga olishi shart
-  {
-    const nDetected = norm(ex.recipientName);
-    const ok = id && idTag && nDetected.includes(norm(idTag));
-    checks.push({
-      key: 'recipientName',
-      zh: '收货人',
-      label: 'Qabul qiluvchi',
-      expected: expectedRecipient,
-      detected: ex.recipientName,
-      status: !ex.recipientName ? 'missing' : ok ? 'ok' : 'wrong',
-      hint: !ex.recipientName
-        ? 'Bu maydon topilmadi'
-        : ok
-          ? "To'g'ri"
-          : `Bu yerga shuni yozing: ${expectedRecipient}`,
-    });
+// Platforma uchun "收货人" formati
+function recipientExpected(platform: Platform, id: string): string {
+  if (platform === 'taobao' || platform === 'poizon') {
+    // qisqa format — qavs ichida (foydalanuvchi aytdi)
+    return id ? `(077/${id})` : '(077/<ID>)';
   }
+  // Pinduoduo / unknown — to'liq qavsli format
+  return id ? `(077库房/${id}号)` : '(077库房/<ID>号)';
+}
 
-  // 2) 手机号 — telefon raqami aynan mos kelishi kerak
-  {
-    const dDigits = ex.phone.replace(/\D/g, '');
-    const eDigits = tpl.phone.replace(/\D/g, '');
-    const ok = dDigits === eDigits;
-    checks.push({
-      key: 'phone',
-      zh: '手机号',
-      label: 'Telefon',
-      expected: tpl.phone,
-      detected: ex.phone,
-      status: !ex.phone ? 'missing' : ok ? 'ok' : 'wrong',
-      hint: !ex.phone ? 'Telefon topilmadi' : ok ? "To'g'ri" : `Telefon: ${tpl.phone}`,
-    });
+function instructRecipient(detected: string, id: string, platform: Platform): { kind: InstructionKind; action: string; payload: string } {
+  // 1688 da alohida 收货人 maydon yo'q — bu kontrol o'tkazib yuboriladi
+  if (platform === '1688') {
+    return { kind: 'optional-empty', action: '1688 da alohida bu maydon yo\'q — OK', payload: '' };
   }
-
-  // 3) 地区 — 浙江省 金华市 义乌市
-  {
-    const n = norm(ex.region);
-    const ok = n.includes(norm(tpl.province)) && n.includes(norm(tpl.city)) && n.includes(norm(tpl.district));
-    checks.push({
-      key: 'region',
-      zh: '所在地区',
-      label: 'Hudud',
-      expected: expectedRegion,
-      detected: ex.region,
-      status: !ex.region ? 'missing' : ok ? 'ok' : 'wrong',
-      hint: !ex.region ? 'Hudud topilmadi' : ok ? "To'g'ri" : `Hudud: ${expectedRegion}`,
-    });
+  const expected = recipientExpected(platform, id);
+  if (!detected) {
+    return { kind: 'fill', action: "收货人 bo'sh — yozing:", payload: expected };
   }
+  // Detected dagi raqamni topish
+  const m = detected.match(/(\d{4,8})/);
+  const detectedId = m?.[1] ?? '';
 
-  // 4) 详细地址 — ko'cha + 077库房/{ID}号 ham bo'lishi shart
-  {
-    const nDetected = norm(ex.address);
-    const hasStreet = nDetected.includes(norm(tpl.detailedAddress.replace(ADDRESS_ID_PLACEHOLDER, '').replace('077库房/号', '').trim()));
-    const hasIdTag = id && idTag && nDetected.includes(norm(idTag));
-    const ok = hasStreet && hasIdTag;
-    let hint = "To'g'ri";
-    if (!ex.address) hint = "Manzil topilmadi";
-    else if (!hasStreet) hint = `Ko'cha noto'g'ri. To'g'risi: ${expectedAddress}`;
-    else if (!hasIdTag) hint = `Manzilning oxiriga ${idTag || '077库房/(ID)号'} qo'shing!`;
-    checks.push({
-      key: 'address',
-      zh: '详细地址',
-      label: "To'liq manzil",
-      expected: expectedAddress,
-      detected: ex.address,
-      status: !ex.address ? 'missing' : ok ? 'ok' : 'wrong',
-      hint,
-    });
-  }
-
-  // 5) 邮编 — IXTIYORIY. Agar bo'lsa, 322000 bo'lishi kerak
-  {
-    const dDigits = ex.postalCode.replace(/\D/g, '');
-    const eDigits = tpl.postalCode.replace(/\D/g, '');
-    if (!ex.postalCode) {
-      checks.push({
-        key: 'postalCode',
-        zh: '邮编',
-        label: 'Pochta indeksi',
-        expected: tpl.postalCode,
-        detected: '',
-        status: 'optional-skipped',
-        hint: 'Ilovangiz so\'ramagan — OK',
-      });
-    } else {
-      const ok = dDigits === eDigits;
-      checks.push({
-        key: 'postalCode',
-        zh: '邮编',
-        label: 'Pochta indeksi',
-        expected: tpl.postalCode,
-        detected: ex.postalCode,
-        status: ok ? 'ok' : 'wrong',
-        hint: ok ? "To'g'ri" : `Pochta: ${tpl.postalCode}`,
-      });
+  // ID mos kelsa va format ham mos kelsa — OK
+  if (id && detectedId === id) {
+    if (norm(detected) === norm(expected)) {
+      return { kind: 'ok', action: "To'g'ri yozilgan", payload: '' };
     }
+    // ID to'g'ri, lekin format boshqacha
+    if (platform === 'taobao' || platform === 'poizon') {
+      return {
+        kind: 'replace',
+        action: 'Qavs ichida qisqa formatda yozing (库房 va 号 yozilmaydi):',
+        payload: expected,
+      };
+    }
+    // pinduoduo — format yetarli darajada to'g'ri (077 + ID bor)
+    if (/077.*库.*房/.test(detected)) {
+      return { kind: 'ok', action: "To'g'ri yozilgan", payload: '' };
+    }
+    return { kind: 'replace', action: "Format to'liq emas — almashtiring:", payload: expected };
   }
+  // ID yo'q yoki mos kelmadi
+  if (!id) {
+    return { kind: 'fill', action: 'Avval yuqorida ID kiriting', payload: expected };
+  }
+  return { kind: 'replace', action: `ID xato (${detectedId || 'topilmadi'}). Almashtiring:`, payload: expected };
+}
 
-  return checks;
+function instructPhone(detected: string, expected: string): { kind: InstructionKind; action: string; payload: string } {
+  const eDigits = expected.replace(/\D/g, '');
+  const dDigits = detected.replace(/\D/g, '');
+  if (!detected) {
+    return { kind: 'fill', action: "Telefon bo'sh — yozing:", payload: expected };
+  }
+  if (dDigits === eDigits) return { kind: 'ok', action: "To'g'ri yozilgan", payload: '' };
+  // Qisman moslik (oxirgi 7 raqam)
+  if (eDigits.endsWith(dDigits) || dDigits.endsWith(eDigits.slice(-9))) {
+    return { kind: 'replace', action: "Telefon qisman to'g'ri. Almashtiring:", payload: expected };
+  }
+  return { kind: 'replace', action: "Telefon noto'g'ri. Almashtiring:", payload: expected };
+}
+
+function instructRegion(detected: string, tpl: ChineseAddressTemplate): { kind: InstructionKind; action: string; payload: string } {
+  const expected = `${tpl.province} ${tpl.city} ${tpl.district}`;
+  if (!detected) return { kind: 'fill', action: "Hudud tanlanmagan — tanlang:", payload: expected };
+  const n = norm(detected);
+  const okProv = n.includes(norm(tpl.province));
+  const okCity = n.includes(norm(tpl.city));
+  const okDist = n.includes(norm(tpl.district));
+  if (okProv && okCity && okDist) return { kind: 'ok', action: "To'g'ri tanlangan", payload: '' };
+  return { kind: 'replace', action: "Hududni o'zgartiring:", payload: expected };
+}
+
+function instructAddress(detected: string, idTag: string, id: string, expected: string, tpl: ChineseAddressTemplate): { kind: InstructionKind; action: string; payload: string } {
+  if (!detected) return { kind: 'fill', action: "Manzil bo'sh — yozing:", payload: expected };
+
+  const streetOnly = tpl.detailedAddress
+    .replace(ID_PLACEHOLDER_RE, '')
+    .replace(/077\s*[库厍]?\s*房\s*[\/\\／＼]?\s*号?/g, '')
+    .trim();
+  const nDet = norm(detected);
+  const hasStreet = streetOnly && nDet.includes(norm(streetOnly));
+
+  const m = detected.match(/077\s*[库厍]?\s*房\s*[\/\\／＼:号]?\s*(\d{4,8})/);
+  const detectedId = m?.[1] ?? '';
+  const hasIdTag = !!detectedId && (!id || detectedId === id);
+
+  if (hasStreet && hasIdTag) return { kind: 'ok', action: "To'g'ri yozilgan", payload: '' };
+
+  if (hasStreet && !detectedId) {
+    return {
+      kind: 'add',
+      action: "Manzil oxiriga shuni qo'shing:",
+      payload: idTag || '077库房/<ID>号',
+    };
+  }
+  if (hasStreet && detectedId && id && detectedId !== id) {
+    return {
+      kind: 'replace',
+      action: `Manzil oxiridagi ID xato (${detectedId}). Almashtiring:`,
+      payload: idTag,
+    };
+  }
+  // Ko'cha noto'g'ri
+  return {
+    kind: 'replace',
+    action: "Ko'cha noto'g'ri. To'liq manzilni almashtiring:",
+    payload: expected,
+  };
+}
+
+function instructPostal(detected: string, expected: string): { kind: InstructionKind; action: string; payload: string } {
+  if (!detected) {
+    return { kind: 'optional-empty', action: "Ilovangiz so'ramagan — OK", payload: '' };
+  }
+  const eDigits = expected.replace(/\D/g, '');
+  const dDigits = detected.replace(/\D/g, '');
+  if (dDigits === eDigits) return { kind: 'ok', action: "To'g'ri", payload: '' };
+  return { kind: 'replace', action: "Pochta indeksini almashtiring:", payload: expected };
+}
+
+function buildChecks(tpl: ChineseAddressTemplate, id: string, ex: Extracted, platform: Platform): FieldCheck[] {
+  const idTag = id ? `077库房/${id}号` : '';
+  const expectedRecipient = recipientExpected(platform, id);
+  const expectedRegion = `${tpl.province} ${tpl.city} ${tpl.district}`;
+  const expectedAddress = renderForUi(tpl.detailedAddress, id);
+
+  const r = instructRecipient(ex.recipientName, id, platform);
+  const p = instructPhone(ex.phone, tpl.phone);
+  const g = instructRegion(ex.region, tpl);
+  const a = instructAddress(ex.address, idTag, id, expectedAddress, tpl);
+  const z = instructPostal(ex.postalCode, tpl.postalCode);
+
+  return [
+    { key: 'recipientName', zh: '收货人', label: 'Qabul qiluvchi', expected: expectedRecipient, detected: ex.recipientName, ...r },
+    { key: 'phone',         zh: '手机号', label: 'Telefon',         expected: tpl.phone,         detected: ex.phone,         ...p },
+    { key: 'region',        zh: '所在地区', label: 'Hudud',          expected: expectedRegion,    detected: ex.region,        ...g },
+    { key: 'address',       zh: '详细地址', label: "To'liq manzil",   expected: expectedAddress,   detected: ex.address,       ...a },
+    { key: 'postalCode',    zh: '邮编',   label: 'Pochta indeksi',  expected: tpl.postalCode,    detected: ex.postalCode,    ...z },
+  ];
 }
 
 // ============================================================
@@ -219,6 +373,8 @@ export default function Check() {
   const [scanned, setScanned] = useState(false);
   const [ocrText, setOcrText] = useState('');
   const [ocrProgress, setOcrProgress] = useState(0);
+  const [ocrLines, setOcrLines] = useState<OcrLineData[]>([]);
+  const [imgNatural, setImgNatural] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
 
   const fileRef = useRef<HTMLInputElement | null>(null);
   const cameraRef = useRef<HTMLInputElement | null>(null);
@@ -269,14 +425,16 @@ export default function Check() {
 
   async function runOcr(imgDataUrl: string) {
     setOcrText('');
+    setOcrLines([]);
     setOcrProgress(0);
     try {
       let text = '';
+      let lines: OcrLineData[] = [];
+      let rawData: any = null;
       if (workerRef.current && workerReady) {
         const { data } = await workerRef.current.recognize(imgDataUrl);
-        text = data.text || '';
+        rawData = data;
       } else {
-        // Worker hali tayyor emas — fallback bir martalik
         const T: any = await import('tesseract.js');
         const rec = T.recognize || T.default?.recognize;
         const { data } = await rec(imgDataUrl, 'chi_sim+eng', {
@@ -286,10 +444,16 @@ export default function Check() {
             }
           },
         });
-        text = data.text || '';
+        rawData = data;
+      }
+      text = rawData?.text || '';
+      if (Array.isArray(rawData?.lines)) {
+        lines = rawData.lines
+          .filter((l: any) => l?.text && l?.bbox)
+          .map((l: any) => ({ text: String(l.text).trim(), bbox: l.bbox }));
       }
       setOcrText(text);
-      // ID ni avto-aniqlash
+      setOcrLines(lines);
       const detected = detectIdFromText(text);
       if (detected && !customerId) {
         setCustomerId(detected);
@@ -331,9 +495,10 @@ export default function Check() {
   const idValid = /^\d{4,8}$/.test(customerId.trim()) && customerId.trim() !== tpl.postalCode;
   const effectiveId = idValid ? customerId.trim() : '';
 
+  const platform: Platform = scanned ? detectPlatform(ocrText) : 'unknown';
   const extracted = extractFields(ocrText);
-  const checks = scanned ? buildChecks(tpl, effectiveId, extracted) : [];
-  const wrongCount = checks.filter((c) => c.status === 'wrong' || c.status === 'missing').length;
+  const checks = scanned ? buildChecks(tpl, effectiveId, extracted, platform) : [];
+  const wrongCount = checks.filter((c) => c.kind !== 'ok' && c.kind !== 'optional-empty').length;
   const allOk = scanned && checks.length > 0 && wrongCount === 0;
 
   return (
@@ -447,11 +612,18 @@ export default function Check() {
           <>
             <div className="card p-3">
               <div className="flex items-center justify-between mb-2">
-                <div className="text-[11px] uppercase tracking-wider text-slate-500 font-bold inline-flex items-center gap-1">
+                <div className="text-[11px] uppercase tracking-wider text-slate-500 font-bold inline-flex items-center gap-2 flex-wrap">
                   {scanning ? (
                     <><ScanLine className="h-3 w-3 text-brand-500 animate-pulse" /> Skanerlanmoqda... {ocrProgress > 0 ? `${ocrProgress}%` : ''}</>
                   ) : (
-                    <><CheckCircle2 className="h-3 w-3 text-emerald-500" /> Skanerlandi</>
+                    <>
+                      <span className="inline-flex items-center gap-1"><CheckCircle2 className="h-3 w-3 text-emerald-500" /> Skanerlandi</span>
+                      {platform !== 'unknown' && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-brand-100 text-brand-700 dark:bg-brand-900/40 dark:text-brand-300 normal-case tracking-normal">
+                          {PLATFORM_LABEL[platform]}
+                        </span>
+                      )}
+                    </>
                   )}
                 </div>
                 <button onClick={reset} className="text-[11px] inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200">
@@ -459,7 +631,15 @@ export default function Check() {
                 </button>
               </div>
               <div className="relative rounded-xl overflow-hidden bg-slate-900">
-                <img src={image} alt="Yuklangan manzil" className="w-full h-auto block" />
+                <img
+                  src={image}
+                  alt="Yuklangan manzil"
+                  className="w-full h-auto block"
+                  onLoad={(e) => {
+                    const img = e.currentTarget;
+                    setImgNatural({ w: img.naturalWidth, h: img.naturalHeight });
+                  }}
+                />
                 {scanning && (
                   <>
                     <span className="lens-corner tl" />
@@ -468,6 +648,13 @@ export default function Check() {
                     <span className="lens-corner br" />
                     <div className="lens-scan-line" />
                   </>
+                )}
+                {scanned && ocrLines.length > 0 && imgNatural.w > 0 && (
+                  <ImageAnnotations
+                    checks={checks}
+                    lines={ocrLines}
+                    natural={imgNatural}
+                  />
                 )}
               </div>
               {scanned && (
@@ -519,7 +706,7 @@ export default function Check() {
                   <h3 className="font-bold text-sm mb-2">Maydonlar bo'yicha tahlil</h3>
                   <div className="space-y-2">
                     {checks.map((c) => (
-                      <FieldRow key={c.key} check={c} effectiveId={effectiveId} />
+                      <FieldRow key={c.key} check={c} />
                     ))}
                   </div>
                 </div>
@@ -557,19 +744,30 @@ function OcrLine({ zh, label, value }: { zh: string; label: string; value: strin
   );
 }
 
-function FieldRow({ check, effectiveId }: { check: FieldCheck; effectiveId: string }) {
+function FieldRow({ check }: { check: FieldCheck }) {
   const c = check;
-  const bg =
-    c.status === 'ok' ? 'border-emerald-300 bg-emerald-50/50 dark:bg-emerald-900/10'
-    : c.status === 'optional-skipped' ? 'border-slate-200 dark:border-slate-700 bg-slate-50/40 dark:bg-slate-800/40'
-    : 'border-rose-300 bg-rose-50/50 dark:bg-rose-900/10';
+  const isOk = c.kind === 'ok' || c.kind === 'optional-empty';
 
-  const icon =
-    c.status === 'ok' ? <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-    : c.status === 'optional-skipped' ? <CheckCircle2 className="h-4 w-4 text-slate-400" />
+  const bg = isOk
+    ? c.kind === 'optional-empty'
+      ? 'border-slate-200 dark:border-slate-700 bg-slate-50/40 dark:bg-slate-800/40'
+      : 'border-emerald-300 bg-emerald-50/50 dark:bg-emerald-900/10'
+    : c.kind === 'add'
+      ? 'border-sky-300 bg-sky-50/60 dark:bg-sky-900/10'
+      : c.kind === 'fill'
+        ? 'border-amber-300 bg-amber-50/60 dark:bg-amber-900/10'
+        : 'border-rose-300 bg-rose-50/60 dark:bg-rose-900/10';
+
+  const kindBadge =
+    c.kind === 'ok' ? null
+    : c.kind === 'optional-empty' ? null
+    : c.kind === 'add' ? { label: "QO'SHING", cls: 'bg-sky-500' }
+    : c.kind === 'fill' ? { label: 'YOZING', cls: 'bg-amber-500' }
+    : { label: 'ALMASHTIRING', cls: 'bg-rose-500' };
+
+  const icon = isOk
+    ? <CheckCircle2 className={`h-4 w-4 ${c.kind === 'optional-empty' ? 'text-slate-400' : 'text-emerald-500'}`} />
     : <AlertTriangle className="h-4 w-4 text-rose-500" />;
-
-  const showExpected = c.status !== 'optional-skipped' && (c.status === 'wrong' || c.status === 'missing');
 
   return (
     <div className={`rounded-xl border p-2.5 ${bg}`}>
@@ -579,30 +777,36 @@ function FieldRow({ check, effectiveId }: { check: FieldCheck; effectiveId: stri
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-[10px] uppercase tracking-wider text-brand-600 font-bold">{c.zh}</span>
             <span className="text-[11px] font-semibold">{c.label}</span>
+            {kindBadge && (
+              <span className={`text-[9px] uppercase tracking-wider text-white px-1.5 py-0.5 rounded font-bold ${kindBadge.cls}`}>
+                {kindBadge.label}
+              </span>
+            )}
           </div>
           {c.detected && (
-            <div className="font-mono text-[11px] text-slate-600 dark:text-slate-300 mt-0.5 break-words">
-              <span className="text-[10px] text-slate-400 mr-1">Topildi:</span>
-              {c.detected}
+            <div className="font-mono text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 break-words">
+              <span className="text-[10px] mr-1">Hozir:</span>
+              <span className={c.kind === 'replace' ? 'line-through' : ''}>{c.detected}</span>
             </div>
           )}
-          {showExpected && c.expected && (
-            <div className="font-mono text-[11px] text-emerald-700 dark:text-emerald-300 mt-0.5 break-words font-semibold">
-              <span className="text-[10px] text-emerald-600 mr-1">Bo'lishi kerak:</span>
-              {effectiveId ? c.expected : c.expected.replace(/\{ID\}/g, '___')}
-            </div>
-          )}
-          <div className={`text-[11px] mt-0.5 ${
-            c.status === 'ok' ? 'text-emerald-600'
-            : c.status === 'optional-skipped' ? 'text-slate-500'
-            : 'text-rose-600 font-semibold'
+          <div className={`text-[12px] mt-0.5 font-semibold ${
+            c.kind === 'ok' ? 'text-emerald-600'
+            : c.kind === 'optional-empty' ? 'text-slate-500'
+            : c.kind === 'add' ? 'text-sky-700 dark:text-sky-300'
+            : c.kind === 'fill' ? 'text-amber-700 dark:text-amber-300'
+            : 'text-rose-700 dark:text-rose-300'
           }`}>
-            {c.hint}
+            {c.action}
           </div>
+          {c.payload && (
+            <div className="font-mono text-[12px] mt-1 break-words font-bold p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100">
+              {c.payload}
+            </div>
+          )}
         </div>
-        {showExpected && c.expected && (
+        {c.payload && (
           <button
-            onClick={() => copyText(c.expected)}
+            onClick={() => copyText(c.payload)}
             className="flex-shrink-0 p-1.5 rounded-lg bg-brand-50 hover:bg-brand-100 text-brand-600"
             title="Nusxalash"
           >
@@ -611,5 +815,57 @@ function FieldRow({ check, effectiveId }: { check: FieldCheck; effectiveId: stri
         )}
       </div>
     </div>
+  );
+}
+
+// Rasm ustida — har bir muammoli maydon yoniga rangli badge
+function ImageAnnotations({
+  checks,
+  lines,
+  natural,
+}: {
+  checks: FieldCheck[];
+  lines: OcrLineData[];
+  natural: { w: number; h: number };
+}) {
+  const KW: Record<FieldKey, string[]> = {
+    recipientName: ['收货人', '收件人', '联系人', 'Имя'],
+    phone: ['手机号', '电话', '联系电话', 'телефон'],
+    region: ['所在地区', '地区', '区域', 'Регион'],
+    address: ['详细地址', '小区楼栋', '街道地址', 'Адрес', '地址'],
+    postalCode: ['邮编', '邮政编码', 'индекс'],
+  };
+  return (
+    <>
+      {checks.map((c) => {
+        if (c.kind === 'ok' || c.kind === 'optional-empty') return null;
+        const bbox = findFieldBbox(lines, KW[c.key]);
+        if (!bbox || !natural.w || !natural.h) return null;
+        const top = (bbox.y0 / natural.h) * 100;
+        const height = ((bbox.y1 - bbox.y0) / natural.h) * 100;
+        const color =
+          c.kind === 'add' ? 'border-sky-400 bg-sky-500/15'
+          : c.kind === 'fill' ? 'border-amber-400 bg-amber-500/15'
+          : 'border-rose-400 bg-rose-500/15';
+        const badgeColor =
+          c.kind === 'add' ? 'bg-sky-500'
+          : c.kind === 'fill' ? 'bg-amber-500'
+          : 'bg-rose-500';
+        const badgeLabel =
+          c.kind === 'add' ? "QO'SHING"
+          : c.kind === 'fill' ? 'YOZING' : 'ALMASHTIRING';
+        return (
+          <div
+            key={c.key}
+            className={`absolute left-0 right-0 border-2 ${color} pointer-events-none`}
+            style={{ top: `${top}%`, height: `${Math.max(height, 4)}%` }}
+          >
+            <span className={`absolute -top-3 left-2 text-[9px] font-bold text-white px-1.5 py-0.5 rounded ${badgeColor} shadow-lg`}>
+              {c.zh} · {badgeLabel}
+            </span>
+          </div>
+        );
+      })}
+    </>
   );
 }
