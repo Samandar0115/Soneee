@@ -7,7 +7,7 @@ import { useApp } from '../context/AppContext';
 import { sipManager, type SipState } from '../utils/sip';
 import { sendTelegramMessage } from '../utils/telegram';
 import { Send, Users, Plus } from 'lucide-react';
-import type { AppSettings, ComplaintDirection, SipConfig, TelegramConfig } from '../types';
+import { DEFAULT_COMPLAINT_SUBTYPES, type AppSettings, type ComplaintDirection, type SipConfig, type TelegramConfig } from '../types';
 
 const COMPLAINT_DIRS: ComplaintDirection[] = ['IT', 'Logistika', 'Xitoy ombor', 'UZB ombor', 'Moliya', 'Sifat nazorati', 'Boshqa'];
 
@@ -637,7 +637,7 @@ export default function SettingsPage() {
           </p>
           <div className="grid sm:grid-cols-2 gap-3">
             {COMPLAINT_DIRS.map((dir) => {
-              const list = draft.complaintSubtypes?.[dir] ?? [];
+              const list = draft.complaintSubtypes?.[dir] ?? DEFAULT_COMPLAINT_SUBTYPES[dir] ?? [];
               return (
                 <div key={dir} className="rounded-xl border border-slate-200 dark:border-slate-700 p-3">
                   <div className="flex items-center justify-between mb-2">

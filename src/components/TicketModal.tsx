@@ -83,7 +83,10 @@ export default function TicketModal({ open, onClose, ticket, prefill, onCreated 
   const [customerPhone, setCustomerPhone] = useState(ticket?.customerPhone ?? '');
   const [channel, setChannel] = useState(ticket?.channel ?? 'Telefon');
   const [priority, setPriority] = useState<NonNullable<Ticket['priority']>>(ticket?.priority ?? 'normal');
-  const [assigneeId, setAssigneeId] = useState(ticket?.assigneeId ?? currentUser?.id ?? '');
+  // Yangi murojaatda: operator yaratsa o'ziga biriktiriladi, admin yaratsa avto-biriktirish ishlaydi
+  const [assigneeId, setAssigneeId] = useState(
+    ticket?.assigneeId ?? (currentUser?.role === 'operator' ? currentUser.id : '')
+  );
   const [details, setDetails] = useState<Record<string, string>>(ticket?.details ?? {});
   const [resolution, setResolution] = useState('');
   const [misroute, setMisroute] = useState<MisrouteDetails>(ticket?.misroute ?? {});
@@ -462,55 +465,9 @@ export default function TicketModal({ open, onClose, ticket, prefill, onCreated 
               </label>
               <input className="input mt-1" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} />
             </div>
-            <div>
-              <label className="label">Mas'ul operator</label>
-              <select className="input mt-1" value={assigneeId} onChange={(e) => setAssigneeId(e.target.value)}>
-                <option value="">— Tanlanmagan —</option>
-                {users.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.fullName ?? u.username} ({u.role})
-                  </option>
-                ))}
-              </select>
-            </div>
-            {/* Qo'shimcha sozlamalar (yashirin, kerak bo'lganda ochiladi) */}
-            <details className="col-span-2 mt-1">
-              <summary className="cursor-pointer text-xs text-slate-500 hover:text-brand-600 select-none">
-                ▸ Qo'shimcha (aloqa kanali, muhimlik, bosqich)
-              </summary>
-              <div className="grid grid-cols-2 gap-3 mt-3">
-                <div>
-                  <label className="label">Aloqa kanali</label>
-                  <select className="input mt-1" value={channel} onChange={(e) => setChannel(e.target.value)}>
-                    <option>Telefon</option>
-                    <option>Telegram</option>
-                    <option>WhatsApp</option>
-                    <option>Web</option>
-                    <option>Instagram</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="label">Muhimlik</label>
-                  <select className="input mt-1" value={priority} onChange={(e) => setPriority(e.target.value as NonNullable<Ticket['priority']>)}>
-                    <option value="low">Past</option>
-                    <option value="normal">Oddiy</option>
-                    <option value="high">Yuqori</option>
-                    <option value="urgent">Shoshilinch</option>
-                  </select>
-                </div>
-                <div className="col-span-2">
-                  <label className="label">Bosqich</label>
-                  <select className="input mt-1" value={stageId} onChange={(e) => setStageId(e.target.value)}>
-                    {stages.map((s) => (
-                      <option key={s.id} value={s.id}>{s.name}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            </details>
           </div>
 
-          {currentStage && currentStage.fields.length > 0 && (
+          {currentStage && currentStage.fields.length > 0 && isEdit && (
             <details className="rounded-xl border border-slate-200 p-4">
               <summary className="label mb-2 cursor-pointer hover:text-brand-600 select-none">
                 ▸ Bosqich maydonlari — {currentStage.name}
@@ -767,8 +724,8 @@ export default function TicketModal({ open, onClose, ticket, prefill, onCreated 
             </div>
           )}
 
-          {/* Omborga jo'natiladigan treklar — doim turmaydi, tugma orqali ochiladi */}
-          {!showWarehouse ? (
+          {/* Omborga jo'natiladigan treklar — faqat tahrirlash rejimida */}
+          {!showWarehouse && isEdit ? (
             <button
               type="button"
               onClick={() => setShowWarehouse(true)}
@@ -776,7 +733,7 @@ export default function TicketModal({ open, onClose, ticket, prefill, onCreated 
             >
               <Warehouse className="h-4 w-4" /> Sklad navbatiga qo'shish (ixtiyoriy)
             </button>
-          ) : (
+          ) : !showWarehouse ? null : (
           <div className="rounded-xl border-2 border-violet-300 dark:border-violet-700 bg-violet-50/40 dark:bg-violet-900/10 p-4">
             <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
               <div className="flex items-center gap-2">

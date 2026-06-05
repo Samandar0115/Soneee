@@ -5,7 +5,7 @@ import { useApp } from '../context/AppContext';
 import AsyncButton from '../components/AsyncButton';
 import { compressImageDataUrl } from '../utils/image';
 import { sendTelegramMessage } from '../utils/telegram';
-import type { ComplaintDirection } from '../types';
+import { DEFAULT_COMPLAINT_SUBTYPES, type ComplaintDirection } from '../types';
 
 const COMPLAINT_DIRS: ComplaintDirection[] = ['IT', 'Logistika', 'Xitoy ombor', 'UZB ombor', 'Moliya', 'Sifat nazorati', 'Boshqa'];
 
@@ -18,8 +18,8 @@ export default function Profile() {
   const [cTrek, setCTrek] = useState('');
   const [cNote, setCNote] = useState('');
 
-  // Yo'nalishga tegishli ichki turlar (admin sozlamalardan)
-  const subtypes = settings.complaintSubtypes?.[cDir] ?? [];
+  // Yo'nalishga tegishli ichki turlar — sozlamadan bo'lmasa default'lar
+  const subtypes = settings.complaintSubtypes?.[cDir] ?? DEFAULT_COMPLAINT_SUBTYPES[cDir] ?? [];
 
   const myComplaints = (complaints ?? []).filter((c) => isAdmin || c.createdBy === currentUser?.id).sort((a, b) => b.createdAt - a.createdAt);
   const fileRef = useRef<HTMLInputElement | null>(null);

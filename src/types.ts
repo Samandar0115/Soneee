@@ -154,6 +154,17 @@ export interface AppDataSnapshot {
 // Shikoyat — xodimlar profilidan yuboriladi
 export type ComplaintDirection = 'IT' | 'Logistika' | 'Xitoy ombor' | 'UZB ombor' | 'Moliya' | 'Sifat nazorati' | 'Boshqa';
 export type ComplaintStatus = 'pending' | 'done' | 'cancelled';
+
+// Default ichki turlar — sozlamalardan topilmasa shu ishlatiladi
+export const DEFAULT_COMPLAINT_SUBTYPES: Record<ComplaintDirection, string[]> = {
+  'IT': ["To'lov", 'Status', 'Manzil'],
+  'Logistika': ['Hududiy ombor', 'Filial', 'Xitoyda kelish', 'Shuttle'],
+  'UZB ombor': ["Vozvrat bo'lgan", "To'lovi qilingan"],
+  'Xitoy ombor': ['Chiqarilmagan', 'Summasi xato hisoblangan', 'Trekni karobkali jonatish kerak'],
+  'Moliya': ['Qoplab berish', 'Qayta tashlab berish', "Summasini o'zgartirib berish"],
+  'Sifat nazorati': ['Mijoz muammosi qaror talab qiladi'],
+  'Boshqa': [],
+};
 export interface Complaint {
   id: string;
   direction: ComplaintDirection;
