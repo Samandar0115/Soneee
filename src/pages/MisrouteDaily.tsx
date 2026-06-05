@@ -5,7 +5,7 @@ import PageHeader from '../components/PageHeader';
 import { useApp } from '../context/AppContext';
 import { sendTelegramMessage } from '../utils/telegram';
 import AsyncButton from '../components/AsyncButton';
-import { buildTicketsWorkbook, dateRangeYmd, saveWorkbook, weekStartMonday, toYmd as ymdU } from '../utils/excelReports';
+import { buildTicketsWorkbook, dateRangeYmd, saveWorkbook, toYmd as ymdU } from '../utils/excelReports';
 import type { Ticket } from '../types';
 
 const COMPANY_NAME = 'ABUSAXIYTEZ';
@@ -274,16 +274,25 @@ export default function DailyTickets() {
     [dayFiltered, branches, operatorPhone, categories]
   );
 
-  function exportExcelWeek() {
+  const [excelStart, setExcelStart] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem('ipost.excel.tickets.start');
+      if (saved) return saved;
+    } catch { /* ignore */ }
+    const y = new Date();
+    y.setDate(y.getDate() - 1);
+    return toYmd(y);
+  });
+
+  function exportExcelRange() {
     if (tickets.length === 0) { toast.error('Yozuv yo\'q'); return; }
-    const monday = weekStartMonday(new Date(date));
+    const start = new Date(excelStart);
     const today = new Date();
-    const upTo = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6);
-    const end = upTo > today ? today : upTo;
-    const days = dateRangeYmd(monday, end);
+    const days = dateRangeYmd(start, today);
+    if (days.length === 0) { toast.error('Sana noto\'g\'ri'); return; }
     const wb = buildTicketsWorkbook(tickets, categories, users, days);
-    saveWorkbook(wb, `ipost-murojaatlar-hafta-${ymdU(monday)}.xlsx`);
-    toast.success(`Excel saqlandi: hafta ${ymdU(monday)}`);
+    saveWorkbook(wb, `ipost-murojaatlar-${excelStart}_${ymdU(today)}.xlsx`);
+    toast.success(`Excel saqlandi: ${days.length} kun`);
   }
 
   // Kunlik xulosa — TIZIMDAGI BARCHA murojaat turlari sanaladi
@@ -470,14 +479,28 @@ export default function DailyTickets() {
             >
               <ClipboardCopy className="h-4 w-4" /> Nusxalash
             </AsyncButton>
+            <div className="flex items-center gap-1">
+              <label className="text-[11px] text-slate-500 hidden sm:inline">Boshlanish:</label>
+              <input
+                type="date"
+                value={excelStart}
+                onChange={(e) => {
+                  setExcelStart(e.target.value);
+                  try { localStorage.setItem('ipost.excel.tickets.start', e.target.value); } catch { /* ignore */ }
+                }}
+                max={toYmd(new Date())}
+                className="input text-xs py-1 px-2"
+                title="Excel shu sanadan bugungacha bo'lgan murojaatlarni yig'adi"
+              />
+            </div>
             <AsyncButton
-              onClick={exportExcelWeek}
+              onClick={exportExcelRange}
               disabled={tickets.length === 0}
               className="btn-ghost text-sm disabled:opacity-50"
               loadingText="..."
-              title="Joriy haftadan boshlab — har kategoriya alohida sheet, sanasi bilan. Yuk adashishi vertikal"
+              title="Boshlanish sanadan bugungacha — har kategoriya alohida sheet, sanasi bilan. Yuk adashishi sheet vertikal."
             >
-              <FileSpreadsheet className="h-4 w-4" /> Excel (haftalik)
+              <FileSpreadsheet className="h-4 w-4" /> Excel
             </AsyncButton>
             <AsyncButton
               onClick={sendTelegram}

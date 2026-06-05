@@ -5,7 +5,7 @@ import PageHeader from '../components/PageHeader';
 import AsyncButton from '../components/AsyncButton';
 import { useApp } from '../context/AppContext';
 import { sendTelegramMessage } from '../utils/telegram';
-import { buildComplaintsWorkbook, dateRangeYmd, saveWorkbook, toYmd as ymd, weekStartMonday } from '../utils/excelReports';
+import { buildComplaintsWorkbook, dateRangeYmd, saveWorkbook, toYmd as ymd } from '../utils/excelReports';
 import type { Complaint, ComplaintDirection } from '../types';
 
 type Range = 'day' | 'week';
@@ -51,6 +51,16 @@ export default function ComplaintsPage() {
   const [range, setRange] = useState<Range>('day');
   const [date, setDate] = useState<string>(toYmd(new Date()));
   const [dirFilter, setDirFilter] = useState<ComplaintDirection | 'ALL'>('ALL');
+  // Excel boshlanish sanasi — sticky (localStorage'da saqlanadi)
+  const [excelStart, setExcelStart] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem('ipost.excel.complaints.start');
+      if (saved) return saved;
+    } catch { /* ignore */ }
+    const y = new Date();
+    y.setDate(y.getDate() - 1);
+    return toYmd(y);
+  });
 
   const tg = settings.telegram;
 
@@ -197,23 +207,36 @@ export default function ComplaintsPage() {
         >
           <ClipboardCopy className="h-4 w-4" /> Nusxalash
         </AsyncButton>
+        <div className="flex items-center gap-1">
+          <label className="text-[11px] text-slate-500 hidden sm:inline">Boshlanish:</label>
+          <input
+            type="date"
+            value={excelStart}
+            onChange={(e) => {
+              setExcelStart(e.target.value);
+              try { localStorage.setItem('ipost.excel.complaints.start', e.target.value); } catch { /* ignore */ }
+            }}
+            max={ymd(new Date())}
+            className="input text-xs py-1 px-2"
+            title="Excel shu sanadan bugungacha bo'lgan barcha shikoyatlarni yig'adi"
+          />
+        </div>
         <AsyncButton
           onClick={() => {
-            // Joriy hafta (dushanbadan-bugungacha) — bitta Excel, 7 sheet
-            const monday = weekStartMonday(new Date(date));
+            const start = new Date(excelStart);
             const today = new Date();
-            const upTo = range === 'week' ? new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6) : new Date(date);
-            const days = dateRangeYmd(monday, upTo > today ? today : upTo);
+            const days = dateRangeYmd(start, today);
+            if (days.length === 0) throw new Error('Sana noto\'g\'ri');
             const wb = buildComplaintsWorkbook(complaints ?? [], days);
-            saveWorkbook(wb, `ipost-shikoyatlar-hafta-${ymd(monday)}.xlsx`);
-            toast.success(`Excel saqlandi: hafta ${ymd(monday)}`);
+            saveWorkbook(wb, `ipost-shikoyatlar-${excelStart}_${ymd(today)}.xlsx`);
+            toast.success(`Excel saqlandi: ${days.length} kun`);
           }}
           disabled={(complaints ?? []).length === 0}
           className="btn-ghost text-sm disabled:opacity-50"
           loadingText="..."
-          title="Joriy haftadan boshlab — har kun pastdan qo'shilib boradi, sanasi bilan"
+          title="Boshlanish sanadan bugungacha — har yo'nalish alohida sheet, kunlar sanasi bilan"
         >
-          <FileSpreadsheet className="h-4 w-4" /> Excel (haftalik)
+          <FileSpreadsheet className="h-4 w-4" /> Excel
         </AsyncButton>
         <AsyncButton
           onClick={sendByDirection}

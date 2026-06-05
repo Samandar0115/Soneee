@@ -19,6 +19,11 @@ export function weekStartMonday(d: Date = new Date()): Date {
   return m;
 }
 
+// Kecha sanasi (default boshlanish nuqtasi)
+export function yesterday(d: Date = new Date()): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate() - 1, 0, 0, 0, 0);
+}
+
 export function dateRangeYmd(start: Date, end: Date): string[] {
   const out: string[] = [];
   const cur = new Date(start.getFullYear(), start.getMonth(), start.getDate());

@@ -150,35 +150,50 @@ export default function Layout() {
   }, [collapsed]);
 
   const can = (p: string) => perms.manage || perms.pages.includes(p as never);
-  const allLinks = [
-    { to: '/', page: 'dashboard', label: t('nav.dashboard'), icon: LayoutDashboard, end: true },
-    // Qo'ng'iroqlar — endi pastdagi softphone ichida (tarix tab'i)
-    { to: '/cargo', page: 'cargo', label: 'Vozvrat yuklar', icon: Package },
-    { to: '/warehouse', page: 'warehouse', label: 'Sklad navbati', icon: Warehouse },
-    { to: '/knowledge', page: 'knowledge', label: t('nav.knowledge'), icon: BookOpen },
-    { to: '/learn', page: 'learn', label: "O'quv markazi", icon: GraduationCap },
-    { to: '/trek-requests', page: 'tickets', label: "Trek tuzatish", icon: Unplug },
-  ];
-  const links = allLinks.filter((l) => can(l.page));
 
-  // Murojaatlar guruhi — yangi, pipeline, hammasi
+  // === OPERATOR / kunlik ish ===
+  // Dashboard — yagona
+  const dashboardLink = { to: '/', page: 'dashboard', label: t('nav.dashboard'), icon: LayoutDashboard, end: true };
+
+  // Murojaatlar — guruh
   const ticketsGroup = [
     { to: '/leads', page: 'leads', label: 'Yangi', icon: Inbox },
     { to: '/pipeline', page: 'pipeline', label: 'Pipeline', icon: KanbanSquare },
     { to: '/tickets', page: 'tickets', label: 'Hammasi', icon: TicketIcon },
   ].filter((l) => can(l.page));
-  const adminLinks = [
+
+  // Yuk va sklad — operativ
+  const logisticsLinks = [
+    { to: '/cargo', page: 'cargo', label: 'Vozvrat yuklar', icon: Package },
+    { to: '/warehouse', page: 'warehouse', label: 'Sklad navbati', icon: Warehouse },
+    { to: '/trek-requests', page: 'tickets', label: "Trek tuzatish", icon: Unplug },
+  ].filter((l) => can(l.page));
+
+  // Bilim — qo'llanma
+  const knowledgeLinks = [
+    { to: '/knowledge', page: 'knowledge', label: t('nav.knowledge'), icon: BookOpen },
+    { to: '/learn', page: 'learn', label: "O'quv markazi", icon: GraduationCap },
+  ].filter((l) => can(l.page));
+
+  // === ADMIN ===
+  const adminReports = [
     { to: '/analytics', label: 'Analitika', icon: BarChart3 },
-    { to: '/curriculum', label: 'Darslik boshqaruvi', icon: GraduationCap },
+    { to: '/misroute-daily', label: 'Kunlik murojaatlar', icon: Truck },
+    { to: '/complaints', label: 'Shikoyatlar', icon: MessageSquareWarning },
+  ];
+  const adminPeople = [
     { to: '/users', label: t('nav.users'), icon: Users },
     { to: '/roles', label: 'Rollar', icon: ShieldCheck },
+    { to: '/curriculum', label: 'Darslik boshqaruvi', icon: GraduationCap },
+  ];
+  const adminSetup = [
     { to: '/stages', label: t('nav.stages'), icon: Settings2 },
     { to: '/categories', label: t('nav.categories'), icon: Tags },
     { to: '/templates', label: 'Javob shablonlari', icon: MessageSquare },
-    { to: '/misroute-daily', label: 'Kunlik murojaatlar', icon: Truck },
-    { to: '/complaints', label: 'Shikoyatlar', icon: MessageSquareWarning },
-    { to: '/trash', label: "Korzina (o'chirilganlar)", icon: Trash2 },
     { to: '/settings', label: t('nav.settings'), icon: Settings },
+  ];
+  const adminMisc = [
+    { to: '/trash', label: "Korzina", icon: Trash2 },
   ];
 
   function triggerSearch() {
@@ -212,11 +227,9 @@ export default function Layout() {
 
         <nav className={`flex-1 py-4 space-y-1 overflow-y-auto scroll-thin ${isCompact ? 'px-2' : 'px-3'}`}>
           {/* Dashboard */}
-          {links.filter((l) => l.to === '/').map((l) => (
-            <NavItem key={l.to} {...l} compact={isCompact} />
-          ))}
+          {can(dashboardLink.page) && <NavItem {...dashboardLink} compact={isCompact} />}
 
-          {/* MUROJAATLAR — guruh (Yangi / Pipeline / Hammasi) */}
+          {/* === MUROJAATLAR (operator kunlik ishi) === */}
           {ticketsGroup.length > 0 && (
             <NavGroup
               label="Murojaatlar"
@@ -227,20 +240,64 @@ export default function Layout() {
             />
           )}
 
-          {/* Boshqa toza linklar (dashboard'dan tashqari) */}
-          {links.filter((l) => l.to !== '/').map((l) => (
-            <NavItem key={l.to} {...l} compact={isCompact} />
-          ))}
+          {/* === YUK / SKLAD === */}
+          {logisticsLinks.length > 0 && (
+            <>
+              {!isCompact && <NavSection label="Yuk va sklad" />}
+              {logisticsLinks.map((l) => (
+                <NavItem key={l.to} {...l} compact={isCompact} />
+              ))}
+            </>
+          )}
+
+          {/* === BILIM === */}
+          {knowledgeLinks.length > 0 && (
+            <>
+              {!isCompact && <NavSection label="Qo'llanma" />}
+              {knowledgeLinks.map((l) => (
+                <NavItem key={l.to} {...l} compact={isCompact} />
+              ))}
+            </>
+          )}
+
+          {/* === ADMIN BO'LIMI === */}
           {perms.manage && (
             <>
               {isCompact ? (
                 <div className="border-t border-white/5 my-3" />
               ) : (
-                <div className="px-3 mt-5 mb-2 text-[11px] uppercase tracking-wider text-slate-500">
-                  {t('nav.admin')}
-                </div>
+                <NavSection label={t('nav.admin')} top />
               )}
-              {adminLinks.map((l) => (
+
+              {/* Hisobotlar — guruh */}
+              <NavGroup
+                label="Hisobotlar"
+                icon={BarChart3}
+                compact={isCompact}
+                items={adminReports}
+                currentPath={location.pathname}
+              />
+
+              {/* Xodimlar va o'qitish — guruh */}
+              <NavGroup
+                label="Xodimlar"
+                icon={Users}
+                compact={isCompact}
+                items={adminPeople}
+                currentPath={location.pathname}
+              />
+
+              {/* Sozlash — guruh */}
+              <NavGroup
+                label="Sozlash"
+                icon={Settings2}
+                compact={isCompact}
+                items={adminSetup}
+                currentPath={location.pathname}
+              />
+
+              {/* Korzina — alohida */}
+              {adminMisc.map((l) => (
                 <NavItem key={l.to} {...l} compact={isCompact} />
               ))}
             </>
@@ -476,13 +533,14 @@ export default function Layout() {
 
         <Softphone />
 
-        {/* Mobile bottom nav — Murojaatlar uchun /tickets ga olib boradi */}
+        {/* Mobile bottom nav — eng muhim 5 ta */}
         <nav className="md:hidden flex items-center justify-around bg-slate-900 dark:bg-[#020409] text-slate-200 border-t border-white/5 px-2 pb-safe">
           {[
-            ...(links.filter((l) => l.to === '/')),
+            ...(can(dashboardLink.page) ? [dashboardLink] : []),
             ...(ticketsGroup.length > 0 ? [{ to: '/tickets', page: 'tickets' as const, label: 'Murojaatlar', icon: TicketIcon }] : []),
-            ...(links.filter((l) => l.to !== '/')),
-          ].map((l) => (
+            ...logisticsLinks.slice(0, 2),
+            ...knowledgeLinks.slice(0, 1),
+          ].slice(0, 5).map((l) => (
             <NavLink
               key={l.to}
               to={l.to}
@@ -503,6 +561,14 @@ export default function Layout() {
           ))}
         </nav>
       </div>
+    </div>
+  );
+}
+
+function NavSection({ label, top }: { label: string; top?: boolean }) {
+  return (
+    <div className={`px-3 ${top ? 'mt-5' : 'mt-3'} mb-1 text-[10px] uppercase tracking-wider font-bold text-slate-500/80`}>
+      {label}
     </div>
   );
 }
