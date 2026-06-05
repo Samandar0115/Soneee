@@ -51,6 +51,17 @@ export const seedAppSettings: AppSettings = {
   orderers: [
     { id: 'ord-buvajonov', name: 'Buvajonov Hamidjon', phone: '+998990280848' },
   ],
+  chineseAddress: {
+    recipientName: 'iPOST Warehouse',
+    phone: '+86 000 0000 0000',
+    province: '广东省',
+    city: '广州市',
+    district: '白云区',
+    detailedAddress: '— admin sozlamadan to\'ldiring —',
+    postalCode: '510000',
+    customerIdHint: 'Mijoz ID: IPOST-XXXXXX (mijoz raqami bo\'lmasa, yuk biriktirilmaydi!)',
+    notes: 'Diqqat: Mijoz ID ni izoh/tag bo\'limiga yozish majburiy. Aks holda yuk uzoq vaqt omborda qoladi.',
+  },
   complaintSubtypes: {
     'IT': ["To'lov", 'Status', 'Manzil'],
     'Logistika': ['Hududiy ombor', 'Filial', 'Xitoyda kelish', 'Shuttle'],

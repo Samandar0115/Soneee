@@ -464,7 +464,21 @@ export interface AppSettings {
   telegram?: TelegramConfig;
   orderers?: Orderer[];   // zayavka beruvchi shaxslar ro'yxati (Buvajonov, ...)
   complaintSubtypes?: Partial<Record<ComplaintDirection, string[]>>; // har yo'nalish uchun ichki turlar
+  chineseAddress?: ChineseAddressTemplate; // /check sahifasi uchun "to'g'ri" Xitoy manzil shabloni
   updatedAt: number;
+}
+
+// Xitoy ombor manzili — mijoz screen shot bilan tekshirishi uchun standart
+export interface ChineseAddressTemplate {
+  recipientName: string;       // 收件人 — qabul qiluvchi (ya'ni bizning ombor nomi)
+  phone: string;               // 电话 — telefon
+  province: string;            // 省
+  city: string;                // 市
+  district: string;            // 区
+  detailedAddress: string;     // 详细地址 — to'liq manzil
+  postalCode: string;          // 邮编 — pochta indeksi
+  customerIdHint: string;      // "kichik izoh — mijoz ID qayerga yozilishi kerak" (masalan: "Tag/iD-IPOST-XXXXX")
+  notes?: string;              // qo'shimcha ko'rsatma
 }
 
 // Telegram bot sozlamalari — kunlik hisobotlar va misroute eksport uchun

@@ -627,6 +627,108 @@ export default function SettingsPage() {
         </div>
 
         {/* === SHIKOYAT YO'NALISH ICHKI TURLARI === */}
+        {/* === XITOY OMBOR MANZILI (/check sahifasi) === */}
+        <div className="card p-6 lg:col-span-2">
+          <div className="flex items-center gap-2 mb-3">
+            <SettingsIcon className="h-5 w-5 text-amber-600" />
+            <h3 className="font-bold">Xitoy ombor manzili — /check sahifasi uchun</h3>
+          </div>
+          <p className="text-xs text-slate-500 mb-4">
+            Mijoz <code>/check</code> sahifasida ko'radigan standart Xitoy manzili. Hammasini xitoycha yozing — mijoz to'g'ridan-to'g'ri saytga nusxalashi mumkin.
+          </p>
+          <div className="grid sm:grid-cols-2 gap-3">
+            <div>
+              <label className="label">Qabul qiluvchi (收件人)</label>
+              <input
+                className="input mt-1"
+                placeholder="iPOST Warehouse"
+                value={draft.chineseAddress?.recipientName ?? ''}
+                onChange={(e) => setDraft({ ...draft, chineseAddress: { ...(draft.chineseAddress ?? {} as never), recipientName: e.target.value } })}
+              />
+            </div>
+            <div>
+              <label className="label">Telefon (电话)</label>
+              <input
+                className="input mt-1"
+                placeholder="+86 138 0000 0000"
+                value={draft.chineseAddress?.phone ?? ''}
+                onChange={(e) => setDraft({ ...draft, chineseAddress: { ...(draft.chineseAddress ?? {} as never), phone: e.target.value } })}
+              />
+            </div>
+            <div>
+              <label className="label">Viloyat (省)</label>
+              <input
+                className="input mt-1"
+                placeholder="广东省"
+                value={draft.chineseAddress?.province ?? ''}
+                onChange={(e) => setDraft({ ...draft, chineseAddress: { ...(draft.chineseAddress ?? {} as never), province: e.target.value } })}
+              />
+            </div>
+            <div>
+              <label className="label">Shahar (市)</label>
+              <input
+                className="input mt-1"
+                placeholder="广州市"
+                value={draft.chineseAddress?.city ?? ''}
+                onChange={(e) => setDraft({ ...draft, chineseAddress: { ...(draft.chineseAddress ?? {} as never), city: e.target.value } })}
+              />
+            </div>
+            <div>
+              <label className="label">Tuman (区)</label>
+              <input
+                className="input mt-1"
+                placeholder="白云区"
+                value={draft.chineseAddress?.district ?? ''}
+                onChange={(e) => setDraft({ ...draft, chineseAddress: { ...(draft.chineseAddress ?? {} as never), district: e.target.value } })}
+              />
+            </div>
+            <div>
+              <label className="label">Pochta indeksi (邮编)</label>
+              <input
+                className="input mt-1"
+                placeholder="510000"
+                value={draft.chineseAddress?.postalCode ?? ''}
+                onChange={(e) => setDraft({ ...draft, chineseAddress: { ...(draft.chineseAddress ?? {} as never), postalCode: e.target.value } })}
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="label">To'liq manzil (详细地址)</label>
+              <input
+                className="input mt-1"
+                placeholder="街道 + 街道号 + 仓库名"
+                value={draft.chineseAddress?.detailedAddress ?? ''}
+                onChange={(e) => setDraft({ ...draft, chineseAddress: { ...(draft.chineseAddress ?? {} as never), detailedAddress: e.target.value } })}
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="label">Mijoz ID ko'rsatmasi</label>
+              <input
+                className="input mt-1"
+                placeholder="Mijoz ID: IPOST-XXXXXX (majburiy!)"
+                value={draft.chineseAddress?.customerIdHint ?? ''}
+                onChange={(e) => setDraft({ ...draft, chineseAddress: { ...(draft.chineseAddress ?? {} as never), customerIdHint: e.target.value } })}
+              />
+              <p className="text-[11px] text-slate-400 mt-1">Mijozga "ID si qayerga yozilishi" haqida qisqa eslatma</p>
+            </div>
+            <div className="sm:col-span-2">
+              <label className="label">Qo'shimcha ogohlantirish (ixtiyoriy)</label>
+              <textarea
+                rows={2}
+                className="input mt-1"
+                placeholder="Diqqat: Mijoz ID si bo'lmasa yuk omborda qoladi..."
+                value={draft.chineseAddress?.notes ?? ''}
+                onChange={(e) => setDraft({ ...draft, chineseAddress: { ...(draft.chineseAddress ?? {} as never), notes: e.target.value } })}
+              />
+            </div>
+          </div>
+          <div className="mt-3 p-3 rounded-xl bg-brand-50 dark:bg-brand-900/20 text-xs text-brand-800 dark:text-brand-300 flex items-start gap-2">
+            <span className="text-base">🔗</span>
+            <div>
+              Mijozga shu link'ni yuboring: <code>{typeof window !== 'undefined' ? window.location.origin : ''}/check</code>
+            </div>
+          </div>
+        </div>
+
         <div className="card p-6 lg:col-span-2">
           <div className="flex items-center gap-2 mb-3">
             <SettingsIcon className="h-5 w-5 text-rose-600" />

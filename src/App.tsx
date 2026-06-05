@@ -25,6 +25,7 @@ import MisrouteDailyPage from './pages/MisrouteDaily';
 import TrekRequestsPage from './pages/TrekRequests';
 import ComplaintsPage from './pages/Complaints';
 import Track from './pages/Track';
+import Check from './pages/Check';
 import GlobalSearch from './components/GlobalSearch';
 import KeyboardShortcuts from './components/KeyboardShortcuts';
 
@@ -84,6 +85,7 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/track" element={<Track />} />
+        <Route path="/check" element={<Check />} />
         <Route
           path="/"
           element={
