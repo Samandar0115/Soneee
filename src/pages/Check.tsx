@@ -187,43 +187,80 @@ function findFieldBbox(lines: OcrLineData[], keywords: string[]): OcrLineData['b
 
 function extractFields(rawText: string): Extracted {
   const cleaned = stripOverlayText(rawText);
-  const recipient = findAfter(
-    cleaned,
-    '收货人', '收件人', '联系人', '姓名', '姓 名', 'Имя',
-  );
-  // Telefon — avval keyword orqali, bo'lmasa Xitoy mobil pattern bilan butun matndan
+  const lines = cleaned.split('\n').map((l) => l.trim()).filter(Boolean);
+
+  // 1. PHONE — keyword + Xitoy mobil pattern fallback
   let phone = findAfter(
     cleaned,
     '手机号码', '手机号', '联系电话', '电话', '手机', 'Мобильный телефон', 'Мобильный',
   );
   if (!/\d{7,}/.test(phone)) {
-    const m = cleaned.match(/\+?\s*(?:86\s*)?1\d{2}[\s\-]*\d{4}[\s\-]*\d{4}/);
+    const m = cleaned.match(/(?:\+?86[\s\-]*)?1\d{2}[\s\-]*\d{4}[\s\-]*\d{4}/);
     if (m) phone = m[0];
   }
-  const region = findAfter(
-    cleaned,
-    '所在地区', '省市区', '地区', '区域', 'Регион',
-  );
-  // Manzil — avval keyword, bo'lmasa 苏溪苏福路 pattern bilan butun matndan
+
+  // 2. ADDRESS — keyword + 路N号 pattern fallback
   let address = findAfter(
     cleaned,
     '详细地址', '街道地址', '小区楼栋', '乡村名称', '地址', 'Адрес',
   );
-  if (!address || address.length < 6) {
-    const m = cleaned.match(/[一-鿿]{2,}路\d+号[^\n]{0,80}/);
-    if (m) address = m[0];
+  if (!address || address.length < 8) {
+    const m = cleaned.match(/[一-鿿]+路\d+号[^\n]{0,80}/);
+    if (m) address = m[0].trim();
   }
-  const postalCode = findAfter(
+  // Hali ham yetarli emas — qator skanerlash
+  if (!address || !/路\s*\d+\s*号/.test(address)) {
+    const candidate = lines.find((l) => /路\s*\d+\s*号/.test(l) && l.length > 6);
+    if (candidate) address = candidate;
+  }
+
+  // 3. RECIPIENT — keyword + 077库房 pattern (address qatori EMAS)
+  let recipient = findAfter(
+    cleaned,
+    '收货人', '收件人', '联系人', '姓名', '姓 名', 'Имя',
+  );
+  if (!recipient || !/\d/.test(recipient)) {
+    // 077库房/XXXXX号 namunasi bo'lgan, lekin manzil qatori bo'lmagan
+    const candidate = lines.find((l) => {
+      const has077 = /077\s*[库厍]?\s*房.{0,5}\d{3,8}/.test(l);
+      const isAddressLine = /路\s*\d+\s*号/.test(l);
+      return has077 && !isAddressLine && l.length < 30;
+    });
+    if (candidate) recipient = candidate;
+  }
+
+  // 4. REGION — viloyat/shahar/tuman patterniga ustunlik beramiz (har platforma uchun ishonchli)
+  let region = findAfter(
+    cleaned,
+    '所在地区', '省市区', '地区', '区域', 'Регион',
+  );
+  const regionLine = lines.find((l) =>
+    /[一-鿿]+省\s*[一-鿿]+市\s*[一-鿿]+(市|区|县|镇)/.test(l) && !/路\s*\d+\s*号/.test(l),
+  );
+  // Agar pattern topilgan bo'lsa, undan foydalanamiz (rus/eng label OCR'i ishonchsiz)
+  if (regionLine) {
+    region = regionLine;
+  } else if (region && /中国境内|不含港澳台|境内|Гонконг|Макао/.test(region)) {
+    // davlat tanlovi label — bo'sh deb hisoblaymiz
+    region = '';
+  }
+
+  // 5. POSTAL — keyword + 6 raqamli fallback (telefon ichidagi emas)
+  let postalCode = findAfter(
     cleaned,
     '邮编', '邮政编码', 'Почтовый индекс', 'Почтовый',
   );
-  return {
-    recipientName: recipient,
-    phone,
-    region,
-    address,
-    postalCode,
-  };
+  if (!postalCode) {
+    const phoneDigits = phone.replace(/\D/g, '');
+    const all6 = cleaned.match(/\b\d{6}\b/g) || [];
+    for (const d of all6) {
+      if (phoneDigits.includes(d)) continue;
+      postalCode = d;
+      break;
+    }
+  }
+
+  return { recipientName: recipient, phone, region, address, postalCode };
 }
 
 type FieldKey = 'recipientName' | 'phone' | 'region' | 'address' | 'postalCode';
@@ -247,13 +284,9 @@ interface FieldCheck {
   payload: string;        // qaysi matnni qo'shish/almashtirish — copy tugmasi shuni nusxalaydi
 }
 
-// Platforma uchun "收货人" formati
-function recipientExpected(platform: Platform, id: string): string {
-  if (platform === 'taobao' || platform === 'poizon') {
-    // qisqa format — qavs ichida (foydalanuvchi aytdi)
-    return id ? `(077/${id})` : '(077/<ID>)';
-  }
-  // Pinduoduo / unknown — to'liq qavsli format
+// Platforma uchun "收货人" formati — barcha platformalarda bir xil to'liq variant
+// (qavs ixtiyoriy: mijoz qo'shsa ham bo'ladi, qo'shmasa ham OK)
+function recipientExpected(_platform: Platform, id: string): string {
   return id ? `(077库房/${id}号)` : '(077库房/<ID>号)';
 }
 
@@ -266,34 +299,20 @@ function instructRecipient(detected: string, id: string, platform: Platform): { 
   if (!detected) {
     return { kind: 'fill', action: "收货人 bo'sh — yozing:", payload: expected };
   }
-  // Detected dagi raqamni topish
-  const m = detected.match(/(\d{4,8})/);
+  // 077库房/XXXXX号 namunasini topish (qavs, bo'shliq, OCR xato variantlari bilan)
+  const m = detected.match(/077\s*[库厍]?\s*房\s*[\/\\／＼:号\s]*(\d{4,8})/);
   const detectedId = m?.[1] ?? '';
 
-  // ID mos kelsa va format ham mos kelsa — OK
-  if (id && detectedId === id) {
-    if (norm(detected) === norm(expected)) {
-      return { kind: 'ok', action: "To'g'ri yozilgan", payload: '' };
-    }
-    // ID to'g'ri, lekin format boshqacha
-    if (platform === 'taobao' || platform === 'poizon') {
-      return {
-        kind: 'replace',
-        action: 'Qavs ichida qisqa formatda yozing (库房 va 号 yozilmaydi):',
-        payload: expected,
-      };
-    }
-    // pinduoduo — format yetarli darajada to'g'ri (077 + ID bor)
-    if (/077.*库.*房/.test(detected)) {
-      return { kind: 'ok', action: "To'g'ri yozilgan", payload: '' };
-    }
-    return { kind: 'replace', action: "Format to'liq emas — almashtiring:", payload: expected };
-  }
-  // ID yo'q yoki mos kelmadi
   if (!id) {
     return { kind: 'fill', action: 'Avval yuqorida ID kiriting', payload: expected };
   }
-  return { kind: 'replace', action: `ID xato (${detectedId || 'topilmadi'}). Almashtiring:`, payload: expected };
+  if (detectedId === id) {
+    return { kind: 'ok', action: "To'g'ri yozilgan", payload: '' };
+  }
+  if (detectedId) {
+    return { kind: 'replace', action: `ID xato (${detectedId}). Almashtiring:`, payload: expected };
+  }
+  return { kind: 'replace', action: 'Format noto\'g\'ri. Almashtiring:', payload: expected };
 }
 
 // +86 prefiks va bo'shliqlarni hisobga olib, faqat oxirgi 11 raqamni (Xitoy mobil) solishtiramiz
