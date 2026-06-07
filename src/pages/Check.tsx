@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Upload, Camera, Copy, RefreshCcw, ScanLine, AlertTriangle,
-  CheckCircle2, ArrowDown, Loader2, Eye,
+  CheckCircle2, ArrowDown, Loader2, Eye, ClipboardPaste,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useApp } from '../context/AppContext';
@@ -185,71 +185,173 @@ function findFieldBbox(lines: OcrLineData[], keywords: string[]): OcrLineData['b
   return null;
 }
 
+// === KONTEKST-ASOSLI EKSTRAKSIYA ===
+// Har bir qatorning boshidagi YORLIQNI qaraymiz (Xitoy/Rus/Ingliz).
+// Tartib, qator soni qattiq emas — har platforma boshqacha bo'lishi mumkin.
+
+const FIELD_LABELS: Record<FieldKey, string[]> = {
+  recipientName: [
+    // Xitoy
+    '收货人', '收件人', '联系人', '姓名', '姓 名',
+    // Rus
+    'Имя', 'Получатель', 'Контактное лицо', 'ФИО',
+    // Ingliz
+    'Recipient', 'Receiver', 'Name', 'Contact', 'Contact Name', 'Full Name',
+  ],
+  phone: [
+    // Xitoy
+    '手机号码', '手机号', '联系电话', '电话', '手机',
+    // Rus
+    'Мобильный телефон', 'Мобильный', 'Телефон', 'Тел.', 'Контактный телефон',
+    // Ingliz
+    'Phone Number', 'Mobile Phone', 'Mobile', 'Phone', 'Tel', 'Telephone', 'Contact Number',
+  ],
+  region: [
+    // Xitoy
+    '所在地区', '省市区', '地区', '区域',
+    // Rus
+    'Регион', 'Область', 'Регион/Область',
+    // Ingliz
+    'Region', 'Area', 'Province', 'State',
+  ],
+  address: [
+    // Xitoy
+    '详细地址', '街道地址', '小区楼栋', '乡村名称', '地址',
+    // Rus
+    'Адрес', 'Полный адрес', 'Подробный адрес',
+    // Ingliz
+    'Detailed Address', 'Full Address', 'Address', 'Street Address', 'Street',
+  ],
+  postalCode: [
+    // Xitoy
+    '邮编', '邮政编码',
+    // Rus
+    'Почтовый индекс', 'Индекс', 'Почт. индекс',
+    // Ingliz
+    'Postal Code', 'Postcode', 'Zip Code', 'Zip', 'Postal',
+  ],
+};
+
+function escapeRe(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// Yorliqlarni uzunlikka qarab tartiblaymiz — uzunroq label avval mos kelsin
+// (masalan "Phone Number" "Phone" dan oldin)
+const ALL_LABELS: { field: FieldKey; label: string }[] = Object.entries(FIELD_LABELS)
+  .flatMap(([f, labels]) => labels.map((label) => ({ field: f as FieldKey, label })))
+  .sort((a, b) => b.label.length - a.label.length);
+
+// Qator boshidagi yorliqni topadi, qoldiq qiymatni qaytaradi
+function classifyLine(line: string): { field: FieldKey | null; rest: string } {
+  const trimmed = line.trim();
+  if (!trimmed) return { field: null, rest: '' };
+  for (const { field, label } of ALL_LABELS) {
+    const re = new RegExp(`^[\\s*★●·]*${escapeRe(label)}(?![一-鿿\\p{L}])`, 'iu');
+    if (re.test(trimmed)) {
+      const rest = trimmed.replace(re, '').replace(/^[\s:：\-—|·*★\/]+/, '').trim();
+      return { field, rest };
+    }
+  }
+  return { field: null, rest: trimmed };
+}
+
+// Region qiymatini "davlat tanlovi" / Russian regions matnidan tozalash
+function looksLikeRegionValue(v: string): boolean {
+  if (!v) return false;
+  if (/中国境内|不含港澳台|境内/.test(v)) return false; // davlat tanlovi
+  if (/Гонконг|Макао|Тайвань/i.test(v)) return false; // Russian boshqa regions
+  if (/Hong\s*Kong|Macao|Taiwan/i.test(v)) return false;
+  // Xitoy belgilari va viloyat/shahar/tuman tuzilmasi
+  if (/[一-鿿]+省\s*[一-鿿]+市/.test(v)) return true;
+  if (/[一-鿿]+(市|区|县|镇)/.test(v)) return true;
+  return false;
+}
+
+function looksLikeAddressValue(v: string): boolean {
+  if (!v) return false;
+  if (/路\s*\d+\s*号/.test(v)) return true;
+  // Boshqa manzil belgilari
+  if (/[一-鿿]{2,}(街|道|大道|村|社区|小区)/.test(v) && v.length > 6) return true;
+  return false;
+}
+
+function looksLikePhoneValue(v: string): boolean {
+  return /\d{7,}/.test(v);
+}
+
+function looksLikePostalValue(v: string): boolean {
+  return /^\s*\d{6}\s*$/.test(v);
+}
+
+function looksLikeRecipientValue(v: string, addressVal: string): boolean {
+  if (!v) return false;
+  if (v === addressVal) return false;
+  if (/路\s*\d+\s*号/.test(v) && v.length > 25) return false; // bu manzil
+  if (v.length > 40) return false; // juda uzun — yo'l-yo'riq matni bo'lishi mumkin
+  return true;
+}
+
 function extractFields(rawText: string): Extracted {
   const cleaned = stripOverlayText(rawText);
   const lines = cleaned.split('\n').map((l) => l.trim()).filter(Boolean);
 
-  // 1. PHONE — keyword + Xitoy mobil pattern fallback
-  let phone = findAfter(
-    cleaned,
-    '手机号码', '手机号', '联系电话', '电话', '手机', 'Мобильный телефон', 'Мобильный',
-  );
-  if (!/\d{7,}/.test(phone)) {
+  // 1) Har qatorni klassifikatsiya qilamiz
+  const classified = lines.map((line) => ({ line, ...classifyLine(line) }));
+
+  // 2) Maydon qiymatini olish: avval shu yorliqli qatorning qoldig'i,
+  //    qoldiq bo'sh bo'lsa — keyingi yorliqsiz qator.
+  function pickValue(field: FieldKey, ok: (v: string) => boolean): string {
+    // Avval validatsiyani o'tadigan qiymat
+    for (let i = 0; i < classified.length; i++) {
+      if (classified[i].field !== field) continue;
+      if (classified[i].rest && ok(classified[i].rest)) return classified[i].rest;
+      // Keyingi yorliqsiz qatorlar
+      for (let j = i + 1; j < classified.length; j++) {
+        if (classified[j].field !== null) break;
+        if (ok(classified[j].line)) return classified[j].line;
+      }
+    }
+    // Validatsiya o'tmasa ham birinchi non-empty rest
+    for (const c of classified) {
+      if (c.field === field && c.rest) return c.rest;
+    }
+    return '';
+  }
+
+  let phone = pickValue('phone', looksLikePhoneValue);
+  if (!phone) {
     const m = cleaned.match(/(?:\+?86[\s\-]*)?1\d{2}[\s\-]*\d{4}[\s\-]*\d{4}/);
     if (m) phone = m[0];
   }
 
-  // 2. ADDRESS — keyword + 路N号 pattern fallback
-  let address = findAfter(
-    cleaned,
-    '详细地址', '街道地址', '小区楼栋', '乡村名称', '地址', 'Адрес',
-  );
-  if (!address || address.length < 8) {
+  let address = pickValue('address', looksLikeAddressValue);
+  if (!address || !looksLikeAddressValue(address)) {
     const m = cleaned.match(/[一-鿿]+路\d+号[^\n]{0,80}/);
     if (m) address = m[0].trim();
   }
-  // Hali ham yetarli emas — qator skanerlash
-  if (!address || !/路\s*\d+\s*号/.test(address)) {
-    const candidate = lines.find((l) => /路\s*\d+\s*号/.test(l) && l.length > 6);
-    if (candidate) address = candidate;
+  if (!address || !looksLikeAddressValue(address)) {
+    const cand = lines.find(looksLikeAddressValue);
+    if (cand) address = cand;
   }
 
-  // 3. RECIPIENT — keyword + 077库房 pattern (address qatori EMAS)
-  let recipient = findAfter(
-    cleaned,
-    '收货人', '收件人', '联系人', '姓名', '姓 名', 'Имя',
-  );
+  let region = pickValue('region', looksLikeRegionValue);
+  if (!region) {
+    const cand = lines.find((l) => looksLikeRegionValue(l) && !looksLikeAddressValue(l));
+    if (cand) region = cand;
+  }
+
+  const addrForRecipient = address;
+  let recipient = pickValue('recipientName', (v) => looksLikeRecipientValue(v, addrForRecipient));
   if (!recipient || !/\d/.test(recipient)) {
-    // 077库房/XXXXX号 namunasi bo'lgan, lekin manzil qatori bo'lmagan
-    const candidate = lines.find((l) => {
-      const has077 = /077\s*[库厍]?\s*房.{0,5}\d{3,8}/.test(l);
-      const isAddressLine = /路\s*\d+\s*号/.test(l);
-      return has077 && !isAddressLine && l.length < 30;
-    });
-    if (candidate) recipient = candidate;
+    // 077库房/XXXXX pattern — qisqa qator (manzil emas)
+    const cand = lines.find(
+      (l) => /077\s*[库厍]?\s*房.{0,5}\d{3,8}/.test(l) && l !== address && l.length < 30,
+    );
+    if (cand) recipient = cand;
   }
 
-  // 4. REGION — viloyat/shahar/tuman patterniga ustunlik beramiz (har platforma uchun ishonchli)
-  let region = findAfter(
-    cleaned,
-    '所在地区', '省市区', '地区', '区域', 'Регион',
-  );
-  const regionLine = lines.find((l) =>
-    /[一-鿿]+省\s*[一-鿿]+市\s*[一-鿿]+(市|区|县|镇)/.test(l) && !/路\s*\d+\s*号/.test(l),
-  );
-  // Agar pattern topilgan bo'lsa, undan foydalanamiz (rus/eng label OCR'i ishonchsiz)
-  if (regionLine) {
-    region = regionLine;
-  } else if (region && /中国境内|不含港澳台|境内|Гонконг|Макао/.test(region)) {
-    // davlat tanlovi label — bo'sh deb hisoblaymiz
-    region = '';
-  }
-
-  // 5. POSTAL — keyword + 6 raqamli fallback (telefon ichidagi emas)
-  let postalCode = findAfter(
-    cleaned,
-    '邮编', '邮政编码', 'Почтовый индекс', 'Почтовый',
-  );
+  let postalCode = pickValue('postalCode', looksLikePostalValue);
   if (!postalCode) {
     const phoneDigits = phone.replace(/\D/g, '');
     const all6 = cleaned.match(/\b\d{6}\b/g) || [];
@@ -516,7 +618,7 @@ export default function Check() {
     }
   }
 
-  async function handleFile(file: File) {
+  const handleFile = useCallback(async (file: File) => {
     if (!file.type.startsWith('image/')) {
       toast.error('Iltimos, rasm tanlang');
       return;
@@ -533,7 +635,53 @@ export default function Check() {
       setTimeout(() => resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
     };
     reader.readAsDataURL(file);
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Buferdan rasm yopishtirish — Clipboard API orqali (tugma bosilganda)
+  const handlePasteClick = useCallback(async () => {
+    try {
+      const anyClip = navigator.clipboard as unknown as { read?: () => Promise<ClipboardItem[]> };
+      if (!anyClip?.read) {
+        toast.error('Brauzer bufer yopishtirishni qo\'llab-quvvatlamaydi. Ctrl+V dan foydalaning.');
+        return;
+      }
+      const items = await anyClip.read();
+      for (const item of items) {
+        const imgType = item.types.find((t) => t.startsWith('image/'));
+        if (!imgType) continue;
+        const blob = await item.getType(imgType);
+        const file = new File([blob], `clipboard-${Date.now()}.png`, { type: blob.type });
+        await handleFile(file);
+        return;
+      }
+      toast.error('Buferda rasm topilmadi. Avval skrinshot oling.');
+    } catch (e) {
+      console.error(e);
+      toast.error("Buferga kira olmadi. Brauzer ruxsat berishini tekshiring (Ctrl+V ham ishlaydi).");
+    }
+  }, [handleFile]);
+
+  // Sahifa ichida Ctrl+V — rasm yopishtirish
+  useEffect(() => {
+    function onPaste(e: ClipboardEvent) {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (let i = 0; i < items.length; i++) {
+        const it = items[i];
+        if (it.kind === 'file' && it.type.startsWith('image/')) {
+          const file = it.getAsFile();
+          if (file) {
+            e.preventDefault();
+            void handleFile(file);
+            return;
+          }
+        }
+      }
+    }
+    window.addEventListener('paste', onPaste);
+    return () => window.removeEventListener('paste', onPaste);
+  }, [handleFile]);
 
   function reset() {
     setImage(null);
@@ -635,23 +783,32 @@ export default function Check() {
               <h2 className="font-bold text-sm">Saqlangan manzilingiz suratini yuklang</h2>
             </div>
             <p className="text-[11px] text-slate-500 mb-3 leading-relaxed">
-              Pinduoduo / Taobao / 1688 / Poizon ilovasida saqlangan manzil oynasining suratini oling —
-              4 ta qatori (收货人, 手机号, 地区, 详细地址) ko'rinib tursin.
+              Pinduoduo / Taobao / 1688 / Poizon ilovasida saqlangan manzil oynasining suratini oling.
+              Yorliqlar Xitoy, Rus yoki Ingliz tilida bo'lishi mumkin — sahifa o'zi tushunadi.
+              Bufer (clipboard) dan ham yopishtirish mumkin (<b>Ctrl+V</b>).
             </p>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-2">
               <button
                 onClick={() => cameraRef.current?.click()}
-                className="rounded-2xl border-2 border-dashed border-emerald-300 bg-emerald-50/40 dark:bg-emerald-900/10 py-6 flex flex-col items-center justify-center gap-2 hover:bg-emerald-50 active:scale-[0.98] transition"
+                className="rounded-2xl border-2 border-dashed border-emerald-300 bg-emerald-50/40 dark:bg-emerald-900/10 py-5 flex flex-col items-center justify-center gap-1 hover:bg-emerald-50 active:scale-[0.98] transition"
               >
-                <Camera className="h-8 w-8 text-emerald-600" />
-                <div className="text-emerald-700 dark:text-emerald-300 font-bold text-sm">Kamera</div>
+                <Camera className="h-7 w-7 text-emerald-600" />
+                <div className="text-emerald-700 dark:text-emerald-300 font-bold text-xs">Kamera</div>
               </button>
               <button
                 onClick={() => fileRef.current?.click()}
-                className="rounded-2xl border-2 border-dashed border-brand-300 bg-brand-50/40 dark:bg-brand-900/10 py-6 flex flex-col items-center justify-center gap-2 hover:bg-brand-50 active:scale-[0.98] transition"
+                className="rounded-2xl border-2 border-dashed border-brand-300 bg-brand-50/40 dark:bg-brand-900/10 py-5 flex flex-col items-center justify-center gap-1 hover:bg-brand-50 active:scale-[0.98] transition"
               >
-                <Upload className="h-8 w-8 text-brand-500" />
-                <div className="text-brand-700 dark:text-brand-300 font-bold text-sm">Fayl</div>
+                <Upload className="h-7 w-7 text-brand-500" />
+                <div className="text-brand-700 dark:text-brand-300 font-bold text-xs">Fayl</div>
+              </button>
+              <button
+                onClick={() => void handlePasteClick()}
+                className="rounded-2xl border-2 border-dashed border-violet-300 bg-violet-50/40 dark:bg-violet-900/10 py-5 flex flex-col items-center justify-center gap-1 hover:bg-violet-50 active:scale-[0.98] transition"
+                title="Buferdan rasm yopishtirish (Ctrl+V)"
+              >
+                <ClipboardPaste className="h-7 w-7 text-violet-600" />
+                <div className="text-violet-700 dark:text-violet-300 font-bold text-xs">Yopishtirish</div>
               </button>
             </div>
             <input ref={cameraRef} type="file" accept="image/*" capture="environment" hidden
