@@ -12,10 +12,52 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-const GEMINI_KEY = process.env.GEMINI_API_KEY;
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
+const GEMINI_KEY_ENV = process.env.GEMINI_API_KEY;
+const GEMINI_MODEL_ENV = process.env.GEMINI_MODEL;
+const DEFAULT_MODEL = 'gemini-1.5-flash';
 const GEMINI_URL = (model: string, key: string) =>
   `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
+
+// === KV (Upstash Redis) — settings kolleksiyasidan API kalitni o'qish ===
+const KV_URL = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
+const KV_TOKEN = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
+const SETTINGS_KEY = 'ipost:col:settings:v3';
+
+interface StoredSettings {
+  ai?: {
+    geminiApiKey?: string;
+    geminiModel?: string;
+    enabled?: boolean;
+  };
+}
+
+async function readKvSettings(): Promise<StoredSettings | null> {
+  if (!KV_URL || !KV_TOKEN) return null;
+  try {
+    const res = await fetch(`${KV_URL}/get/${encodeURIComponent(SETTINGS_KEY)}`, {
+      headers: { Authorization: `Bearer ${KV_TOKEN}` },
+    });
+    if (!res.ok) return null;
+    const json = (await res.json()) as { result?: string | null };
+    if (!json?.result) return null;
+    const parsed = JSON.parse(json.result) as StoredSettings;
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+async function resolveCredentials(): Promise<{ key: string; model: string } | null> {
+  // Avval Settings'dan (admin kiritgan), keyin env (fallback)
+  const settings = await readKvSettings();
+  const fromSettings = settings?.ai;
+  const key = (fromSettings?.geminiApiKey && fromSettings.enabled !== false)
+    ? fromSettings.geminiApiKey
+    : GEMINI_KEY_ENV;
+  const model = fromSettings?.geminiModel || GEMINI_MODEL_ENV || DEFAULT_MODEL;
+  if (!key) return null;
+  return { key, model };
+}
 
 // Gemini response_schema (OpenAPI subset)
 const RESPONSE_SCHEMA = {
@@ -139,8 +181,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
 
-  if (!GEMINI_KEY) {
-    return res.status(503).json({ error: 'Gemini API kaliti sozlanmagan (GEMINI_API_KEY)' });
+  const creds = await resolveCredentials();
+  if (!creds) {
+    return res.status(503).json({
+      error: 'Gemini API kaliti sozlanmagan. Sozlamalar > AI tahlil bo\'limidan kalit kiriting.',
+    });
   }
 
   // Input parsing (Vercel auto-parses JSON body)
@@ -161,7 +206,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   let upstream: Response;
   try {
-    upstream = await fetch(GEMINI_URL(GEMINI_MODEL, GEMINI_KEY), {
+    upstream = await fetch(GEMINI_URL(creds.model, creds.key), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

@@ -87,6 +87,15 @@ export default function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/track" element={<Track />} />
         <Route path="/check" element={<Check />} />
+        {/* B2B Workspace — Layout'dan tashqarida, mustaqil ish maydoni */}
+        <Route
+          path="/b2b"
+          element={
+            <Protected>
+              <RequirePage page="b2b"><B2BPage /></RequirePage>
+            </Protected>
+          }
+        />
         <Route
           path="/"
           element={
@@ -110,7 +119,6 @@ export default function App() {
           <Route path="trash" element={<RequireManage><TrashPage /></RequireManage>} />
           <Route path="misroute-daily" element={<RequireManage><MisrouteDailyPage /></RequireManage>} />
           <Route path="complaints" element={<RequireManage><ComplaintsPage /></RequireManage>} />
-          <Route path="b2b" element={<RequirePage page="b2b"><B2BPage /></RequirePage>} />
           <Route path="trek-requests" element={<Protected><TrekRequestsPage /></Protected>} />
           <Route path="stages" element={<RequireManage><StagesPage /></RequireManage>} />
           <Route path="categories" element={<RequireManage><CategoriesPage /></RequireManage>} />

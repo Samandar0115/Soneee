@@ -560,6 +560,71 @@ export default function SettingsPage() {
           </div>
         </div>
 
+        {/* === GEMINI AI (B2B uchun) === */}
+        <div className="card p-6 lg:col-span-2 border-2 border-violet-200 dark:border-violet-900 bg-gradient-to-br from-violet-50/40 to-white dark:from-violet-950/30 dark:to-slate-900">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-fuchsia-500 to-violet-600 text-white flex items-center justify-center shadow-md">
+              <span className="text-base">✨</span>
+            </div>
+            <h3 className="font-bold">Gemini AI — B2B tahlil</h3>
+            <span className="text-[10px] uppercase tracking-wider bg-violet-100 dark:bg-violet-900/60 text-violet-700 dark:text-violet-300 px-2 py-0.5 rounded-full font-bold">
+              B2B KAM CRM
+            </span>
+          </div>
+          <p className="text-xs text-slate-600 dark:text-slate-300 mb-3 leading-relaxed">
+            B2B KAM moduli mijoz muloqotlarini Google Gemini orqali tahlil qiladi —
+            churn xavfi, zakaz ehtimoli va psixologik yondashuvni hisoblab beradi.
+            Kalit <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer" className="text-violet-700 underline">Google AI Studio</a>'dan olinadi.
+          </p>
+          <div className="grid sm:grid-cols-2 gap-3">
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={!!draft.ai?.enabled}
+                onChange={(e) => setDraft({ ...draft, ai: { ...(draft.ai ?? {}), enabled: e.target.checked } })}
+                className="h-4 w-4 rounded border-slate-300"
+              />
+              <span className="text-sm font-semibold">AI tahlilni yoqish</span>
+            </label>
+            <div className="text-[11px] text-slate-500 self-center">
+              Yoqilmasa, B2B'da AI vidjet "sozlanmagan" deb ko'rsatadi.
+            </div>
+          </div>
+          <div className="grid sm:grid-cols-3 gap-3 mt-3">
+            <label className="sm:col-span-2 block">
+              <span className="block text-[11px] font-semibold text-slate-600 dark:text-slate-300 mb-1">
+                API kaliti (faqat admin ko'radi)
+              </span>
+              <input
+                type="password"
+                placeholder="AIzaSy..."
+                value={draft.ai?.geminiApiKey ?? ''}
+                onChange={(e) => setDraft({ ...draft, ai: { ...(draft.ai ?? {}), geminiApiKey: e.target.value } })}
+                className="input font-mono text-sm"
+                autoComplete="off"
+              />
+            </label>
+            <label className="block">
+              <span className="block text-[11px] font-semibold text-slate-600 dark:text-slate-300 mb-1">
+                Model
+              </span>
+              <select
+                value={draft.ai?.geminiModel ?? 'gemini-1.5-flash'}
+                onChange={(e) => setDraft({ ...draft, ai: { ...(draft.ai ?? {}), geminiModel: e.target.value } })}
+                className="input text-sm"
+              >
+                <option value="gemini-1.5-flash">gemini-1.5-flash (tez, arzon)</option>
+                <option value="gemini-1.5-pro">gemini-1.5-pro (kuchli)</option>
+                <option value="gemini-2.0-flash-exp">gemini-2.0-flash (yangi)</option>
+              </select>
+            </label>
+          </div>
+          <p className="text-[10px] text-slate-400 mt-2">
+            Kalit Vercel KV'da shifrlanmasdan saqlanadi — faqat admin rol ko'ra oladi.
+            Ishlab chiqarish muhitida `GEMINI_API_KEY` env o'zgaruvchisini ham qo'llab-quvvatlaymiz.
+          </p>
+        </div>
+
         {/* === TELEGRAM BOT === */}
         <div className="card p-6 lg:col-span-2">
           <div className="flex items-center gap-2 mb-3">

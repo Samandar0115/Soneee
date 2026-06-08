@@ -516,7 +516,15 @@ export interface AppSettings {
   orderers?: Orderer[];   // zayavka beruvchi shaxslar ro'yxati (Buvajonov, ...)
   complaintSubtypes?: Partial<Record<ComplaintDirection, string[]>>; // har yo'nalish uchun ichki turlar
   chineseAddress?: ChineseAddressTemplate; // /check sahifasi uchun "to'g'ri" Xitoy manzil shabloni
+  ai?: AIConfig;                            // B2B Gemini integratsiyasi (admin sozlamalardan)
   updatedAt: number;
+}
+
+// AI (Gemini) sozlamalari — faqat admin tahrirlaydi, key KV ichida saqlanadi
+export interface AIConfig {
+  geminiApiKey?: string;        // Google AI Studio kaliti
+  geminiModel?: string;         // mas: 'gemini-1.5-flash' (default)
+  enabled?: boolean;
 }
 
 // Xitoy ombor manzili — mijoz screen shot bilan tekshirishi uchun standart

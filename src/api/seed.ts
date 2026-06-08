@@ -3,14 +3,22 @@ import type { Announcement, AppSettings, Branch, Category, Lesson, Track, Respon
 const ALL_PAGES: PageKey[] = [
   'dashboard', 'leads', 'pipeline', 'tickets', 'calls', 'cargo', 'warehouse',
   'knowledge', 'learn', 'analytics', 'users', 'stages', 'categories', 'templates',
-  'curriculum', 'roles', 'settings',
+  'curriculum', 'roles', 'settings', 'b2b',
 ];
 
 export const seedRoles: RoleDef[] = [
   { id: 'admin', name: 'Administrator', manage: true, canEdit: true, canDelete: true, pages: ALL_PAGES, isSystem: true, createdAt: 0 },
   {
-    id: 'operator', name: 'Operator', manage: false, canEdit: false, canDelete: false,
-    pages: ['dashboard', 'leads', 'pipeline', 'tickets', 'calls', 'cargo', 'warehouse', 'knowledge', 'learn'],
+    // Operator endi B2B'ni ham tahrirlay oladi (asosiy ish operator'da, B2B qo'shimcha)
+    id: 'operator', name: 'Operator', manage: false, canEdit: true, canDelete: false,
+    pages: ['dashboard', 'leads', 'pipeline', 'tickets', 'calls', 'cargo', 'warehouse', 'knowledge', 'learn', 'b2b'],
+    isSystem: true, createdAt: 0,
+  },
+  {
+    // Alohida B2B KAM xodimi — faqat B2B sahifaga kira oladi
+    id: 'b2b_kam', name: 'B2B KAM (Key Account Manager)',
+    manage: false, canEdit: true, canDelete: false,
+    pages: ['b2b'],
     isSystem: true, createdAt: 0,
   },
   { id: 'learner', name: "O'quvchi", manage: false, canEdit: false, canDelete: false, pages: ['learn'], isSystem: true, createdAt: 0 },
