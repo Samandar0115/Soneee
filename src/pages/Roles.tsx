@@ -59,15 +59,24 @@ export default function Roles() {
 
       <div className="space-y-2">
         {roles.map((r) => (
-          <div key={r.id} className="card p-4 flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-brand-500/15 text-brand-500 flex items-center justify-center">
-              <ShieldCheck className="h-5 w-5" />
+          <div key={r.id} className={`card p-4 flex items-center gap-3 ${
+            r.id === 'b2b_kam'
+              ? 'border-l-4 border-l-indigo-500 bg-gradient-to-r from-indigo-50/40 to-fuchsia-50/20 dark:from-indigo-950/30 dark:to-fuchsia-950/20'
+              : ''
+          }`}>
+            <div className={`h-10 w-10 rounded-xl flex items-center justify-center ${
+              r.id === 'b2b_kam'
+                ? 'bg-gradient-to-br from-indigo-500 to-fuchsia-500 text-white shadow-md'
+                : 'bg-brand-500/15 text-brand-500'
+            }`}>
+              {r.id === 'b2b_kam' ? <span className="text-base">✨</span> : <ShieldCheck className="h-5 w-5" />}
             </div>
             <div className="flex-1 min-w-0">
-              <div className="font-semibold text-slate-800 dark:text-white flex items-center gap-2">
+              <div className="font-semibold text-slate-800 dark:text-white flex items-center gap-2 flex-wrap">
                 {r.name}
                 {r.isSystem && <span className="text-[10px] uppercase px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-500">tizim</span>}
                 {r.manage && <span className="text-[10px] uppercase px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600">to'liq</span>}
+                {r.id === 'b2b_kam' && <span className="text-[10px] uppercase px-1.5 py-0.5 rounded bg-gradient-to-r from-indigo-500 to-fuchsia-500 text-white font-bold">B2B Workspace</span>}
               </div>
               <div className="text-xs text-slate-500 mt-0.5">
                 {r.manage ? 'Barcha bo\'limlar + boshqaruv' : `${r.pages.length} bo'lim`}

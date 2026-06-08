@@ -179,7 +179,11 @@ export default function UsersPage() {
               const s = stats.get(u.id) ?? { active: 0, total: 0, resolved: 0 };
               const locked = s.active > 0;
               return (
-                <tr key={u.id} className="border-b border-slate-100 hover:bg-slate-50">
+                <tr key={u.id} className={`border-b border-slate-100 ${
+                  u.role === 'b2b_kam'
+                    ? 'bg-gradient-to-r from-indigo-50/40 to-fuchsia-50/30 hover:from-indigo-100/60 hover:to-fuchsia-100/40 dark:from-indigo-950/20 dark:to-fuchsia-950/20'
+                    : 'hover:bg-slate-50'
+                }`}>
                   <td className="px-4 py-3 font-semibold text-slate-800 cursor-pointer" onClick={() => startEdit(u)}>
                     <div className="flex items-center gap-2">
                       {u.photo ? (
@@ -199,11 +203,18 @@ export default function UsersPage() {
                     {u.username}
                   </td>
                   <td className="px-4 py-3">
-                    <span
-                      className={`badge ${u.role === 'admin' ? 'bg-brand-100 text-brand-700' : 'bg-slate-100 text-slate-700'}`}
-                    >
-                      {u.role}
-                    </span>
+                    {u.role === 'b2b_kam' ? (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-1 rounded-full bg-gradient-to-r from-indigo-500 to-fuchsia-500 text-white shadow-sm">
+                        <span className="text-[10px]">✨</span>
+                        B2B KAM
+                      </span>
+                    ) : (
+                      <span
+                        className={`badge ${u.role === 'admin' ? 'bg-brand-100 text-brand-700' : 'bg-slate-100 text-slate-700'}`}
+                      >
+                        {u.role}
+                      </span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-slate-600">{u.phone ?? '—'}</td>
                   <td className="px-4 py-3">

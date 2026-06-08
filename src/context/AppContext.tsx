@@ -458,6 +458,45 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setReady(true);
   }, [backend]);
 
+  // === SEED AUTO-MIGRATION ===
+  // Tizim rollar va yangi seed xodimlarni mavjud KV/local'ga avtomatik qo'shadi.
+  // Har safar ishlaydi va MISSING entrylarni qo'shadi (mavjudlarini buzmaydi).
+  // Tizim rollar (isSystem) seed'ga moslab yangilanadi (yangi sahifalar uchun).
+  const seedMigratedRef = useRef(false);
+  useEffect(() => {
+    if (!ready || seedMigratedRef.current) return;
+    seedMigratedRef.current = true;
+
+    // 1) Rollar — system rollar majburiy seed'dan yangilanadi
+    let nextRoles = roles.map((r) => {
+      const sr = seedRoles.find((x) => x.id === r.id);
+      if (sr && r.isSystem) return { ...sr, createdAt: r.createdAt };
+      return r;
+    });
+    for (const sr of seedRoles) {
+      if (!nextRoles.some((r) => r.id === sr.id)) {
+        nextRoles = [...nextRoles, sr];
+      }
+    }
+    if (JSON.stringify(nextRoles) !== JSON.stringify(roles)) {
+      setRoles(nextRoles);
+      void flushCollectionSave('roles', nextRoles);
+    }
+
+    // 2) Xodimlar — yo'qotilgan seed xodimlarni qo'shish
+    let nextUsers = users;
+    for (const su of seedUsers) {
+      if (!nextUsers.some((u) => u.username === su.username)) {
+        nextUsers = [...nextUsers, su];
+      }
+    }
+    if (nextUsers !== users) {
+      setUsers(nextUsers);
+      void flushCollectionSave('users', nextUsers);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready]);
+
   /* ---------------- Seed firestore once if empty ---------------- */
   useEffect(() => {
     if (backend !== 'firebase' || !db || !ready || seededRef.current) return;
