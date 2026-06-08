@@ -200,6 +200,16 @@ export const seedUsers: User[] = [
     phone: '+998 90 222 22 22',
     createdAt: Date.now(),
   },
+  // Test B2B KAM xodim (faqat B2B Workspace ko'radi)
+  {
+    id: 'b2b-kam-1',
+    username: 'kam1',
+    password: 'kam12345',
+    role: 'b2b_kam',
+    fullName: 'Samandar Karimov',
+    phone: '+998 90 333 33 33',
+    createdAt: Date.now(),
+  },
 ];
 
 export const seedStages: Stage[] = [
