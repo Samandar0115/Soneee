@@ -5,7 +5,8 @@ export type Role = string;
 export type PageKey =
   | 'dashboard' | 'leads' | 'pipeline' | 'tickets' | 'calls' | 'cargo'
   | 'warehouse' | 'knowledge' | 'learn' | 'analytics' | 'users' | 'stages'
-  | 'categories' | 'templates' | 'curriculum' | 'roles' | 'settings';
+  | 'categories' | 'templates' | 'curriculum' | 'roles' | 'settings'
+  | 'b2b';
 
 // Rol ta'rifi — admin nimalar qila olishini belgilaydi
 export interface RoleDef {
@@ -149,6 +150,56 @@ export interface AppDataSnapshot {
   tripRoutes?: TripRoute[];
   trekRequests?: TrekRequest[];
   complaints?: Complaint[];
+  b2bClients?: B2BClient[];
+  b2bInteractions?: B2BInteractionLog[];
+}
+
+// =====================================================
+// B2B OPERATIV KAM CRM — Gemini AI tahliliga ulangan modul
+// =====================================================
+
+// Gemini chiqaradigan JSON shakli — strikt validatsiya qilinadi
+export interface GeminiInsight {
+  churn_risk_percent: number;          // 0..100 — mijozning ketib qolish ehtimoli
+  predicted_order_probability: number; // 0..100 — yaqin haftada zakaz ehtimoli
+  psychological_approach: string;      // KAM uchun psixologik yondashuv tavsiyasi
+  action_plan: string[];               // Bajarish kerak bo'lgan aniq qadamlar
+}
+
+// B2B (korporativ) mijoz — KAM tomonidan qo'lda yuritiladi
+export interface B2BClient {
+  id: string;
+  brandName: string;                    // Brend / kompaniya nomi
+  ceoName: string;                      // CEO ismi
+  ceoPhone: string;                     // CEO telefoni
+  homeAddress?: string;                 // Shaxsiy uy manzili (do'stona muloqot uchun)
+  hobby?: string;                       // Xobbi / qiziqishi
+  historicalPainNotes?: string;         // O'tmishdagi kechikish og'riqlari (text)
+  promisedOrderDate?: string;           // ISO date — keyingi va'da qilingan yuk topshirish sanasi
+  promisedVolumeM3?: number;            // Va'da qilingan kub metr hajmi
+  assignedKamId?: string;               // Mas'ul KAM (User.id)
+  assignedKamName?: string;
+  geminiAIInsight?: GeminiInsight;      // Eng oxirgi Gemini tahlili
+  geminiUpdatedAt?: number;             // millis
+  geminiStatus?: 'idle' | 'pending' | 'error';
+  geminiError?: string;
+  createdAt: number;
+  updatedAt: number;
+  createdBy?: string;
+}
+
+// Bitta operativ muloqot xulosasi (interaction log)
+export interface B2BInteractionLog {
+  id: string;
+  clientId: string;
+  authorId: string;                     // Yozgan KAM
+  authorName: string;
+  summary: string;                      // Muloqot xulosasi (matn)
+  nextContactDate?: string;             // ISO — keyingi safar aloqaga chiqish sanasi
+  promisedOrderDate?: string;           // shu logda yangi va'da
+  promisedVolumeM3?: number;
+  sentiment?: 'positive' | 'neutral' | 'negative';
+  createdAt: number;
 }
 
 // Shikoyat — xodimlar profilidan yuboriladi

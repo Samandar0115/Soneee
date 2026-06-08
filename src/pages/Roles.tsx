@@ -24,6 +24,7 @@ const PAGE_LABELS: Record<PageKey, string> = {
   curriculum: 'Darslik boshqaruvi',
   roles: 'Rollar',
   settings: 'Sozlamalar',
+  b2b: 'B2B KAM CRM',
 };
 const ALL_PAGES = Object.keys(PAGE_LABELS) as PageKey[];
 

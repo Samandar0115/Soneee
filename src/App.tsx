@@ -26,6 +26,7 @@ import TrekRequestsPage from './pages/TrekRequests';
 import ComplaintsPage from './pages/Complaints';
 import Track from './pages/Track';
 import Check from './pages/Check';
+import B2BPage from './pages/B2B';
 import GlobalSearch from './components/GlobalSearch';
 import KeyboardShortcuts from './components/KeyboardShortcuts';
 
@@ -36,7 +37,7 @@ const PAGE_ROUTE: Partial<Record<PageKey, string>> = {
   calls: '/calls', cargo: '/cargo', warehouse: '/warehouse', knowledge: '/knowledge',
   learn: '/learn', analytics: '/analytics', users: '/users', stages: '/stages',
   categories: '/categories', templates: '/templates', curriculum: '/curriculum',
-  roles: '/roles', settings: '/settings',
+  roles: '/roles', settings: '/settings', b2b: '/b2b',
 };
 
 // Rolga qarab birinchi ochiq sahifa (kirish manzili)
@@ -109,6 +110,7 @@ export default function App() {
           <Route path="trash" element={<RequireManage><TrashPage /></RequireManage>} />
           <Route path="misroute-daily" element={<RequireManage><MisrouteDailyPage /></RequireManage>} />
           <Route path="complaints" element={<RequireManage><ComplaintsPage /></RequireManage>} />
+          <Route path="b2b" element={<RequirePage page="b2b"><B2BPage /></RequirePage>} />
           <Route path="trek-requests" element={<Protected><TrekRequestsPage /></Protected>} />
           <Route path="stages" element={<RequireManage><StagesPage /></RequireManage>} />
           <Route path="categories" element={<RequireManage><CategoriesPage /></RequireManage>} />

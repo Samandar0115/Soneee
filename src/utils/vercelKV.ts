@@ -12,7 +12,8 @@ export type CollectionName =
   | 'users' | 'stages' | 'tickets' | 'categories' | 'announcements'
   | 'branches' | 'tariff' | 'settings' | 'templates' | 'notifications'
   | 'callLogs' | 'cargoShipments' | 'leads' | 'tracks' | 'lessons' | 'learnerProgress'
-  | 'profileChanges' | 'roles' | 'trash' | 'tripRoutes' | 'trekRequests' | 'complaints';
+  | 'profileChanges' | 'roles' | 'trash' | 'tripRoutes' | 'trekRequests' | 'complaints'
+  | 'b2bClients' | 'b2bInteractions';
 
 // API manzili. Web (Vercel) uchun bo'sh — nisbiy '/api/state' ishlatiladi.
 // Desktop (.exe / Tauri) uchun VITE_API_BASE = 'https://<sizning-vercel>.vercel.app'

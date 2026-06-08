@@ -32,6 +32,7 @@ import {
   Users,
   Database,
   Cloud,
+  Building2,
   X,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
@@ -167,6 +168,7 @@ export default function Layout() {
     { to: '/cargo', page: 'cargo', label: 'Vozvrat yuklar', icon: Package },
     { to: '/warehouse', page: 'warehouse', label: 'Sklad navbati', icon: Warehouse },
     { to: '/trek-requests', page: 'tickets', label: "Trek tuzatish", icon: Unplug },
+    { to: '/b2b', page: 'b2b', label: 'B2B KAM', icon: Building2 },
   ].filter((l) => can(l.page));
 
   // Bilim — qo'llanma

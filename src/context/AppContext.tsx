@@ -50,6 +50,9 @@ import type {
   TicketNote,
   TicketStatus,
   User,
+  B2BClient,
+  B2BInteractionLog,
+  GeminiInsight,
 } from '../types';
 import { db, FIREBASE_ENABLED } from '../firebase';
 import {
@@ -119,6 +122,13 @@ interface AppState {
   complaints: Complaint[];
   createComplaint: (data: Omit<Complaint, 'id' | 'status' | 'createdAt' | 'createdBy' | 'createdByName'>) => Promise<Complaint>;
   resolveComplaint: (id: string) => Promise<void>;
+  // === B2B KAM CRM ===
+  b2bClients: B2BClient[];
+  b2bInteractions: B2BInteractionLog[];
+  saveB2BClient: (c: B2BClient) => Promise<void>;
+  deleteB2BClient: (id: string) => Promise<void>;
+  addB2BInteraction: (data: Omit<B2BInteractionLog, 'id' | 'createdAt' | 'authorId' | 'authorName'>) => Promise<B2BInteractionLog>;
+  refreshGeminiInsight: (clientId: string) => Promise<GeminiInsight | null>;
   kvConfigured: boolean;
   kvReady: boolean;
   lang: Lang;
@@ -214,6 +224,8 @@ const STORAGE_KEYS = {
   tripRoutes: 'ipost.tripRoutes',
   trekRequests: 'ipost.trekRequests',
   complaints: 'ipost.complaints',
+  b2bClients: 'ipost.b2bClients',
+  b2bInteractions: 'ipost.b2bInteractions',
   userPhotos: 'ipost.userPhotos',
   lang: 'ipost.lang',
   theme: 'ipost.theme',
@@ -287,6 +299,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [tripRoutes, setTripRoutes] = useState<TripRoute[]>(seedTripRoutes);
   const [trekRequests, setTrekRequests] = useState<TrekRequest[]>([]);
   const [complaints, setComplaints] = useState<Complaint[]>([]);
+  const [b2bClients, setB2BClients] = useState<B2BClient[]>([]);
+  const [b2bInteractions, setB2BInteractions] = useState<B2BInteractionLog[]>([]);
   const [lang, setLangState] = useState<Lang>(() => (localStorage.getItem(STORAGE_KEYS.lang) as Lang) || 'uz');
   const [theme, setThemeState] = useState<'light' | 'dark'>(
     () => (localStorage.getItem(STORAGE_KEYS.theme) as 'light' | 'dark') || 'light'
@@ -427,6 +441,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setTripRoutes(loadLocal<TripRoute[]>(STORAGE_KEYS.tripRoutes, seedTripRoutes));
     setTrekRequests(loadLocal<TrekRequest[]>(STORAGE_KEYS.trekRequests, []));
     setComplaints(loadLocal<Complaint[]>(STORAGE_KEYS.complaints, []));
+    setB2BClients(loadLocal<B2BClient[]>(STORAGE_KEYS.b2bClients, []));
+    setB2BInteractions(loadLocal<B2BInteractionLog[]>(STORAGE_KEYS.b2bInteractions, []));
     if (!localStorage.getItem(STORAGE_KEYS.tripRoutes)) saveLocal(STORAGE_KEYS.tripRoutes, seedTripRoutes);
     if (!localStorage.getItem(STORAGE_KEYS.roles)) saveLocal(STORAGE_KEYS.roles, seedRoles);
     if (!localStorage.getItem(STORAGE_KEYS.tracks)) saveLocal(STORAGE_KEYS.tracks, seedTracks);
@@ -550,6 +566,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (backend === 'local' && ready) saveLocal(STORAGE_KEYS.complaints, complaints);
   }, [complaints, backend, ready]);
+  useEffect(() => {
+    if (backend === 'local' && ready) saveLocal(STORAGE_KEYS.b2bClients, b2bClients);
+  }, [b2bClients, backend, ready]);
+  useEffect(() => {
+    if (backend === 'local' && ready) saveLocal(STORAGE_KEYS.b2bInteractions, b2bInteractions);
+  }, [b2bInteractions, backend, ready]);
 
   /* ---------------- Session restore ---------------- */
   useEffect(() => {
@@ -640,6 +662,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
           if (Array.isArray(d.tripRoutes) && d.tripRoutes.length > 0) setTripRoutes(d.tripRoutes);
           if (Array.isArray(d.trekRequests)) setTrekRequests(d.trekRequests);
           if (Array.isArray(d.complaints)) setComplaints(d.complaints);
+          if (Array.isArray(d.b2bClients)) setB2BClients(d.b2bClients);
+          if (Array.isArray(d.b2bInteractions)) setB2BInteractions(d.b2bInteractions);
         }
       } catch {
         // jim — fallback localStorage
@@ -883,6 +907,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       case 'tripRoutes': return (v) => Array.isArray(v) && v.length > 0 && setTripRoutes(v);
       case 'trekRequests': return (v) => Array.isArray(v) && setTrekRequests(v);
       case 'complaints': return (v) => Array.isArray(v) && setComplaints(v);
+      case 'b2bClients': return (v) => Array.isArray(v) && setB2BClients(v);
+      case 'b2bInteractions': return (v) => Array.isArray(v) && setB2BInteractions(v);
     }
   }
 
@@ -1638,6 +1664,150 @@ export function AppProvider({ children }: { children: ReactNode }) {
     },
     [complaints, currentUser, backend, kvConfigured, kvReady]
   );
+
+  // === B2B KAM CRM ===
+  const saveB2BClient = useCallback<AppState['saveB2BClient']>(
+    async (client) => {
+      if (!currentUser) throw new Error('Kirish kerak');
+      const now = Date.now();
+      const exists = b2bClients.some((x) => x.id === client.id);
+      const merged: B2BClient = exists
+        ? { ...client, updatedAt: now }
+        : { ...client, createdBy: currentUser.id, createdAt: now, updatedAt: now };
+      const next = exists
+        ? b2bClients.map((x) => (x.id === client.id ? merged : x))
+        : [merged, ...b2bClients];
+      setB2BClients(next);
+      const ok = await flushCollectionSave('b2bClients', next);
+      if (!ok && backend === 'local' && kvConfigured) throw new Error('Saqlanmadi');
+    },
+    [b2bClients, currentUser, backend, kvConfigured, kvReady]
+  );
+
+  const deleteB2BClient = useCallback<AppState['deleteB2BClient']>(
+    async (id) => {
+      const client = b2bClients.find((x) => x.id === id);
+      if (!client) return;
+      const next = b2bClients.filter((x) => x.id !== id);
+      setB2BClients(next);
+      // shu klient interactsiyalarini ham olib tashlaymiz
+      const nextInts = b2bInteractions.filter((x) => x.clientId !== id);
+      if (nextInts.length !== b2bInteractions.length) {
+        setB2BInteractions(nextInts);
+        await flushCollectionSave('b2bInteractions', nextInts);
+      }
+      await flushCollectionSave('b2bClients', next);
+    },
+    [b2bClients, b2bInteractions, backend, kvConfigured, kvReady]
+  );
+
+  const addB2BInteraction = useCallback<AppState['addB2BInteraction']>(
+    async (data) => {
+      if (!currentUser) throw new Error('Kirish kerak');
+      const log: B2BInteractionLog = {
+        ...data,
+        id: randomId('b2bi'),
+        authorId: currentUser.id,
+        authorName: currentUser.fullName ?? currentUser.username,
+        createdAt: Date.now(),
+      };
+      const nextInts = [log, ...b2bInteractions].slice(0, 10000);
+      setB2BInteractions(nextInts);
+      // klientning eng so'nggi va'dasini ham yangilaymiz (agar bo'lsa)
+      if (data.promisedVolumeM3 || data.promisedOrderDate) {
+        const cur = b2bClients.find((c) => c.id === data.clientId);
+        if (cur) {
+          const updated: B2BClient = {
+            ...cur,
+            promisedVolumeM3: data.promisedVolumeM3 ?? cur.promisedVolumeM3,
+            promisedOrderDate: data.promisedOrderDate ?? cur.promisedOrderDate,
+            updatedAt: Date.now(),
+          };
+          const nextC = b2bClients.map((c) => (c.id === cur.id ? updated : c));
+          setB2BClients(nextC);
+          void flushCollectionSave('b2bClients', nextC);
+        }
+      }
+      await flushCollectionSave('b2bInteractions', nextInts);
+      // Orqa fonda Gemini'ni yangilab qo'yamiz (UX'ni bloklamasdan)
+      void refreshGeminiInsightInternal(data.clientId);
+      return log;
+    },
+    [b2bInteractions, b2bClients, currentUser, backend, kvConfigured, kvReady]
+  );
+
+  // Gemini orqa fon yangilash — alohida helper (foydalanuvchi ko'rmasligi mumkin)
+  const refreshGeminiInsightInternal = useCallback(
+    async (clientId: string): Promise<GeminiInsight | null> => {
+      const client = b2bClients.find((c) => c.id === clientId);
+      if (!client) return null;
+      const clientInteractions = b2bInteractions.filter((i) => i.clientId === clientId);
+      // pending status — UI darhol "yuklanmoqda" deb ko'rsata oladi
+      const pendingClient: B2BClient = {
+        ...client,
+        geminiStatus: 'pending',
+        geminiError: undefined,
+      };
+      const nextPending = b2bClients.map((c) => (c.id === clientId ? pendingClient : c));
+      setB2BClients(nextPending);
+      try {
+        const res = await fetch('/api/gemini', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            client: {
+              brandName: client.brandName,
+              ceoName: client.ceoName,
+              homeAddress: client.homeAddress,
+              hobby: client.hobby,
+              historicalPainNotes: client.historicalPainNotes,
+              promisedOrderDate: client.promisedOrderDate,
+              promisedVolumeM3: client.promisedVolumeM3,
+            },
+            interactions: clientInteractions.slice(0, 30).map((i) => ({
+              createdAt: i.createdAt,
+              authorName: i.authorName,
+              summary: i.summary,
+              sentiment: i.sentiment,
+              promisedVolumeM3: i.promisedVolumeM3,
+              promisedOrderDate: i.promisedOrderDate,
+              nextContactDate: i.nextContactDate,
+            })),
+          }),
+        });
+        if (!res.ok) {
+          const err = (await res.json().catch(() => ({}))) as { error?: string };
+          throw new Error(err.error || `HTTP ${res.status}`);
+        }
+        const data = (await res.json()) as { insight: GeminiInsight };
+        const updated: B2BClient = {
+          ...client,
+          geminiAIInsight: data.insight,
+          geminiUpdatedAt: Date.now(),
+          geminiStatus: 'idle',
+          geminiError: undefined,
+        };
+        const nextOk = b2bClients.map((c) => (c.id === clientId ? updated : c));
+        setB2BClients(nextOk);
+        void flushCollectionSave('b2bClients', nextOk);
+        return data.insight;
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        const failed: B2BClient = {
+          ...client,
+          geminiStatus: 'error',
+          geminiError: msg.slice(0, 200),
+        };
+        const nextErr = b2bClients.map((c) => (c.id === clientId ? failed : c));
+        setB2BClients(nextErr);
+        void flushCollectionSave('b2bClients', nextErr);
+        return null;
+      }
+    },
+    [b2bClients, b2bInteractions, backend, kvConfigured, kvReady]
+  );
+
+  const refreshGeminiInsight = refreshGeminiInsightInternal;
 
   // === Rollar (admin) ===
   const saveRole = useCallback<AppState['saveRole']>(
@@ -2488,6 +2658,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       complaints,
       createComplaint,
       resolveComplaint,
+      b2bClients,
+      b2bInteractions,
+      saveB2BClient,
+      deleteB2BClient,
+      addB2BInteraction,
+      refreshGeminiInsight,
       users,
       stages,
       tickets,
